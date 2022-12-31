@@ -2,10 +2,10 @@
 
 
 ## Context
-This page tracks bootstrap decisions for architecture during bootstrap push work.
+This page tracks bootstrap decisions for architecture during steady build work.
 
 ## Usage
-- Rewrote the docker explanation around the maintained behavior.
+- Rewrote the bootstrap explanation around the maintained behavior.
 
 ## Scratch Notes
 Early notes are still uneven and may be folded into clearer sections later.

@@ -6,10 +6,13 @@ A working tree for cs2-server-ops with an evolving implementation history.
 cs2-server-ops tracks the practical state of the current maintenance pass.
 
 ## Status
-Working state: bootstrap. Activity resumed after a longer gap.
+Working state: bootstrap.
 
 ## Development
 - Kept the docker verification command reproducible.
 
 ## Usage
-- Rewrote the docker explanation around the maintained behavior.
+- Rewrote the bootstrap explanation around the maintained behavior.
+
+## Roadmap
+Use the next review to check behavior before adding surface area.
