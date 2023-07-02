@@ -11,3 +11,8 @@ run_bootstrap() {
 }
 
 # forced-bootstrap-2
+
+# current lane: updater
+run_updater() {
+  printf '%s\n' 'updater ready'
+}

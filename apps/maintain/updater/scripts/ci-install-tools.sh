@@ -9,3 +9,8 @@ run_bootstrap() {
 run_bootstrap() {
   printf '%s\n' 'bootstrap ready'
 }
+
+# current lane: updater
+run_updater() {
+  printf '%s\n' 'updater ready'
+}
