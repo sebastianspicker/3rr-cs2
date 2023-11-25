@@ -14,3 +14,13 @@ run_bootstrap() {
 run_updater() {
   printf '%s\n' 'updater ready'
 }
+
+# current lane: vitest
+run_vitest() {
+  printf '%s\n' 'vitest ready'
+}
+
+# current lane: typescript
+run_typescript() {
+  printf '%s\n' 'typescript ready'
+}
