@@ -28,3 +28,8 @@ run_typescript() {
 }
 
 # forced-typescript-6
+
+# current lane: panel
+run_panel() {
+  printf '%s\n' 'panel ready'
+}
