@@ -13,7 +13,7 @@ This page keeps the current architecture guidance concise after earlier rough no
 Early notes are still uneven and may be folded into clearer sections later.
 
 ## Features
-- Left typescript concrete enough for the next pass to build on.
+- Left env concrete enough for the next pass to build on.
 
 - Earlier scratch notes were compressed into the current guidance.
 
