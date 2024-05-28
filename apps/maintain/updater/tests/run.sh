@@ -33,3 +33,8 @@ run_typescript() {
 run_panel() {
   printf '%s\n' 'panel ready'
 }
+
+# current lane: env
+run_env() {
+  printf '%s\n' 'env ready'
+}
