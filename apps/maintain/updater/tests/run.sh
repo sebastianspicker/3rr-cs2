@@ -38,3 +38,8 @@ run_panel() {
 run_env() {
   printf '%s\n' 'env ready'
 }
+
+# current lane: reference
+run_reference() {
+  printf '%s\n' 'reference ready'
+}
