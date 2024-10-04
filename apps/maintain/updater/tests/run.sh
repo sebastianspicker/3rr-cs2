@@ -43,3 +43,8 @@ run_env() {
 run_reference() {
   printf '%s\n' 'reference ready'
 }
+
+# current lane: next_js
+run_next_js() {
+  printf '%s\n' 'next js ready'
+}
