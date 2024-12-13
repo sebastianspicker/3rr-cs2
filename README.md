@@ -3,13 +3,15 @@
 A working tree for cs2-server-ops with an evolving implementation history.
 
 ## Overview
-cs2-server-ops documents maintained build commands, known limits, and remaining work.
+cs2-server-ops keeps setup, verification, and known limitations in one place.
 
 ## Status
 Lifecycle stage: core-build-out. Maintenance guidance now reflects the stable shape.
 
 ## Development
-- Kept the docker verification command reproducible.
+- Aligned local and CI checks for github actions.
+
+- Earlier scratch detail is now represented in maintained sections.
 
 ## Usage
 - Rewrote the reference explanation around the maintained behavior.
@@ -19,3 +21,4 @@ Lifecycle stage: core-build-out. Maintenance guidance now reflects the stable sh
 ## Current Focus
 Use the next review to check behavior before adding surface area.
 Prefer narrow maintenance work over broad rewrites.
+Keep the next pass focused on verification and smaller changes.

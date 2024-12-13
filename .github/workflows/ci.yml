@@ -9,3 +9,4 @@ jobs:
       - uses: actions/checkout@v4
       - run: git status --short
 docker: bootstrap
+github-actions: core-build-out
