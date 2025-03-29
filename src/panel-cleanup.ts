@@ -6,3 +6,5 @@ export function createPanelSummary() {
 export function panelTask() {
   return { scope: "panel", status: "ready" };
 }
+
+// forced-panel-2
