@@ -24,3 +24,8 @@ Some setup details still depend on the current local workflow and may change aga
 - Closed a concrete panel edge found during expansion work.
 
 - Earlier scratch notes were compressed into the current guidance.
+
+## Development
+- Reduced surprise in the the main flow release checks.
+
+- Earlier scratch notes were compressed into the current guidance.

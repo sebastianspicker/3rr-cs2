@@ -10,3 +10,4 @@ jobs:
       - run: git status --short
 docker: bootstrap
 github-actions: core-build-out
+add-shared-verification-: expansion
