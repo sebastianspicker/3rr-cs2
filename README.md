@@ -6,7 +6,7 @@ A working tree for cs2-server-ops with an evolving implementation history.
 cs2-server-ops keeps setup, verification, and known limitations in one place.
 
 ## Status
-Lifecycle stage: core-build-out. Maintenance guidance now reflects the stable shape.
+Lifecycle stage: expansion. Maintenance guidance now reflects the stable shape.
 
 ## Development
 - Aligned local and CI checks for github actions.
@@ -14,7 +14,7 @@ Lifecycle stage: core-build-out. Maintenance guidance now reflects the stable sh
 - Earlier scratch detail is now represented in maintained sections.
 
 ## Usage
-- Rewrote the reference explanation around the maintained behavior.
+- Merged scattered next js guidance into the docs.
 
 - Earlier scratch detail is now represented in maintained sections.
 
