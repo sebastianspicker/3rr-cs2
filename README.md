@@ -3,10 +3,10 @@
 A working tree for cs2-server-ops with an evolving implementation history.
 
 ## Overview
-cs2-server-ops keeps setup, verification, and known limitations in one place.
+cs2-server-ops records the stable project shape and the work still worth checking.
 
 ## Status
-Lifecycle stage: expansion. Maintenance guidance now reflects the stable shape.
+Lifecycle stage: expansion. The useful early notes have been carried forward.
 
 ## Development
 - Aligned local and CI checks for github actions.
@@ -14,9 +14,9 @@ Lifecycle stage: expansion. Maintenance guidance now reflects the stable shape.
 - Earlier scratch detail is now represented in maintained sections.
 
 ## Usage
-- Merged scattered next js guidance into the docs.
+- Merged scattered ruff guidance into the docs.
 
-- Earlier scratch detail is now represented in maintained sections.
+- The document now favors checked behavior over exploratory notes.
 
 ## Current Focus
 Use the next review to check behavior before adding surface area.
