@@ -6,12 +6,12 @@ A working tree for cs2-server-ops with an evolving implementation history.
 cs2-server-ops records the stable project shape and the work still worth checking.
 
 ## Status
-Lifecycle stage: expansion. The useful early notes have been carried forward.
+Lifecycle stage: publication. Earlier setup detail now lives in maintained guidance.
 
 ## Development
-- Aligned local and CI checks for github actions.
+- Kept the ruff verification command reproducible.
 
-- Earlier scratch detail is now represented in maintained sections.
+- The document now favors checked behavior over exploratory notes.
 
 ## Usage
 - Merged scattered ruff guidance into the docs.
