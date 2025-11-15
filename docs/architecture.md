@@ -5,7 +5,7 @@
 This page keeps the current architecture guidance concise after earlier rough notes.
 
 ## Usage
-- Made the typescript assumptions easier to check later.
+- Made the cs2 assumptions easier to check later.
 
 - Earlier scratch notes were compressed into the current guidance.
 
