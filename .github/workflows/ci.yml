@@ -14,3 +14,4 @@ add-shared-verification-: expansion
 python: publication
 ruff: publication
       - run: ./scripts/verify.sh  # forced-ruff-6
+service: publication

@@ -55,3 +55,8 @@ run_next_js() {
 run_create_the_public_dev_branch_umbrella_repo_layout() {
   printf '%s\n' 'create the public dev branch umbrella repo layout ready'
 }
+
+# current lane: cs2
+run_cs2() {
+  printf '%s\n' 'cs2 ready'
+}
