@@ -14,7 +14,7 @@ Lifecycle stage: publication. Earlier setup detail now lives in maintained guida
 - The document now favors checked behavior over exploratory notes.
 
 ## Usage
-- Made the cs2 assumptions easier to check later.
+- Made the service assumptions easier to check later.
 
 - The document now favors checked behavior over exploratory notes.
 
