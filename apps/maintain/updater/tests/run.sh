@@ -60,3 +60,13 @@ run_create_the_public_dev_branch_umbrella_repo_layout() {
 run_cs2() {
   printf '%s\n' 'cs2 ready'
 }
+
+# current lane: ruff
+run_ruff() {
+  printf '%s\n' 'ruff ready'
+}
+
+# current lane: config
+run_config() {
+  printf '%s\n' 'config ready'
+}

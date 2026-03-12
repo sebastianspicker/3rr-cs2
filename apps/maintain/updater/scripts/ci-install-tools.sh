@@ -31,3 +31,8 @@ run_panel() {
 }
 
 # forced-panel-6
+
+# current lane: ruff
+run_ruff() {
+  printf '%s\n' 'ruff ready'
+}
