@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="color-scheme" content="dark">
+  <meta name="csrf-token" content="<%= csrfToken %>">
+  <title>CS2 Panel — Add Server</title>
+  <link rel="stylesheet" href="/css/panel.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to main content</a>
+  <%- include('partials/navbar') %>
+  <div class="auth-page" id="main">
+    <div class="auth-card">
+      <div class="panel">
+        <h1 class="auth-title">Add Server</h1>
+        <p class="auth-subtitle">Register a new CS2 server</p>
+        <form id="add-server-form">
+          <div class="mb-3">
+            <label for="serverIP" class="form-label">Server IP</label>
+            <input
+              type="text"
+              id="serverIP"
+              name="server_ip"
+              class="form-control"
+              inputmode="decimal"
+              autocomplete="off"
+              placeholder="192.168.1.1"
+              required
+              maxlength="253"
+            >
+          </div>
+          <div class="mb-3">
+            <label for="serverPort" class="form-label">Server Port</label>
+            <input
+              type="number"
+              id="serverPort"
+              name="server_port"
+              class="form-control"
+              inputmode="numeric"
+              min="1"
+              max="65535"
+              step="1"
+              autocomplete="off"
+              placeholder="27015"
+              required
+            >
+          </div>
+          <div class="mb-3">
+            <label for="rconPassword" class="form-label">RCON Password</label>
+            <input
+              type="password"
+              id="rconPassword"
+              name="rcon_password"
+              class="form-control"
+              autocomplete="off"
+              required
+              maxlength="512"
+            >
+          </div>
+          <div class="btn-container">
+            <button id="submitButton" type="submit" class="btn btn-primary">Add Server</button>
+            <button type="reset" class="btn btn-secondary">Clear</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script src="/js/toast-inline.js"></script>
+  <script nonce="<%= cspNonce %>">
+    document.addEventListener('DOMContentLoaded', function () {
+      var csrfToken = document.querySelector('meta[name="csrf-token"]').content;
+      var form = document.getElementById('add-server-form');
+      form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        var server_ip = document.getElementById('serverIP').value;
+        var server_port = document.getElementById('serverPort').value;
+        var rcon_password = document.getElementById('rconPassword').value;
+        if (!server_ip || !server_port || !rcon_password) {
+          showToast('All fields are required.', 'error');
+          return;
+        }
+        fetch('/api/add-server', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-Token': csrfToken,
+          },
+          body: JSON.stringify({ server_ip: server_ip, server_port: server_port, rcon_password: rcon_password }),
+          })
+          .then(function (resp) {
+            if (!resp.ok) {
+              return resp.json().then(function (body) {
+                throw new Error(body.error || body.message || 'An error occurred while adding the server.');
+              });
+            }
+            showToast('Server added successfully!', 'success');
+            form.reset();
+          })
+          .catch(function (err) {
+            showToast(err.message || 'An error occurred while adding the server.', 'error');
+          });
+      });
+    });
+  </script>
+  <%- include('partials/footer') %>
+</body>
+</html>

@@ -1,0 +1,32 @@
+<nav class="panel-nav">
+  <div class="nav-inner">
+    <a class="nav-brand" href="/servers">CS2 Panel</a>
+    <button class="nav-toggle" id="nav-toggle-btn" aria-label="Toggle navigation" aria-expanded="false">&#9776;</button>
+    <ul class="nav-links" id="nav-links-list">
+      <li><a href="/servers">Servers</a></li>
+      <li><a href="/add-server">Add Server</a></li>
+    </ul>
+    <div class="nav-actions">
+      <form action="/auth/logout" method="post">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+        <button type="submit" class="btn btn-ghost btn-sm">Logout</button>
+      </form>
+    </div>
+  </div>
+</nav>
+<script nonce="<%= cspNonce %>">
+  (function () {
+    var path = window.location.pathname;
+    document.querySelectorAll('#nav-links-list a').forEach(function (a) {
+      if (a.getAttribute('href') === path) a.setAttribute('aria-current', 'page');
+    });
+    var btn = document.getElementById('nav-toggle-btn');
+    var links = document.getElementById('nav-links-list');
+    if (btn && links) {
+      btn.addEventListener('click', function () {
+        var open = links.classList.toggle('open');
+        btn.setAttribute('aria-expanded', String(open));
+      });
+    }
+  })();
+</script>
