@@ -1,0 +1,10 @@
+services:
+  cs2-runtime:
+    image: cm2network/cs2
+    container_name: cs2-runtime
+    env_file:
+      - ../../../apps/provision/bootstrap/env/server.env.example
+    ports:
+      - "27015:27015/udp"
+      - "27015:27015/tcp"
+    restart: unless-stopped

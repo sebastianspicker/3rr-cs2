@@ -1,0 +1,29 @@
+# CS2 Auto-Update configuration.
+# Place this file next to update_cs2.sh as cs2-auto-update.conf,
+# or pass a custom path: update_cs2.sh --config=/etc/cs2-auto-update.conf
+# Format: one KEY=value per line. Lines starting with # are comments.
+# All settings below are shown with their defaults. Uncomment to override.
+
+# Paths
+# LOCKDIR=/tmp/update_cs2.lock
+# LOGFILE=/home/steam/update_cs2.log
+# CS2_DIR=/home/steam/cs2
+
+# Service and Steam
+# SERVICE_NAME=cs2.service
+# STEAMCMD=/usr/games/steamcmd
+# CS2_APP_ID=730
+
+# Retries and space (REQUIRED_SPACE in KB, e.g. 5000000 = ~5 GB)
+# REQUIRED_SPACE=5000000
+# MAX_ATTEMPTS=5
+# SLEEP_SECS=5
+
+# Optional: log level (quiet | normal | verbose), webhook URL
+# LOG_LEVEL=normal
+# NOTIFY_WEBHOOK_URL=
+
+# Testing / overrides
+# ALLOW_NONROOT=0
+# NO_SLEEP=0
+# DRY_RUN=0

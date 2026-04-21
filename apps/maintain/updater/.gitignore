@@ -1,0 +1,55 @@
+.DS_Store
+Thumbs.db
+
+# Editors
+.cursor/
+.idea/
+*.swp
+*.swo
+*.swn
+*.swm
+*~
+*.bak
+
+.vscode/
+
+# Logs
+*.log
+log
+logs/
+
+# Temp
+tmp/
+tmp.*
+*.tmp
+*.pid
+*.lock
+
+# Build / caches
+dist/
+build/
+out/
+.cache/
+
+# Env
+.env
+.env.*
+!.env.example
+
+# Secrets / credentials
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+id_rsa
+id_ed25519
+id_ecdsa
+credentials.json
+service-account*.json
+*-secret.json
+*.secrets
+
+# Claude Code working files
+.claude/
