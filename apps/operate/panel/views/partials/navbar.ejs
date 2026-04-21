@@ -5,6 +5,10 @@
     <ul class="nav-links" id="nav-links-list">
       <li><a href="/servers">Servers</a></li>
       <li><a href="/add-server">Add Server</a></li>
+      <li><a href="/settings">Settings</a></li>
+      <% if (locals.isAdmin) { %>
+      <li><a href="/admin/users">Users</a></li>
+      <% } %>
     </ul>
     <div class="nav-actions">
       <form action="/auth/logout" method="post">

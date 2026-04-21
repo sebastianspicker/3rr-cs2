@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="color-scheme" content="dark">
+  <meta name="csrf-token" content="<%= csrfToken %>">
+  <title>CS2 Panel — Settings</title>
+  <link rel="stylesheet" href="/css/panel.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to main content</a>
+  <%- include('partials/navbar') %>
+  <main class="container" id="main">
+    <div class="page-header">
+      <h1>Settings</h1>
+    </div>
+    <section class="card" aria-labelledby="change-password-heading">
+      <h2 id="change-password-heading">Change Password</h2>
+      <form id="change-password-form" novalidate>
+        <div class="form-group">
+          <label for="current-password">Current password</label>
+          <input type="password" id="current-password" name="currentPassword" required autocomplete="current-password">
+        </div>
+        <div class="form-group">
+          <label for="new-password">New password <span class="hint">(min 12 characters)</span></label>
+          <input type="password" id="new-password" name="newPassword" required minlength="12" autocomplete="new-password">
+        </div>
+        <div class="form-group">
+          <label for="confirm-password">Confirm new password</label>
+          <input type="password" id="confirm-password" name="confirmPassword" required autocomplete="new-password">
+        </div>
+        <div id="change-password-status" role="status" aria-live="polite"></div>
+        <button type="submit" class="btn btn-primary">Update password</button>
+      </form>
+    </section>
+  </main>
+  <script nonce="<%= cspNonce %>">
+    (function () {
+      var csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+      document.getElementById('change-password-form').addEventListener('submit', async function (e) {
+        e.preventDefault();
+        var status = document.getElementById('change-password-status');
+        var currentPassword = document.getElementById('current-password').value;
+        var newPassword = document.getElementById('new-password').value;
+        var confirmPassword = document.getElementById('confirm-password').value;
+
+        status.textContent = '';
+        status.className = '';
+
+        if (newPassword !== confirmPassword) {
+          status.textContent = 'New passwords do not match.';
+          status.className = 'form-error';
+          return;
+        }
+
+        try {
+          var res = await fetch('/api/users/change-password', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json', 'x-csrf-token': csrfToken },
+            body: JSON.stringify({ currentPassword: currentPassword, newPassword: newPassword })
+          });
+          var data = await res.json();
+          if (res.ok) {
+            status.textContent = 'Password updated successfully.';
+            status.className = 'form-success';
+            e.target.reset();
+          } else {
+            status.textContent = data.error || 'Failed to update password.';
+            status.className = 'form-error';
+          }
+        } catch (err) {
+          status.textContent = 'Network error. Please try again.';
+          status.className = 'form-error';
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

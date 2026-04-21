@@ -19,7 +19,7 @@
     "format": "prettier -w .",
     "format:check": "prettier -c .",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.client.json",
-    "test": "tsc && node --experimental-test-module-mocks --test --test-force-exit --test-timeout 120000 dist/test/*.test.js",
+    "test": "npm run build:client && tsc && node --experimental-test-module-mocks --test --test-force-exit --test-timeout 120000 dist/test/*.test.js",
     "ci": "npm run format:check && npm run lint && npm run typecheck && npm run build:client && npm test && npm run validate -- --require-docker"
   },
   "keywords": [],

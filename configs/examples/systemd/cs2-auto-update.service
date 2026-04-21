@@ -6,3 +6,4 @@ Wants=network-online.target
 [Service]
 Type=oneshot
 ExecStart=/opt/cs2-server-ops/apps/maintain/updater/update_cs2.sh
+WorkingDirectory=/opt/cs2-server-ops/apps/maintain/updater
