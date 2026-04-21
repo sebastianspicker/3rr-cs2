@@ -50,68 +50,100 @@ if (!hasRconSecretKey()) {
 // Enable foreign key enforcement (must be per-connection in SQLite)
 better_sqlite_client.exec(`PRAGMA foreign_keys = ON`);
 
-better_sqlite_client.exec(`
-  CREATE TABLE IF NOT EXISTS servers (
-    id INTEGER PRIMARY KEY,
-    serverIP TEXT NOT NULL,
-    serverPort INTEGER NOT NULL,
-    rconPassword TEXT NOT NULL,
-    owner_id INTEGER
-  )
-`);
+// ---------------------------------------------------------------------------
+// Versioned migrations
+// Each entry runs exactly once, identified by its 1-based index (user_version).
+// The current user_version is advanced inside a transaction after each step.
+// ---------------------------------------------------------------------------
+type Migration = (db: Database.Database) => void;
 
-better_sqlite_client.exec(`
-  CREATE TABLE IF NOT EXISTS users (
-    id INTEGER PRIMARY KEY,
-    username TEXT NOT NULL UNIQUE,
-    password TEXT NOT NULL
-  )
-`);
+const MIGRATIONS: Migration[] = [
+  // 1 — full baseline schema as of v1.0.0.
+  //     Uses IF NOT EXISTS / try-catch so it is safe to run on a database that
+  //     was already bootstrapped by the pre-migration inline code.
+  (db) => {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS servers (
+        id           INTEGER PRIMARY KEY,
+        serverIP     TEXT    NOT NULL,
+        serverPort   INTEGER NOT NULL,
+        rconPassword TEXT    NOT NULL,
+        owner_id     INTEGER
+      );
+      CREATE TABLE IF NOT EXISTS users (
+        id       INTEGER PRIMARY KEY,
+        username TEXT    NOT NULL UNIQUE,
+        password TEXT    NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS server_access (
+        user_id   INTEGER NOT NULL REFERENCES users(id)   ON DELETE CASCADE,
+        server_id INTEGER NOT NULL REFERENCES servers(id) ON DELETE CASCADE,
+        PRIMARY KEY (user_id, server_id)
+      );
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_servers_ip_port ON servers (serverIP, serverPort);
+    `);
 
-// Many-to-many access table: one server can be shared across multiple users.
-better_sqlite_client.exec(`
-  CREATE TABLE IF NOT EXISTS server_access (
-    user_id   INTEGER NOT NULL REFERENCES users(id)   ON DELETE CASCADE,
-    server_id INTEGER NOT NULL REFERENCES servers(id) ON DELETE CASCADE,
-    PRIMARY KEY (user_id, server_id)
-  )
-`);
+    // Columns that were added incrementally in pre-migration deployments.
+    // ALTER TABLE ADD COLUMN is idempotent in practice but SQLite will throw if
+    // the column already exists, so wrap each in a try/catch.
+    const legacyColumns: Array<[string, string]> = [
+      ['last_map', 'TEXT'],
+      ['last_game_type', 'TEXT'],
+      ['last_game_mode', 'TEXT'],
+      ['owner_id', 'INTEGER'],
+    ];
+    for (const [col, def] of legacyColumns) {
+      try {
+        db.exec(`ALTER TABLE servers ADD COLUMN ${col} ${def}`);
+      } catch {
+        // Column already exists — safe to ignore.
+      }
+    }
 
-// Migration: columns added after initial schema deployment.
-{
-  const cols = (
-    better_sqlite_client.prepare(`PRAGMA table_info(servers)`).all() as { name: string }[]
-  ).map((row) => row.name);
+    // Backfill owner_id for rows that were inserted before the column existed.
+    db.prepare(
+      `UPDATE servers SET owner_id = (SELECT id FROM users LIMIT 1) WHERE owner_id IS NULL`
+    ).run();
 
-  if (!cols.includes('last_map')) {
-    better_sqlite_client.exec(`ALTER TABLE servers ADD COLUMN last_map TEXT;`);
-  }
-  if (!cols.includes('last_game_type')) {
-    better_sqlite_client.exec(`ALTER TABLE servers ADD COLUMN last_game_type TEXT;`);
-  }
-  if (!cols.includes('last_game_mode')) {
-    better_sqlite_client.exec(`ALTER TABLE servers ADD COLUMN last_game_mode TEXT;`);
-  }
-  if (!cols.includes('owner_id')) {
-    better_sqlite_client.exec(`ALTER TABLE servers ADD COLUMN owner_id INTEGER;`);
-    better_sqlite_client
-      .prepare(
-        `UPDATE servers SET owner_id = (SELECT id FROM users LIMIT 1) WHERE owner_id IS NULL`
-      )
-      .run();
+    // Backfill server_access from owner_id for pre-existing installs (idempotent).
+    db.exec(`
+      INSERT OR IGNORE INTO server_access (user_id, server_id)
+        SELECT owner_id, id FROM servers WHERE owner_id IS NOT NULL
+    `);
+  },
+
+  // 2 — add is_admin flag to users.
+  //     The oldest user (lowest id) is designated admin automatically, matching
+  //     the behaviour of the DEFAULT_USERNAME bootstrap path.
+  (db) => {
+    db.exec(`ALTER TABLE users ADD COLUMN is_admin INTEGER NOT NULL DEFAULT 0`);
+    db.prepare(`UPDATE users SET is_admin = 1 WHERE id = (SELECT MIN(id) FROM users)`).run();
+  },
+];
+
+const CURRENT_VERSION = MIGRATIONS.length;
+
+function runMigrations(db: Database.Database): void {
+  const currentVersion = db.pragma('user_version', { simple: true }) as number;
+
+  if (currentVersion >= CURRENT_VERSION) return;
+
+  logger.info(
+    { from: currentVersion, to: CURRENT_VERSION },
+    '[db] Running schema migrations'
+  );
+
+  for (let v = currentVersion; v < CURRENT_VERSION; v++) {
+    const migrate = db.transaction((migration: Migration) => {
+      migration(db);
+      db.pragma(`user_version = ${v + 1}`);
+    });
+    migrate(MIGRATIONS[v]!);
+    logger.info({ version: v + 1 }, '[db] Migration applied');
   }
 }
 
-// Migration: prevent duplicate server entries (same IP+port)
-better_sqlite_client.exec(
-  `CREATE UNIQUE INDEX IF NOT EXISTS idx_servers_ip_port ON servers (serverIP, serverPort)`
-);
-
-// Migration: backfill server_access from owner_id for pre-existing installs.
-better_sqlite_client.exec(`
-  INSERT OR IGNORE INTO server_access (user_id, server_id)
-  SELECT owner_id, id FROM servers WHERE owner_id IS NOT NULL
-`);
+runMigrations(better_sqlite_client);
 
 // Encrypt any existing plaintext RCON passwords when a key is configured.
 if (hasRconSecretKey()) {
@@ -170,15 +202,12 @@ if (userCount > 0) {
 
   const safeUsername = String(envUsername).slice(0, 255);
   const hashedPassword = bcrypt.hashSync(envPassword!, 12);
+  // First user created is always an admin.
   better_sqlite_client
-    .prepare(
-      `
-      INSERT INTO users (username, password)
-      VALUES (?, ?)
-    `
-    )
+    .prepare(`INSERT INTO users (username, password, is_admin) VALUES (?, ?, 1)`)
     .run(safeUsername, hashedPassword);
   logger.info('[db] Default user created successfully');
 }
 
 export { better_sqlite_client };
+

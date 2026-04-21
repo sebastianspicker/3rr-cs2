@@ -38,7 +38,7 @@ Then open `http://localhost:3000`.
 | `PORT` | no | `3000` | Listen port |
 | `REDIS_URL` | no | unset | Enables Redis-backed sessions |
 | `SESSION_COOKIE_SECURE` | no | `true` in production | Set `TRUST_PROXY=1` behind a reverse proxy |
-| `RCON_SECRET_KEY` | recommended | unset | 32-byte base64 or hex key for encrypted RCON secrets |
+| `RCON_SECRET_KEY` | yes in production | unset | 32-byte base64 or hex key for encrypted RCON secrets |
 | `RCON_COMMAND_TIMEOUT_MS` | no | `2000` | Per-command timeout |
 
 See:
@@ -65,7 +65,7 @@ See:
 ```bash
 docker build -t cs2-server-ops-operate-panel .
 docker run --rm -p 3000:3000 --env-file .env \
-  -v "$(pwd)/data:/app/data" \
+  -v "$(pwd)/data:/home/container/data" \
   cs2-server-ops-operate-panel
 ```
 

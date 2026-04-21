@@ -55,7 +55,7 @@ run jq . "${ROOT}/package-lock.json" >/dev/null
 
 log "validate: yaml"
 require_cmd ruby
-run ruby -ryaml -e "YAML.load_file('${ROOT}/docker-compose.yaml')" >/dev/null
+run ruby -ryaml -e "YAML.safe_load(File.read('${ROOT}/docker-compose.yaml'), aliases: false, filename: '${ROOT}/docker-compose.yaml')" >/dev/null
 
 log "validate: repo hygiene"
 

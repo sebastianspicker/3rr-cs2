@@ -10,6 +10,8 @@ let tmpDir: string;
 let dbPath: string;
 let app: Express;
 let sharedSessionCookie: string | null = null;
+let rconCommands: string[] = [];
+let failingRconCommands = new Set<string>();
 
 async function getPageCsrfToken(
   port: number,
@@ -85,11 +87,16 @@ before(async () => {
     defaultExport: {
       readyPromise: Promise.resolve(),
       executeCommand: async (_serverId: string, command: string) => {
+        rconCommands.push(command);
+        if (failingRconCommands.has(command)) {
+          throw new Error(`Mocked RCON failure for ${command}`);
+        }
         if (command === 'hostname') return 'hostname = Test Server';
         if (command === 'status') return 'players : 0 humans, 0 bots';
         if (command === 'sv_visiblemaxplayers') return 'sv_visiblemaxplayers = 10';
         return 'ok';
       },
+      probeServer: async () => {},
       connectServer: async () => {},
       hasConnection: () => false,
       getConnectionInfo: () => null,
@@ -609,6 +616,42 @@ test('POST /api/setup-game: wingman accepts wingman map', async () => {
   }
 });
 
+test('POST /api/setup-game does not change map when execCfg fails', async () => {
+  const server: Server = app.listen(0);
+  try {
+    rconCommands = [];
+    failingRconCommands = new Set(['exec wingman.cfg']);
+    const { port } = server.address() as AddressInfo;
+    const { sessionCookie, csrfToken } = await loginOrReuseSession(port);
+
+    const res = await fetch(`http://127.0.0.1:${port}/api/setup-game`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        accept: 'application/json',
+        cookie: sessionCookie,
+        'x-csrf-token': csrfToken,
+      },
+      body: JSON.stringify({
+        server_id: 1,
+        game_type: 'competitive',
+        game_mode: 'wingman',
+        selectedMap: 'de_overpass',
+        team1: 'Alpha',
+        team2: 'Bravo',
+      }),
+    });
+
+    assert.equal(res.status, 500);
+    assert.equal(rconCommands.includes('exec wingman.cfg'), true);
+    assert.equal(rconCommands.some((command) => command.startsWith('changelevel ')), false);
+  } finally {
+    failingRconCommands = new Set();
+    rconCommands = [];
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
+});
+
 test('POST /api/setup-game: ctf rejects non-ctf map', async () => {
   const server: Server = app.listen(0);
   try {
@@ -1084,6 +1127,124 @@ test('POST /api/rtd-force-roll: requires auth', async () => {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({}),
     });
+    assert.equal(res.status, 401);
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
+});
+
+// ── CSRF edge cases ──────────────────────────────────────────────────────────
+
+test('POST /api/add-server rejects missing CSRF token on authenticated session', async () => {
+  const server: Server = app.listen(0);
+  try {
+    const { port } = server.address() as AddressInfo;
+    const { sessionCookie } = await loginOrReuseSession(port);
+
+    const res = await fetch(`http://127.0.0.1:${port}/api/add-server`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        accept: 'application/json',
+        cookie: sessionCookie,
+        // deliberately omit x-csrf-token
+      },
+      body: JSON.stringify({
+        server_ip: '203.0.113.50',
+        server_port: 27015,
+        rcon_password: 'test-rcon-password',
+      }),
+    });
+
+    assert.equal(res.status, 403);
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
+});
+
+test('POST /api/add-server rejects wrong CSRF token on authenticated session', async () => {
+  const server: Server = app.listen(0);
+  try {
+    const { port } = server.address() as AddressInfo;
+    const { sessionCookie } = await loginOrReuseSession(port);
+
+    const res = await fetch(`http://127.0.0.1:${port}/api/add-server`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        accept: 'application/json',
+        cookie: sessionCookie,
+        'x-csrf-token': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      },
+      body: JSON.stringify({
+        server_ip: '203.0.113.51',
+        server_port: 27015,
+        rcon_password: 'test-rcon-password',
+      }),
+    });
+
+    assert.equal(res.status, 403);
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
+});
+
+// ── Logout and session invalidation ──────────────────────────────────────────
+
+test('POST /auth/logout clears the session cookie', async () => {
+  const server: Server = app.listen(0);
+  try {
+    const { port } = server.address() as AddressInfo;
+    const { sessionCookie, csrfToken } = await loginAndGetSession(port);
+
+    const res = await fetch(`http://127.0.0.1:${port}/auth/logout`, {
+      method: 'POST',
+      headers: {
+        accept: 'application/json',
+        cookie: sessionCookie,
+        'x-csrf-token': csrfToken,
+      },
+    });
+
+    assert.equal(res.status, 200);
+    const setCookie = res.headers.get('set-cookie') ?? '';
+    // The cleared cookie should have an empty or expired value
+    assert.ok(
+      setCookie.includes('cspanel.sid=;') ||
+        setCookie.includes('cspanel.sid= ;') ||
+        setCookie.includes('Expires=Thu, 01 Jan 1970'),
+      `Expected cleared session cookie, got: ${setCookie}`
+    );
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
+});
+
+test('re-used session cookie after logout returns 401 on protected routes', async () => {
+  const server: Server = app.listen(0);
+  try {
+    const { port } = server.address() as AddressInfo;
+    // Login fresh to get a session that we will then invalidate
+    const { sessionCookie, csrfToken } = await loginAndGetSession(port);
+
+    // Logout
+    await fetch(`http://127.0.0.1:${port}/auth/logout`, {
+      method: 'POST',
+      headers: {
+        accept: 'application/json',
+        cookie: sessionCookie,
+        'x-csrf-token': csrfToken,
+      },
+    });
+
+    // Attempt to use the now-invalid session
+    const res = await fetch(`http://127.0.0.1:${port}/api/servers`, {
+      headers: {
+        accept: 'application/json',
+        cookie: sessionCookie,
+      },
+    });
+
     assert.equal(res.status, 401);
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()));

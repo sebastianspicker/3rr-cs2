@@ -3,10 +3,11 @@ import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
 import { better_sqlite_client } from '../db';
 import logger from '../utils/logger';
+import { makeRateLimitStore } from '../utils/redis';
 import { parseServerId, requireServerId } from '../utils/parseServerId';
 import { getMapsForMode, mapsConfig } from '../utils/mapsConfig';
 import { parseHostnameResponse } from '../utils/rconResponse';
-import { encryptRconSecret, decryptRconSecret } from '../utils/rconSecret';
+import { encryptRconSecret } from '../utils/rconSecret';
 import rcon from '../modules/rcon';
 import isAuthenticated from '../modules/middleware';
 import { isValidServerHost, isValidServerHostResolved } from '../utils/networkValidation';
@@ -26,6 +27,9 @@ const insertServerStmt = better_sqlite_client.prepare(`
 const insertServerAccessStmt = better_sqlite_client.prepare(`
   INSERT OR IGNORE INTO server_access (user_id, server_id) VALUES (?, ?)
 `);
+const updateServerPasswordStmt = better_sqlite_client.prepare(
+  `UPDATE servers SET rconPassword = ? WHERE id = ?`
+);
 const selectServerByIpPortStmt = better_sqlite_client.prepare(
   `SELECT id, rconPassword FROM servers WHERE serverIP = ? AND serverPort = ?`
 );
@@ -93,6 +97,7 @@ const addServerLimiter = rateLimit({
   message: { error: 'Too many servers added; try again later.' },
   standardHeaders: true,
   legacyHeaders: false,
+  store: makeRateLimitStore(),
 });
 
 // Render "Add Server" form
@@ -192,33 +197,43 @@ router.post('/api/add-server', isAuthenticated, addServerLimiter, async (req, re
     const existing = selectServerByIpPortStmt.get(ip, portNum) as
       | { id: number; rconPassword: string }
       | undefined;
-    if (existing) {
-      const storedPlaintext = decryptRconSecret(existing.rconPassword);
-      if (password !== storedPlaintext) {
-        return res.status(403).json({ error: 'Incorrect RCON password for this server' });
-      }
-      insertServerAccessStmt.run(ownerId, existing.id);
-      return res.status(201).json({ message: 'Server added successfully' });
+    try {
+      await rcon.probeServer({
+        id: existing?.id ?? 0,
+        serverIP: ip,
+        serverPort: portNum,
+        rconPassword: password,
+      });
+    } catch {
+      return res.status(400).json({
+        error: 'Unable to authenticate to the server with the provided RCON credentials',
+      });
     }
 
     const encryptedPassword = encryptRconSecret(password);
+    if (existing) {
+      updateServerPasswordStmt.run(encryptedPassword, existing.id);
+      insertServerAccessStmt.run(ownerId, existing.id);
+      await rcon.connectServer({
+        id: existing.id,
+        serverIP: ip,
+        serverPort: portNum,
+        rconPassword: encryptedPassword,
+      });
+      return res.status(201).json({ message: 'Server added successfully' });
+    }
+
     insertServerStmt.run(ip, portNum, encryptedPassword, ownerId);
     const inserted = selectServerByIpPortStmt.get(ip, portNum) as { id: number } | undefined;
 
     if (inserted) {
       insertServerAccessStmt.run(ownerId, inserted.id);
-      // Fire-and-forget: RCON connection happens in the background so the
-      // HTTP response returns immediately. Failures are logged by RconManager.
-      rcon
-        .connectServer({
-          id: inserted.id,
-          serverIP: ip,
-          serverPort: portNum,
-          rconPassword: encryptedPassword,
-        })
-        .catch((err) => {
-          logger.warn({ err, server_id: inserted.id }, '[server] background RCON connect failed');
-        });
+      await rcon.connectServer({
+        id: inserted.id,
+        serverIP: ip,
+        serverPort: portNum,
+        rconPassword: encryptedPassword,
+      });
       return res.status(201).json({ message: 'Server added successfully' });
     } else {
       return res.status(500).json({ error: 'Failed to add the server' });

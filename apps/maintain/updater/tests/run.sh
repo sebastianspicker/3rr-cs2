@@ -51,9 +51,14 @@ run_validation_test() {
     export NOTIFY_WEBHOOK_URL=""
     export REMOTE_BUILDID="100"
     export STEAMCMD_UPDATE_EXIT="0"
+    export STEAMCMD_APPINFO_EXIT="0"
+    export STEAMCMD_UPDATE_BUILDID="100"
+    export STEAMCMD_CALLS_FILE="$tmpdir/steamcmd.calls"
     export SYSTEMCTL_CALLS_FILE="$tmpdir/systemctl.calls"
     export SYSTEMCTL_STATE_FILE="$tmpdir/systemctl.state"
-    rm -rf "$tmpdir/cs2" "$tmpdir/lock" "$tmpdir/log" "$tmpdir/systemctl.calls" "$tmpdir/systemctl.state"
+    export SYSTEMCTL_STOP_EXIT="0"
+    export SYSTEMCTL_START_EXIT="0"
+    rm -rf "$tmpdir/cs2" "$tmpdir/lock" "$tmpdir/log" "$tmpdir/systemctl.calls" "$tmpdir/systemctl.state" "$tmpdir/steamcmd.calls"
     setup_cs2_dir "100"
     echo "active" > "$SYSTEMCTL_STATE_FILE"
     for pair in "$@"; do
@@ -98,6 +103,14 @@ exit "${CURL_EXIT:-0}"
 MOCKEOF
 chmod +x "$tmpdir/curl"
 
+# Create a mock rcon-cli for player notification tests.
+cat > "$tmpdir/rcon-cli" << 'MOCKEOF'
+#!/usr/bin/env bash
+echo "$*" >> "${RCON_CALLS_FILE:-/dev/null}"
+exit "${RCON_CLI_EXIT:-0}"
+MOCKEOF
+chmod +x "$tmpdir/rcon-cli"
+
 export PATH="$tmpdir:$PWD/tests/bin:$PATH"
 
 setup_cs2_dir() {
@@ -123,7 +136,7 @@ run_case() {
 
     echo "==> $name"
 
-    rm -rf "$tmpdir/cs2" "$tmpdir/lock" "$tmpdir/log" "$tmpdir/systemctl.calls" "$tmpdir/systemctl.state"
+    rm -rf "$tmpdir/cs2" "$tmpdir/lock" "$tmpdir/log" "$tmpdir/systemctl.calls" "$tmpdir/systemctl.state" "$tmpdir/steamcmd.calls"
     setup_cs2_dir "$local_build"
 
     export LOCKDIR="$tmpdir/lock"
@@ -141,9 +154,14 @@ run_case() {
 
     export REMOTE_BUILDID="$remote_build"
     export STEAMCMD_UPDATE_EXIT="$update_exit"
+    export STEAMCMD_APPINFO_EXIT="0"
+    export STEAMCMD_UPDATE_BUILDID="$remote_build"
+    export STEAMCMD_CALLS_FILE="$tmpdir/steamcmd.calls"
 
     export SYSTEMCTL_CALLS_FILE="$tmpdir/systemctl.calls"
     export SYSTEMCTL_STATE_FILE="$tmpdir/systemctl.state"
+    export SYSTEMCTL_STOP_EXIT="0"
+    export SYSTEMCTL_START_EXIT="0"
     echo "$initial_state" > "$SYSTEMCTL_STATE_FILE"
 
     set +e
@@ -169,6 +187,7 @@ run_case() {
         "update-applied")
             [ "$rc" -eq 0 ] || fail "expected rc=0, got $rc; stderr=$stderr"
             assert_contains "Update required" "$stdout"
+            assert_contains "Update applied successfully" "$stdout"
             assert_contains "stop" "$calls"
             assert_contains "start" "$calls"
             ;;
@@ -178,9 +197,22 @@ run_case() {
             assert_contains "stop" "$calls"
             assert_contains "start" "$calls"
             ;;
-        "fallback-update")
-            [ "$rc" -eq 0 ] || fail "expected rc=0, got $rc; stderr=$stderr"
-            assert_contains "falling back to safe update run" "$stdout"
+        "unknown-remote")
+            [ "$rc" -ne 0 ] || fail "expected non-zero rc, got $rc"
+            assert_contains "refusing to stop the service while remote status is unknown" "$stdout"
+            assert_not_contains "stop" "$calls"
+            assert_not_contains "start" "$calls"
+            assert_not_contains "+app_update" "$(cat "$tmpdir/steamcmd.calls" 2> /dev/null || true)"
+            ;;
+        "false-success-update")
+            [ "$rc" -ne 0 ] || fail "expected non-zero rc, got $rc"
+            assert_contains "buildid did not change after the update attempt" "$stdout"
+            assert_contains "stop" "$calls"
+            assert_contains "start" "$calls"
+            ;;
+        "start-failed-after-update")
+            [ "$rc" -ne 0 ] || fail "expected non-zero rc, got $rc"
+            assert_contains "Failed to start $SERVICE_NAME after $MAX_ATTEMPTS attempts." "$stdout"
             assert_contains "stop" "$calls"
             assert_contains "start" "$calls"
             ;;
@@ -224,8 +256,13 @@ run_with_args_case() {
     export CONFIG_FILE=""
     export REMOTE_BUILDID="200"
     export STEAMCMD_UPDATE_EXIT="0"
+    export STEAMCMD_APPINFO_EXIT="0"
+    export STEAMCMD_UPDATE_BUILDID="200"
+    export STEAMCMD_CALLS_FILE="$tmpdir/steamcmd.calls"
     export SYSTEMCTL_CALLS_FILE="$tmpdir/systemctl.calls"
     export SYSTEMCTL_STATE_FILE="$tmpdir/systemctl.state"
+    export SYSTEMCTL_STOP_EXIT="0"
+    export SYSTEMCTL_START_EXIT="0"
     echo "$initial_state" > "$SYSTEMCTL_STATE_FILE"
 
     set +e
@@ -263,8 +300,13 @@ run_lock_case() {
     export CONFIG_FILE=""
     export REMOTE_BUILDID="100"
     export STEAMCMD_UPDATE_EXIT="0"
+    export STEAMCMD_APPINFO_EXIT="0"
+    export STEAMCMD_UPDATE_BUILDID="100"
+    export STEAMCMD_CALLS_FILE="$tmpdir/steamcmd.calls"
     export SYSTEMCTL_CALLS_FILE="$tmpdir/systemctl.calls"
     export SYSTEMCTL_STATE_FILE="$tmpdir/systemctl.state"
+    export SYSTEMCTL_STOP_EXIT="0"
+    export SYSTEMCTL_START_EXIT="0"
     echo "active" > "$SYSTEMCTL_STATE_FILE"
 
     "$prepare_fn"
@@ -283,12 +325,23 @@ prepare_stale_lock_with_dead_pid() {
     printf '999999\n' > "$tmpdir/lock/pid"
 }
 
+prepare_stale_lock_with_live_pid_mismatched_metadata() {
+    mkdir -p "$tmpdir/lock"
+    printf '%s\n' "$$" > "$tmpdir/lock/pid"
+    cat > "$tmpdir/lock/meta" << EOF
+pid=$$
+started=Thu Jan  1 00:00:00 1970
+script=$PWD/update_cs2.sh
+EOF
+}
+
 run_case "no-update" "100" "100" "0"
 run_case "update-applied" "100" "200" "0"
 run_case "update-failed" "100" "200" "1"
-run_case "fallback-update" "100" "" "0"
+run_case "unknown-remote" "100" "" "0"
 run_case "no-update-service-inactive" "100" "100" "0" "inactive"
 run_lock_case "stale-lock-recovery" "prepare_stale_lock_with_dead_pid" 0 "Recovered stale lock and acquired a new lock."
+run_lock_case "stale-lock-live-pid-metadata-mismatch" "prepare_stale_lock_with_live_pid_mismatched_metadata" 0 "Recovered stale lock and acquired a new lock."
 
 # Validation tests (reject bad config or expect normalized success)
 run_validation_test "reject LOCKDIR=/" 1 "LOCKDIR must not be root" LOCKDIR="/" LOGFILE="$tmpdir/log" CS2_DIR="$tmpdir/cs2"
@@ -382,6 +435,42 @@ assert_contains "update available" "$(cat "$tmpdir/stdout")"
 assert_not_contains "stop" "$(cat "$tmpdir/systemctl.calls" 2> /dev/null || true)"
 pass
 
+# CLI: --status (unknown remote)
+echo "==> --status unknown"
+rm -rf "$tmpdir/lock" "$tmpdir/log" "$tmpdir/systemctl.calls" "$tmpdir/steamcmd.calls"
+export REMOTE_BUILDID=""
+export STEAMCMD_APPINFO_EXIT="1"
+set +e
+./update_cs2.sh --status > "$tmpdir/stdout" 2> "$tmpdir/stderr"
+rc=$?
+set -e
+unset STEAMCMD_APPINFO_EXIT
+[ "$rc" -ne 0 ] || fail "--status unknown: expected non-zero rc, got $rc"
+assert_contains "Status: unknown" "$(cat "$tmpdir/stdout")"
+assert_not_contains "stop" "$(cat "$tmpdir/systemctl.calls" 2> /dev/null || true)"
+pass
+
+# CLI: --status should not require a working systemctl implementation.
+echo "==> --status without systemctl"
+old_path="$PATH"
+cat > "$tmpdir/systemctl" << 'EOF'
+#!/usr/bin/env bash
+exit 127
+EOF
+chmod +x "$tmpdir/systemctl"
+rm -rf "$tmpdir/lock" "$tmpdir/log" "$tmpdir/systemctl.calls"
+export PATH="$tmpdir:$PWD/tests/bin:$PATH"
+export REMOTE_BUILDID="100"
+set +e
+./update_cs2.sh --status > "$tmpdir/stdout" 2> "$tmpdir/stderr"
+rc=$?
+set -e
+export PATH="$old_path"
+rm -f "$tmpdir/systemctl"
+[ "$rc" -eq 0 ] || fail "--status without systemctl: expected rc=0, got $rc"
+assert_contains "up-to-date" "$(cat "$tmpdir/stdout")"
+pass
+
 # CLI: -c FILE (space-separated config)
 echo "==> -c FILE config loading"
 rm -rf "$tmpdir/lock" "$tmpdir/log" "$tmpdir/systemctl.calls"
@@ -390,6 +479,48 @@ DRY_RUN=0
 CONFEOF
 export REMOTE_BUILDID="200" CONFIG_FILE=""
 run_with_args_case "-c FILE config loading" 0 "-c $tmpdir/conf2"
+pass
+
+# SteamCMD exit 0 but unchanged buildid must fail.
+echo "==> unchanged buildid after update"
+rm -rf "$tmpdir/cs2" "$tmpdir/lock" "$tmpdir/log" "$tmpdir/systemctl.calls" "$tmpdir/systemctl.state" "$tmpdir/steamcmd.calls"
+setup_cs2_dir "100"
+export LOCKDIR="$tmpdir/lock" LOGFILE="$tmpdir/log" CS2_DIR="$tmpdir/cs2"
+export SERVICE_NAME="cs2.service" STEAMCMD="$PWD/tests/bin/steamcmd" CS2_APP_ID="730"
+export REQUIRED_SPACE="1" MAX_ATTEMPTS="1" SLEEP_SECS="0" NO_SLEEP="1" ALLOW_NONROOT="1"
+export CONFIG_FILE="" REMOTE_BUILDID="200" STEAMCMD_UPDATE_EXIT="0" STEAMCMD_UPDATE_BUILDID="100"
+export SYSTEMCTL_CALLS_FILE="$tmpdir/systemctl.calls" SYSTEMCTL_STATE_FILE="$tmpdir/systemctl.state"
+echo "active" > "$SYSTEMCTL_STATE_FILE"
+set +e
+./update_cs2.sh > "$tmpdir/stdout" 2> "$tmpdir/stderr"
+rc=$?
+set -e
+[ "$rc" -ne 0 ] || fail "unchanged buildid: expected non-zero rc, got $rc"
+assert_contains "buildid did not change after the update attempt" "$(cat "$tmpdir/stdout")"
+assert_contains "stop" "$(cat "$tmpdir/systemctl.calls")"
+assert_contains "start" "$(cat "$tmpdir/systemctl.calls")"
+pass
+
+# Start failure after an update attempt must fail the run.
+echo "==> start failure after update"
+rm -rf "$tmpdir/cs2" "$tmpdir/lock" "$tmpdir/log" "$tmpdir/systemctl.calls" "$tmpdir/systemctl.state"
+setup_cs2_dir "100"
+export LOCKDIR="$tmpdir/lock" LOGFILE="$tmpdir/log" CS2_DIR="$tmpdir/cs2"
+export SERVICE_NAME="cs2.service" STEAMCMD="$PWD/tests/bin/steamcmd" CS2_APP_ID="730"
+export REQUIRED_SPACE="1" MAX_ATTEMPTS="1" SLEEP_SECS="0" NO_SLEEP="1" ALLOW_NONROOT="1"
+export CONFIG_FILE="" REMOTE_BUILDID="200" STEAMCMD_UPDATE_EXIT="0" STEAMCMD_UPDATE_BUILDID="200"
+export SYSTEMCTL_CALLS_FILE="$tmpdir/systemctl.calls" SYSTEMCTL_STATE_FILE="$tmpdir/systemctl.state"
+export SYSTEMCTL_START_EXIT="1"
+echo "active" > "$SYSTEMCTL_STATE_FILE"
+set +e
+./update_cs2.sh > "$tmpdir/stdout" 2> "$tmpdir/stderr"
+rc=$?
+set -e
+unset SYSTEMCTL_START_EXIT
+[ "$rc" -ne 0 ] || fail "start failure after update: expected non-zero rc, got $rc"
+assert_contains "Failed to start cs2.service after 1 attempts." "$(cat "$tmpdir/stdout")"
+assert_contains "stop" "$(cat "$tmpdir/systemctl.calls")"
+assert_contains "start" "$(cat "$tmpdir/systemctl.calls")"
 pass
 
 # Validation: reject LOCKDIR with ..
@@ -436,8 +567,9 @@ setup_cs2_dir "100"
 export LOCKDIR="$tmpdir/lock" LOGFILE="$tmpdir/log" CS2_DIR="$tmpdir/cs2"
 export SERVICE_NAME="cs2.service" STEAMCMD="$PWD/tests/bin/steamcmd" CS2_APP_ID="730"
 export REQUIRED_SPACE="999999999" MAX_ATTEMPTS="1" SLEEP_SECS="0" NO_SLEEP="1" ALLOW_NONROOT="1"
-export CONFIG_FILE="" REMOTE_BUILDID="100" STEAMCMD_UPDATE_EXIT="0"
+export CONFIG_FILE="" REMOTE_BUILDID="100" STEAMCMD_UPDATE_EXIT="0" STEAMCMD_APPINFO_EXIT="0" STEAMCMD_UPDATE_BUILDID="100"
 export SYSTEMCTL_CALLS_FILE="$tmpdir/systemctl.calls" SYSTEMCTL_STATE_FILE="$tmpdir/systemctl.state"
+export SYSTEMCTL_STOP_EXIT="0" SYSTEMCTL_START_EXIT="0"
 export DF_AVAILABLE="100"
 echo "active" > "$SYSTEMCTL_STATE_FILE"
 set +e
@@ -462,10 +594,11 @@ setup_cs2_dir "100"
 export LOCKDIR="$tmpdir/lock" LOGFILE="$tmpdir/log" CS2_DIR="$tmpdir/cs2"
 export SERVICE_NAME="cs2.service" STEAMCMD="$PWD/tests/bin/steamcmd" CS2_APP_ID="730"
 export REQUIRED_SPACE="1" MAX_ATTEMPTS="1" SLEEP_SECS="0" NO_SLEEP="1" ALLOW_NONROOT="1"
-export CONFIG_FILE="" REMOTE_BUILDID="200" STEAMCMD_UPDATE_EXIT="0"
+export CONFIG_FILE="" REMOTE_BUILDID="200" STEAMCMD_UPDATE_EXIT="0" STEAMCMD_APPINFO_EXIT="0" STEAMCMD_UPDATE_BUILDID="200"
 export NOTIFY_WEBHOOK_URL="https://hooks.example.com/webhook"
 export CURL_CALLS_FILE="$tmpdir/curl.calls" CURL_EXIT="0"
 export SYSTEMCTL_CALLS_FILE="$tmpdir/systemctl.calls" SYSTEMCTL_STATE_FILE="$tmpdir/systemctl.state"
+export SYSTEMCTL_STOP_EXIT="0" SYSTEMCTL_START_EXIT="0"
 echo "active" > "$SYSTEMCTL_STATE_FILE"
 set +e
 ./update_cs2.sh > "$tmpdir/stdout" 2> "$tmpdir/stderr"
@@ -492,14 +625,108 @@ CONFEOF
 export LOCKDIR="$tmpdir/lock" LOGFILE="$tmpdir/log" CS2_DIR="$tmpdir/cs2"
 export SERVICE_NAME="cs2.service" STEAMCMD="$PWD/tests/bin/steamcmd" CS2_APP_ID="730"
 export REQUIRED_SPACE="1" MAX_ATTEMPTS="1" NO_SLEEP="1" ALLOW_NONROOT="1"
-export CONFIG_FILE="$tmpdir/multiconf" REMOTE_BUILDID="100" STEAMCMD_UPDATE_EXIT="0"
+export CONFIG_FILE="$tmpdir/multiconf" REMOTE_BUILDID="100" STEAMCMD_UPDATE_EXIT="0" STEAMCMD_APPINFO_EXIT="0" STEAMCMD_UPDATE_BUILDID="100"
 export SYSTEMCTL_CALLS_FILE="$tmpdir/systemctl.calls" SYSTEMCTL_STATE_FILE="$tmpdir/systemctl.state"
+export SYSTEMCTL_STOP_EXIT="0" SYSTEMCTL_START_EXIT="0"
 echo "active" > "$SYSTEMCTL_STATE_FILE"
 set +e
 ./update_cs2.sh > "$tmpdir/stdout" 2> "$tmpdir/stderr"
 rc=$?
 set -e
 [ "$rc" -eq 0 ] || fail "config multi-key: expected rc=0, got $rc; stderr=$(cat "$tmpdir/stderr")"
+pass
+
+# Config file: quoted values may contain '#'.
+echo "==> config file quoted values with hash"
+rm -rf "$tmpdir/cs2" "$tmpdir/lock" "$tmpdir/log" "$tmpdir/systemctl.calls" "$tmpdir/systemctl.state" "$tmpdir/curl.calls"
+setup_cs2_dir "100"
+cat > "$tmpdir/hashconf" << 'CONFEOF'
+SLEEP_SECS=0
+NOTIFY_WEBHOOK_URL="https://hooks.example.com/webhook#fragment"
+CONFEOF
+export LOCKDIR="$tmpdir/lock" LOGFILE="$tmpdir/log" CS2_DIR="$tmpdir/cs2"
+export SERVICE_NAME="cs2.service" STEAMCMD="$PWD/tests/bin/steamcmd" CS2_APP_ID="730"
+export REQUIRED_SPACE="1" MAX_ATTEMPTS="1" NO_SLEEP="1" ALLOW_NONROOT="1"
+export CONFIG_FILE="$tmpdir/hashconf" REMOTE_BUILDID="200" STEAMCMD_UPDATE_EXIT="0" STEAMCMD_APPINFO_EXIT="0" STEAMCMD_UPDATE_BUILDID="200"
+export CURL_CALLS_FILE="$tmpdir/curl.calls" CURL_EXIT="0"
+export SYSTEMCTL_CALLS_FILE="$tmpdir/systemctl.calls" SYSTEMCTL_STATE_FILE="$tmpdir/systemctl.state"
+export SYSTEMCTL_STOP_EXIT="0" SYSTEMCTL_START_EXIT="0"
+echo "active" > "$SYSTEMCTL_STATE_FILE"
+set +e
+./update_cs2.sh > "$tmpdir/stdout" 2> "$tmpdir/stderr"
+rc=$?
+set -e
+[ "$rc" -eq 0 ] || fail "quoted hash config: expected rc=0, got $rc; stderr=$(cat "$tmpdir/stderr")"
+assert_contains "https://hooks.example.com/webhook#fragment" "$(cat "$tmpdir/curl.calls")"
+pass
+
+# Notification: NOTIFY_PLAYERS_MESSAGE set and RCON succeeds → message sent, update proceeds.
+echo "==> notification-sent"
+rm -rf "$tmpdir/cs2" "$tmpdir/lock" "$tmpdir/log" "$tmpdir/systemctl.calls" "$tmpdir/systemctl.state" "$tmpdir/rcon.calls"
+setup_cs2_dir "100"
+export LOCKDIR="$tmpdir/lock" LOGFILE="$tmpdir/log" CS2_DIR="$tmpdir/cs2"
+export SERVICE_NAME="cs2.service" STEAMCMD="$PWD/tests/bin/steamcmd" CS2_APP_ID="730"
+export REQUIRED_SPACE="1" MAX_ATTEMPTS="1" NO_SLEEP="1" ALLOW_NONROOT="1"
+export REMOTE_BUILDID="200" STEAMCMD_UPDATE_EXIT="0" STEAMCMD_APPINFO_EXIT="0" STEAMCMD_UPDATE_BUILDID="200"
+export CURL_CALLS_FILE="$tmpdir/curl.calls" CURL_EXIT="0"
+export SYSTEMCTL_CALLS_FILE="$tmpdir/systemctl.calls" SYSTEMCTL_STATE_FILE="$tmpdir/systemctl.state"
+export SYSTEMCTL_STOP_EXIT="0" SYSTEMCTL_START_EXIT="0"
+export NOTIFY_PLAYERS_MESSAGE="Server updating in 30 seconds"
+export RCON_CLI="rcon-cli" RCON_HOST="127.0.0.1" RCON_PORT="27015" RCON_PASSWORD="test"
+export RCON_CALLS_FILE="$tmpdir/rcon.calls" RCON_CLI_EXIT="0"
+echo "active" > "$SYSTEMCTL_STATE_FILE"
+set +e
+./update_cs2.sh > "$tmpdir/stdout" 2> "$tmpdir/stderr"
+rc=$?
+set -e
+[ "$rc" -eq 0 ] || fail "notification-sent: expected rc=0, got $rc; stderr=$(cat "$tmpdir/stderr")"
+assert_contains "Player notification sent via RCON" "$(cat "$tmpdir/stdout" "$tmpdir/stderr")"
+assert_contains "say Server updating in 30 seconds" "$(cat "$tmpdir/rcon.calls")"
+pass
+
+# Notification: NOTIFY_PLAYERS_MESSAGE set and RCON fails → warning logged, update still proceeds.
+echo "==> notification-rcon-fail"
+rm -rf "$tmpdir/cs2" "$tmpdir/lock" "$tmpdir/log" "$tmpdir/systemctl.calls" "$tmpdir/systemctl.state" "$tmpdir/rcon.calls"
+setup_cs2_dir "100"
+export LOCKDIR="$tmpdir/lock" LOGFILE="$tmpdir/log" CS2_DIR="$tmpdir/cs2"
+export SERVICE_NAME="cs2.service" STEAMCMD="$PWD/tests/bin/steamcmd" CS2_APP_ID="730"
+export REQUIRED_SPACE="1" MAX_ATTEMPTS="1" NO_SLEEP="1" ALLOW_NONROOT="1"
+export REMOTE_BUILDID="200" STEAMCMD_UPDATE_EXIT="0" STEAMCMD_APPINFO_EXIT="0" STEAMCMD_UPDATE_BUILDID="200"
+export CURL_CALLS_FILE="$tmpdir/curl.calls" CURL_EXIT="0"
+export SYSTEMCTL_CALLS_FILE="$tmpdir/systemctl.calls" SYSTEMCTL_STATE_FILE="$tmpdir/systemctl.state"
+export SYSTEMCTL_STOP_EXIT="0" SYSTEMCTL_START_EXIT="0"
+export NOTIFY_PLAYERS_MESSAGE="Server updating soon"
+export RCON_CLI="rcon-cli" RCON_HOST="127.0.0.1" RCON_PORT="27015" RCON_PASSWORD="test"
+export RCON_CALLS_FILE="$tmpdir/rcon.calls" RCON_CLI_EXIT="1"
+echo "active" > "$SYSTEMCTL_STATE_FILE"
+set +e
+./update_cs2.sh > "$tmpdir/stdout" 2> "$tmpdir/stderr"
+rc=$?
+set -e
+[ "$rc" -eq 0 ] || fail "notification-rcon-fail: expected rc=0, got $rc; stderr=$(cat "$tmpdir/stderr")"
+assert_contains "RCON notification failed" "$(cat "$tmpdir/stdout" "$tmpdir/stderr")"
+pass
+
+# Notification: NOTIFY_PLAYERS_MESSAGE empty → no rcon-cli call made.
+echo "==> notification-disabled"
+rm -rf "$tmpdir/cs2" "$tmpdir/lock" "$tmpdir/log" "$tmpdir/systemctl.calls" "$tmpdir/systemctl.state" "$tmpdir/rcon.calls"
+setup_cs2_dir "100"
+export LOCKDIR="$tmpdir/lock" LOGFILE="$tmpdir/log" CS2_DIR="$tmpdir/cs2"
+export SERVICE_NAME="cs2.service" STEAMCMD="$PWD/tests/bin/steamcmd" CS2_APP_ID="730"
+export REQUIRED_SPACE="1" MAX_ATTEMPTS="1" NO_SLEEP="1" ALLOW_NONROOT="1"
+export REMOTE_BUILDID="200" STEAMCMD_UPDATE_EXIT="0" STEAMCMD_APPINFO_EXIT="0" STEAMCMD_UPDATE_BUILDID="200"
+export CURL_CALLS_FILE="$tmpdir/curl.calls" CURL_EXIT="0"
+export SYSTEMCTL_CALLS_FILE="$tmpdir/systemctl.calls" SYSTEMCTL_STATE_FILE="$tmpdir/systemctl.state"
+export SYSTEMCTL_STOP_EXIT="0" SYSTEMCTL_START_EXIT="0"
+unset NOTIFY_PLAYERS_MESSAGE
+export RCON_CALLS_FILE="$tmpdir/rcon.calls" RCON_CLI_EXIT="0"
+echo "active" > "$SYSTEMCTL_STATE_FILE"
+set +e
+./update_cs2.sh > "$tmpdir/stdout" 2> "$tmpdir/stderr"
+rc=$?
+set -e
+[ "$rc" -eq 0 ] || fail "notification-disabled: expected rc=0, got $rc; stderr=$(cat "$tmpdir/stderr")"
+[ ! -f "$tmpdir/rcon.calls" ] || [ ! -s "$tmpdir/rcon.calls" ] || fail "notification-disabled: rcon-cli was called but should not have been"
 pass
 
 echo ""

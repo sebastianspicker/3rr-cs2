@@ -40,7 +40,7 @@ interface ServerDetails {
 
 type PasswordProvider = (serverId: number) => string | null;
 
-class RconManager {
+export class RconManager {
   private rcons: Record<string, Rcon>;
   private details: Record<string, ServerDetails>;
   private servers: Record<string, ServerInfo>;
@@ -49,6 +49,7 @@ class RconManager {
   private passwordProvider: PasswordProvider;
   // Prevents concurrent reconnection attempts for the same server
   private reconnecting = new Map<string, Promise<void>>();
+  private commandChains = new Map<string, Promise<void>>();
   private _shuttingDown = false;
   // Track in-flight sockets created during connect() so shutdownAll can destroy them
   private pendingSockets = new Set<Rcon>();
@@ -80,23 +81,39 @@ class RconManager {
     return this.passwordProvider(serverId);
   }
 
+  private async isResolvedHostAllowed(server_id: string, server: ServerInfo): Promise<boolean> {
+    const { isValidServerHostResolved } = await import('../utils/networkValidation');
+    if (await isValidServerHostResolved(server.serverIP)) {
+      return true;
+    }
+    logger.warn(
+      { server_id, serverIP: server.serverIP },
+      '[rcon] connect blocked: hostname resolves to private/reserved IP'
+    );
+    return false;
+  }
+
+  private enqueueServerTask<T>(server_id: string, task: () => Promise<T>): Promise<T> {
+    const previous = this.commandChains.get(server_id) ?? Promise.resolve();
+    const result = previous.catch(() => undefined).then(task);
+    const tail = result.then(
+      () => undefined,
+      () => undefined
+    );
+    this.commandChains.set(server_id, tail);
+    return result.finally(() => {
+      if (this.commandChains.get(server_id) === tail) {
+        this.commandChains.delete(server_id);
+      }
+    });
+  }
+
   // Serializes reconnection: if a reconnect is already in flight for this server,
   // await the existing promise instead of starting a duplicate attempt.
   private async reconnect(server_id: string, server: ServerInfo): Promise<void> {
     const existing = this.reconnecting.get(server_id);
     if (existing) return existing;
     const p = (async () => {
-      // Re-validate DNS on every reconnect to guard against DNS rebinding attacks
-      // where a hostname initially resolved to a public IP but later points to
-      // an internal address (e.g. cloud metadata endpoint).
-      const { isValidServerHostResolved } = await import('../utils/networkValidation');
-      if (!(await isValidServerHostResolved(server.serverIP))) {
-        logger.warn(
-          { server_id, serverIP: server.serverIP },
-          '[rcon] reconnect blocked: hostname resolves to private/reserved IP'
-        );
-        return;
-      }
       await this.disconnectRcon(server_id);
       await this.connect(server_id, server);
     })().finally(() => this.reconnecting.delete(server_id));
@@ -138,101 +155,172 @@ class RconManager {
     await this.reconnect(sid, this.servers[sid]);
   }
 
-  async executeCommand(server_id: string, command: string): Promise<string> {
-    // Ensure initial connections are established before executing commands.
-    await this.readyPromise;
-    const srv = this.servers[server_id];
-    if (!srv) {
-      throw new Error(`Unknown server_id: ${server_id}`);
-    }
-    let conn = this.rcons[server_id];
-
-    if (!conn || !conn.isConnected() || !conn.isAuthenticated() || !conn.connection?.writable) {
-      logger.info({ server_id }, '[rcon] Connection issue, reconnecting');
-      await this.reconnect(server_id, srv);
-      conn = this.rcons[server_id];
+  private async createAuthenticatedConnection(
+    server_id: string,
+    server: ServerInfo,
+    encryptedPassword: string
+  ): Promise<Rcon | null> {
+    if (!(await this.isResolvedHostAllowed(server_id, server)) || this._shuttingDown) {
+      return null;
     }
 
-    if (!conn || !conn.isConnected() || !conn.isAuthenticated() || !conn.connection?.writable) {
-      throw new Error(`No valid connection after reconnect for server ${server_id}`);
-    }
-
-    let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+    let authCompleted = false;
+    let conn: Rcon | undefined;
     try {
-      const resp = await Promise.race([
-        conn.execute(command),
-        new Promise<never>((_, rej) => {
-          timeoutHandle = setTimeout(() => {
-            // On timeout, destroy the connection to prevent orphaned listeners,
-            // but only if it hasn't been replaced by a heartbeat reconnect.
-            try {
-              if (this.rcons[server_id] === conn) {
-                conn.connection?.removeAllListeners('data');
-                conn.connection?.destroy();
-                delete this.rcons[server_id];
-              }
-            } catch {
-              // ignore cleanup errors
-            }
-            rej(new Error('RCON command timed out'));
-          }, this.commandTimeoutMs);
-        }),
-      ]);
-      return typeof resp === 'string' ? resp : '';
+      conn = new Rcon({
+        host: server.serverIP,
+        port: server.serverPort,
+        timeout: RCON_SOCKET_TIMEOUT_MS,
+      });
+      this.pendingSockets.add(conn);
+      logger.info(
+        { server_id, host: server.serverIP, port: server.serverPort },
+        '[rcon] connecting'
+      );
+
+      const authTimeout = setTimeout(() => {
+        if (authCompleted) return;
+        authCompleted = true;
+        logger.error({ server_id }, '[rcon] Authentication timed out');
+        try {
+          conn?.connection?.destroy();
+        } catch {
+          // ignore
+        }
+      }, RCON_AUTH_TIMEOUT_MS);
+
+      try {
+        const decryptedPassword = decryptRconSecret(encryptedPassword);
+        await conn.authenticate(decryptedPassword);
+        authCompleted = true;
+        clearTimeout(authTimeout);
+        logger.info({ server_id }, '[rcon] authenticated');
+        return conn;
+      } catch (err: unknown) {
+        authCompleted = true;
+        clearTimeout(authTimeout);
+        const message = err instanceof Error ? err.message : String(err);
+        logger.error({ server_id, message }, '[rcon] Authentication failed');
+        conn.connection?.destroy();
+        return null;
+      }
+    } catch (err) {
+      logger.error({ err }, '[rcon] connect error');
+      conn?.connection?.destroy();
+      return null;
     } finally {
-      if (timeoutHandle !== undefined) clearTimeout(timeoutHandle);
+      if (conn) {
+        this.pendingSockets.delete(conn);
+      }
     }
+  }
+
+  async probeServer(server: ServerRecord): Promise<void> {
+    const sid = server.id.toString();
+    const conn = await this.createAuthenticatedConnection(sid, server, server.rconPassword);
+    if (!conn || !conn.isConnected() || !conn.isAuthenticated()) {
+      throw new Error('RCON authentication failed');
+    }
+    try {
+      conn.connection?.end();
+    } catch {
+      conn.connection?.destroy();
+    }
+  }
+
+  async executeCommand(server_id: string, command: string): Promise<string> {
+    return this.enqueueServerTask(server_id, async () => {
+      // Ensure initial connections are established before executing commands.
+      await this.readyPromise;
+      const srv = this.servers[server_id];
+      if (!srv) {
+        throw new Error(`Unknown server_id: ${server_id}`);
+      }
+      let conn = this.rcons[server_id];
+
+      if (!conn || !conn.isConnected() || !conn.isAuthenticated() || !conn.connection?.writable) {
+        logger.info({ server_id }, '[rcon] Connection issue, reconnecting');
+        await this.reconnect(server_id, srv);
+        conn = this.rcons[server_id];
+      }
+
+      if (!conn || !conn.isConnected() || !conn.isAuthenticated() || !conn.connection?.writable) {
+        throw new Error(`No valid connection after reconnect for server ${server_id}`);
+      }
+
+      let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+      try {
+        const resp = await Promise.race([
+          conn.execute(command),
+          new Promise<never>((_, rej) => {
+            timeoutHandle = setTimeout(() => {
+              try {
+                if (this.rcons[server_id] === conn) {
+                  conn.connection?.destroy();
+                  delete this.rcons[server_id];
+                }
+              } catch {
+                // ignore cleanup errors
+              }
+              rej(new Error('RCON command timed out'));
+            }, this.commandTimeoutMs);
+          }),
+        ]);
+        return typeof resp === 'string' ? resp : '';
+      } finally {
+        if (timeoutHandle !== undefined) clearTimeout(timeoutHandle);
+      }
+    });
   }
 
   // Heartbeat intervals could overlap if a heartbeat takes longer than the
   // interval period. The `reconnecting` Map in `reconnect()` serializes
   // concurrent reconnection attempts, preventing duplicate connections.
   async sendHeartbeat(server_id: string, server: ServerInfo): Promise<void> {
-    if (!this.rcons[server_id]?.connection?.writable) {
-      logger.info({ server_id }, '[heartbeat] Connection unwritable, reconnecting');
-      await this.reconnect(server_id, server);
-    }
-    const conn = this.rcons[server_id];
-    if (!conn || !conn.connection?.writable) return;
-    try {
-      await Promise.race([
-        conn.execute('status'),
-        new Promise<never>((_, rej) =>
-          setTimeout(() => rej(new Error('Heartbeat timed out')), HEARTBEAT_TIMEOUT_MS)
-        ),
-      ]);
-      // Heartbeat succeeded — update connected flag, reset failure count, restore normal interval
-      const details = this.details[server_id];
-      if (details) {
-        details.connected = true;
-        if (details.heartbeatFailures > 0) {
-          details.heartbeatFailures = 0;
-          this.restartHeartbeat(server_id, server, HEARTBEAT_INTERVAL_MS);
+    await this.enqueueServerTask(server_id, async () => {
+      if (!this.rcons[server_id]?.connection?.writable) {
+        logger.info({ server_id }, '[heartbeat] Connection unwritable, reconnecting');
+        await this.reconnect(server_id, server);
+      }
+      const conn = this.rcons[server_id];
+      if (!conn || !conn.connection?.writable) return;
+      try {
+        await Promise.race([
+          conn.execute('status'),
+          new Promise<never>((_, rej) =>
+            setTimeout(() => rej(new Error('Heartbeat timed out')), HEARTBEAT_TIMEOUT_MS)
+          ),
+        ]);
+        const details = this.details[server_id];
+        if (details) {
+          details.connected = true;
+          if (details.heartbeatFailures > 0) {
+            details.heartbeatFailures = 0;
+            this.restartHeartbeat(server_id, server, HEARTBEAT_INTERVAL_MS);
+          }
+        }
+      } catch (err) {
+        logger.warn({ server_id, err }, '[heartbeat] Error, reconnecting');
+        if (this.details[server_id]) {
+          this.details[server_id].connected = false;
+        }
+        await this.reconnect(server_id, server);
+        if (!this.details[server_id]) return;
+        const details = this.details[server_id];
+        if (details) {
+          details.heartbeatFailures++;
+          const backoff = Math.min(
+            HEARTBEAT_INTERVAL_MS * Math.pow(2, details.heartbeatFailures),
+            MAX_HEARTBEAT_INTERVAL_MS
+          );
+          this.restartHeartbeat(server_id, server, backoff);
+          logger.info(
+            { server_id, backoff_ms: backoff },
+            '[heartbeat] Backoff, next check scheduled'
+          );
         }
       }
-    } catch (err) {
-      logger.warn({ server_id, err }, '[heartbeat] Error, reconnecting');
-      if (this.details[server_id]) {
-        this.details[server_id].connected = false;
-      }
-      await this.reconnect(server_id, server);
-      // If the server was removed during reconnect, bail out
-      if (!this.details[server_id]) return;
-      // Exponential backoff: double interval on each consecutive failure (capped at 60s)
-      const details = this.details[server_id];
-      if (details) {
-        details.heartbeatFailures++;
-        const backoff = Math.min(
-          HEARTBEAT_INTERVAL_MS * Math.pow(2, details.heartbeatFailures),
-          MAX_HEARTBEAT_INTERVAL_MS
-        );
-        this.restartHeartbeat(server_id, server, backoff);
-        logger.info(
-          { server_id, backoff_ms: backoff },
-          '[heartbeat] Backoff, next check scheduled'
-        );
-      }
-    }
+    });
   }
 
   private restartHeartbeat(server_id: string, server: ServerInfo, intervalMs: number): void {
@@ -263,71 +351,30 @@ class RconManager {
 
     if (this._shuttingDown) return;
 
-    let authCompleted = false;
-    let conn: Rcon | undefined;
-    try {
-      conn = new Rcon({
-        host: server.serverIP,
-        port: server.serverPort,
-        timeout: RCON_SOCKET_TIMEOUT_MS,
-      });
-      this.pendingSockets.add(conn);
-      logger.info(
-        { server_id, host: server.serverIP, port: server.serverPort },
-        '[rcon] connecting'
+    const conn = await this.createAuthenticatedConnection(server_id, server, encryptedPassword);
+    if (!conn) {
+      return;
+    }
+
+    if (this._shuttingDown) {
+      conn.connection?.destroy();
+      return;
+    }
+
+    this.rcons[server_id] = conn;
+    this.details[server_id] = {
+      host: server.serverIP,
+      port: server.serverPort,
+      connected: conn.isConnected(),
+      authenticated: conn.isAuthenticated(),
+      heartbeatFailures: 0,
+    };
+
+    if (conn.isConnected() && conn.isAuthenticated()) {
+      this.details[server_id].heartbeatInterval = setInterval(
+        () => this.sendHeartbeat(server_id, server),
+        HEARTBEAT_INTERVAL_MS
       );
-
-      const authTimeout = setTimeout(() => {
-        if (authCompleted) return;
-        authCompleted = true;
-        logger.error({ server_id }, '[rcon] Authentication timed out');
-        try {
-          if (conn && conn.connection) conn.connection.destroy();
-        } catch {
-          // ignore
-        }
-      }, RCON_AUTH_TIMEOUT_MS);
-
-      try {
-        const decryptedPassword = decryptRconSecret(encryptedPassword);
-        await conn.authenticate(decryptedPassword);
-        authCompleted = true;
-        clearTimeout(authTimeout);
-        logger.info({ server_id }, '[rcon] authenticated');
-      } catch (err: unknown) {
-        authCompleted = true;
-        clearTimeout(authTimeout);
-        const message = err instanceof Error ? err.message : String(err);
-        logger.error({ server_id, message }, '[rcon] Authentication failed');
-        // Close the underlying socket to prevent a leak on auth failure
-        conn.connection?.destroy();
-        return;
-      } finally {
-        this.pendingSockets.delete(conn);
-      }
-
-      if (this._shuttingDown) {
-        conn.connection?.destroy();
-        return;
-      }
-
-      this.rcons[server_id] = conn;
-      this.details[server_id] = {
-        host: server.serverIP,
-        port: server.serverPort,
-        connected: conn.isConnected(),
-        authenticated: conn.isAuthenticated(),
-        heartbeatFailures: 0,
-      };
-
-      if (conn.isConnected() && conn.isAuthenticated()) {
-        this.details[server_id].heartbeatInterval = setInterval(
-          () => this.sendHeartbeat(server_id, server),
-          HEARTBEAT_INTERVAL_MS
-        );
-      }
-    } catch (err) {
-      logger.error({ err }, '[rcon] connect error');
     }
   }
 
