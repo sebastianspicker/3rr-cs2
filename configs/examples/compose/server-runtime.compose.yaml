@@ -1,10 +1,33 @@
+# Export runtime variables from a local env file before `docker compose up`, or
+# pass them explicitly with `docker compose --env-file ./server.env ...`.
+# Generate bootstrap assets into `./bootstrap/` with the scripts under
+# `apps/provision/bootstrap/scripts/`.
 services:
   cs2-runtime:
     image: cm2network/cs2
     container_name: cs2-runtime
-    env_file:
-      - ../../../apps/provision/bootstrap/env/server.env.example
+    entrypoint:
+      - /bin/bash
+      - /opt/cs2-server-ops/server-start.sh
+    environment:
+      CS2_INSTALL_DIR: /home/steam/cs2-dedicated
+      CS2_HOSTNAME: ${CS2_HOSTNAME:-Example CS2 Server}
+      CS2_MAP: ${CS2_MAP:-de_dust2}
+      CS2_PORT: ${CS2_PORT:-27015}
+      CS2_MAXPLAYERS: ${CS2_MAXPLAYERS:-16}
+      CS2_GSLT: ${CS2_GSLT:-}
+      CS2_CFG_FILE: ${CS2_CFG_FILE:-server.cfg}
+      RCON_PASSWORD: ${RCON_PASSWORD:-}
+      CSS_ADMINS_FILE: /bootstrap/admins.json
+      CSS_GROUPS_FILE: /bootstrap/admin_groups.json
     ports:
       - "27015:27015/udp"
       - "27015:27015/tcp"
+    volumes:
+      - cs2-runtime-data:/home/steam/cs2-dedicated
+      - ../startup/server-start.sh:/opt/cs2-server-ops/server-start.sh:ro
+      - ./bootstrap:/bootstrap:ro
     restart: unless-stopped
+
+volumes:
+  cs2-runtime-data:

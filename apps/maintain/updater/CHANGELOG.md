@@ -2,7 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
-## [1.7.0] - 2026-03-21
+## [1.8.0] - 2026-04-19
+
+### Security
+- Build ID comparison before/after `steamcmd`: a zero exit with unchanged build ID no longer triggers a restart or success webhook (finding #11).
+- Remote lookup failure (`steamcmd +app_info_print`) now exits non-zero and leaves the service running instead of forcing a stop/update/start cycle (finding #12).
+
+### Fixed
+- Stale lock detection: lock file now records `process_start_time`; stale-lock recovery validates both PID and process start time to prevent PID-reuse false positives (finding #13).
+- `--status` and `--dry-run` now exit before any `systemctl` call, restoring portability on non-systemd hosts (finding #14).
+- Config `#` comment stripping: `strip_unquoted_comment` tracks single- and double-quote state; `#` inside quoted values is preserved (finding #15).
+- `--status` unknown build ID is now reported as a distinct `unknown` state with `exit 1` instead of being conflated with update-available (finding #16).
+- `df -Pk` (POSIX portable) replaces platform-specific flags (finding #17).
+- Systemd unit and README quick-start now reference the same `/opt/cs2-server-ops/…` install layout (finding #8).
+
+### Tests
+- Test harness covers false-success updates, remote lookup failure in `--status`, PID-reuse stale-lock, and stop/start retry failures (finding #18).
+
+
 ### Added
 - `CLAUDE.md` project configuration for Claude Code.
 - 19 new test cases (40 total): `--help`, `--version`, `--status`, `-c FILE`, validation edge cases, disk space, webhook, config file parsing, stale lock without PID file.

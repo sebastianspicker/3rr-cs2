@@ -1,14 +1,31 @@
+# Copy `../../../apps/operate/panel/.env.example` to a local env file such as
+# `./panel.env`, set real secrets there, then export them or pass
+# `docker compose --env-file ./panel.env ...`.
 services:
   panel:
     build:
       context: ../../../apps/operate/panel
-    env_file:
-      - ../../../apps/operate/panel/.env.example
+    environment:
+      PORT: 3000
+      DB_PATH: /home/container/data/cspanel.db
+      SESSION_SECRET: ${SESSION_SECRET:-}
+      REDIS_URL: ${REDIS_URL:-}
+      RCON_SECRET_KEY: ${RCON_SECRET_KEY:-}
+      TRUST_PROXY: ${TRUST_PROXY:-1}
     ports:
       - "3000:3000"
     volumes:
-      - panel-data:/app/data
+      - panel-data:/home/container/data
     restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp:noexec,nosuid,size=64m
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          memory: 512m
 
 volumes:
   panel-data:

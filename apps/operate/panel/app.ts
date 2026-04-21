@@ -4,11 +4,10 @@ import path from 'path';
 import express from 'express';
 import logger from './utils/logger';
 import rateLimit from 'express-rate-limit';
-import { RedisStore as RateLimitRedisStore } from 'rate-limit-redis';
 import session from 'express-session';
 import { RedisStore } from 'connect-redis';
-import { createClient as createRedisClient } from 'redis';
 import type { Request, Response, NextFunction } from 'express';
+import { redisClient, makeRateLimitStore } from './utils/redis';
 import { better_sqlite_client } from './db';
 
 import rcon from './modules/rcon';
@@ -16,6 +15,7 @@ import gameRoutes from './routes/game';
 import serverRoutes from './routes/server';
 import authRoutes from './routes/auth';
 import statusRoutes from './routes/status';
+import userRoutes from './routes/users';
 
 const app = express();
 app.disable('x-powered-by');
@@ -116,17 +116,7 @@ function parsePort(raw: unknown, fallback: number): number {
 }
 
 let sessionStore: session.Store | undefined;
-let redisClient: ReturnType<typeof createRedisClient> | null = null;
-const redisPort = parsePort(process.env.REDIS_PORT || 6379, 6379);
-const redisUrl =
-  process.env.REDIS_URL ||
-  (process.env.REDIS_HOST ? `redis://${process.env.REDIS_HOST}:${redisPort}` : null);
-
-if (redisUrl) {
-  redisClient = createRedisClient({ url: redisUrl });
-  redisClient.on('error', (err: unknown) => {
-    logger.error({ err }, '[redis] client error');
-  });
+if (redisClient) {
   sessionStore = new RedisStore({ client: redisClient });
   logger.info('[session] Using Redis session store.');
 } else {
@@ -232,6 +222,7 @@ app.use((req, res, next) => {
     req.session.csrfToken = crypto.randomBytes(32).toString('hex');
   }
   res.locals.csrfToken = req.session.csrfToken || '';
+  res.locals.isAdmin = req.session.user?.is_admin === 1;
   next();
 });
 
@@ -252,16 +243,6 @@ app.use((req, res, next) => {
 });
 
 const port = parsePort(process.env.PORT || process.env.DEFAULT_PORT || 3000, 3000);
-
-// When a Redis client is configured, rate limiters use a Redis-backed store so
-// counters persist across process restarts and survive behind multiple instances.
-// Falls back to the in-memory store in development (no Redis configured).
-function makeRateLimitStore() {
-  if (!redisClient) return undefined;
-  return new RateLimitRedisStore({
-    sendCommand: (...args: string[]) => redisClient!.sendCommand(args),
-  });
-}
 
 const rateLimitStore = makeRateLimitStore();
 
@@ -331,6 +312,7 @@ app.use('/', authRoutes);
 app.use('/', serverRoutes);
 app.use('/', gameRoutes);
 app.use('/', statusRoutes);
+app.use('/', userRoutes);
 
 const dbHealthStmt = better_sqlite_client.prepare('SELECT 1');
 
@@ -427,6 +409,10 @@ if (require.main === module) {
 
 process.on('unhandledRejection', (reason) => {
   logger.error({ reason }, '[process] unhandled promise rejection');
+  if (nodeEnv === 'production') {
+    process.exitCode = 1;
+    setImmediate(() => process.exit(1));
+  }
 });
 
 export default app;

@@ -151,11 +151,12 @@ router.post('/api/setup-game', isAuthenticated, async (req, res) => {
       '[game] action'
     );
 
+    // Apply the config before the map change so a bad cfg never leaves the
+    // server on the new map without its intended ruleset.
+    await execCfg(server_id, execFile);
     if (t1) await runGameCmd(server_id, `mp_teamname_1 "${t1}"`);
     if (t2) await runGameCmd(server_id, `mp_teamname_2 "${t2}"`);
-
     await runGameCmd(server_id, `changelevel ${mapName}`);
-    await execCfg(server_id, execFile);
 
     updateServerStmt.run(mapName, game_type, game_mode, server_id);
 

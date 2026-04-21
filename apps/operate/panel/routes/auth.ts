@@ -11,6 +11,7 @@ interface UserRow {
   id: number;
   username: string;
   password: string;
+  is_admin: number;
 }
 
 const DUMMY_PASSWORD_HASH = '$2b$10$G6s7QvNxy4/Fq7l6f5Yx8eSE0qVYCSvJzpuG1HsfrN7kYMva9nQxW';
@@ -31,7 +32,7 @@ router.post('/auth/login', async (req, res) => {
   const username = rawUsername.trim();
 
   const query = better_sqlite_client.prepare(
-    'SELECT id, username, password FROM users WHERE username = ?'
+    'SELECT id, username, password, is_admin FROM users WHERE username = ?'
   );
   const user = query.get(username) as UserRow | undefined;
   const passwordHash = user?.password || DUMMY_PASSWORD_HASH;
@@ -55,7 +56,7 @@ router.post('/auth/login', async (req, res) => {
       return res.status(500).json({ error: 'Internal server error' });
     }
     logger.info({ username: user.username, ip: req.ip }, '[auth] login');
-    req.session.user = { id: user.id, username: user.username };
+    req.session.user = { id: user.id, username: user.username, is_admin: user.is_admin };
     req.session.csrfToken = crypto.randomBytes(32).toString('hex');
     return req.session.save((saveErr) => {
       if (saveErr) {

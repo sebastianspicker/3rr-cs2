@@ -3,6 +3,8 @@ set -euo pipefail
 
 calls_file="${SYSTEMCTL_CALLS_FILE:-/tmp/systemctl.calls}"
 state_file="${SYSTEMCTL_STATE_FILE:-/tmp/systemctl.state}"
+stop_exit="${SYSTEMCTL_STOP_EXIT:-0}"
+start_exit="${SYSTEMCTL_START_EXIT:-0}"
 
 action="${1:-}"
 shift || true
@@ -10,11 +12,17 @@ shift || true
 case "$action" in
     stop)
         echo "stop" >> "$calls_file"
+        if [ "$stop_exit" -ne 0 ]; then
+            exit "$stop_exit"
+        fi
         echo "inactive" > "$state_file"
         exit 0
         ;;
     start)
         echo "start" >> "$calls_file"
+        if [ "$start_exit" -ne 0 ]; then
+            exit "$start_exit"
+        fi
         echo "active" > "$state_file"
         exit 0
         ;;

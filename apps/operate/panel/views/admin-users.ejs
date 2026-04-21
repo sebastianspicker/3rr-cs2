@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="color-scheme" content="dark">
+  <meta name="csrf-token" content="<%= csrfToken %>">
+  <title>CS2 Panel — User Management</title>
+  <link rel="stylesheet" href="/css/panel.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to main content</a>
+  <%- include('partials/navbar') %>
+  <main class="container" id="main">
+    <div class="page-header">
+      <h1>User Management</h1>
+    </div>
+
+    <section class="card" aria-labelledby="user-list-heading">
+      <h2 id="user-list-heading">Users</h2>
+      <div id="user-list-status" role="status" aria-live="polite"></div>
+      <table class="data-table" id="user-table">
+        <thead>
+          <tr>
+            <th scope="col">ID</th>
+            <th scope="col">Username</th>
+            <th scope="col">Role</th>
+            <th scope="col">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="user-table-body"></tbody>
+      </table>
+    </section>
+
+    <section class="card" aria-labelledby="add-user-heading">
+      <h2 id="add-user-heading">Add User</h2>
+      <form id="add-user-form" novalidate>
+        <div class="form-group">
+          <label for="new-username">Username</label>
+          <input type="text" id="new-username" name="username" required maxlength="255" autocomplete="off">
+        </div>
+        <div class="form-group">
+          <label for="new-user-password">Password <span class="hint">(min 12 characters)</span></label>
+          <input type="password" id="new-user-password" name="password" required minlength="12" autocomplete="new-password">
+        </div>
+        <div id="add-user-status" role="status" aria-live="polite"></div>
+        <button type="submit" class="btn btn-primary">Add user</button>
+      </form>
+    </section>
+  </main>
+  <script nonce="<%= cspNonce %>">
+    (function () {
+      var csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+      var currentUserId = <%= currentUserId %>;
+
+      async function loadUsers() {
+        try {
+          var res = await fetch('/api/users/list', {
+            headers: { 'x-csrf-token': csrfToken }
+          });
+          var data = await res.json();
+          var tbody = document.getElementById('user-table-body');
+          tbody.innerHTML = '';
+          data.users.forEach(function (user) {
+            var tr = document.createElement('tr');
+            var role = user.is_admin ? 'Admin' : 'User';
+            var deleteBtn = user.id === currentUserId
+              ? '<span class="hint">(you)</span>'
+              : '<button class="btn btn-sm btn-danger" data-userid="' + user.id + '" data-username="' + user.username.replace(/"/g, '&quot;') + '">Delete</button>';
+            tr.innerHTML = '<td>' + user.id + '</td><td>' + user.username + '</td><td>' + role + '</td><td>' + deleteBtn + '</td>';
+            tbody.appendChild(tr);
+          });
+          tbody.querySelectorAll('[data-userid]').forEach(function (btn) {
+            btn.addEventListener('click', async function () {
+              var userId = parseInt(btn.getAttribute('data-userid'), 10);
+              var username = btn.getAttribute('data-username');
+              if (!confirm('Delete user "' + username + '"? This cannot be undone.')) return;
+              var status = document.getElementById('user-list-status');
+              try {
+                var r = await fetch('/api/users/delete', {
+                  method: 'POST',
+                  headers: { 'content-type': 'application/json', 'x-csrf-token': csrfToken },
+                  body: JSON.stringify({ userId: userId })
+                });
+                var d = await r.json();
+                if (r.ok) {
+                  status.textContent = 'User deleted.';
+                  status.className = 'form-success';
+                  loadUsers();
+                } else {
+                  status.textContent = d.error || 'Failed to delete user.';
+                  status.className = 'form-error';
+                }
+              } catch (err) {
+                status.textContent = 'Network error.';
+                status.className = 'form-error';
+              }
+            });
+          });
+        } catch (err) {
+          document.getElementById('user-list-status').textContent = 'Failed to load users.';
+        }
+      }
+
+      loadUsers();
+
+      document.getElementById('add-user-form').addEventListener('submit', async function (e) {
+        e.preventDefault();
+        var status = document.getElementById('add-user-status');
+        var username = document.getElementById('new-username').value;
+        var password = document.getElementById('new-user-password').value;
+        status.textContent = '';
+        status.className = '';
+        try {
+          var res = await fetch('/api/users/add', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json', 'x-csrf-token': csrfToken },
+            body: JSON.stringify({ username: username, password: password })
+          });
+          var data = await res.json();
+          if (res.ok) {
+            status.textContent = 'User created.';
+            status.className = 'form-success';
+            e.target.reset();
+            loadUsers();
+          } else {
+            status.textContent = data.error || 'Failed to create user.';
+            status.className = 'form-error';
+          }
+        } catch (err) {
+          status.textContent = 'Network error.';
+          status.className = 'form-error';
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

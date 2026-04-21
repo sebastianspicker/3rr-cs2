@@ -36,28 +36,32 @@ router.get('/api/status/:server_id', isAuthenticated, async (req, res) => {
     let botCount: number | null = null;
     let maxPlayers: number | null = null;
     try {
-      const resp = await rcon.executeCommand(serverId, 'status');
-      const text = typeof resp === 'string' ? resp : '';
+      const [statusResult, cvarResult] = await Promise.allSettled([
+        rcon.executeCommand(serverId, 'status'),
+        rcon.executeCommand(serverId, 'sv_visiblemaxplayers'),
+      ]);
 
-      const m = text.match(/players\s*:\s*(\d+)\s*humans,\s*(\d+)\s*bots/i);
-      if (m) {
-        humanCount = parseInt(m[1]!, 10);
-        botCount = parseInt(m[2]!, 10);
+      if (statusResult.status === 'fulfilled') {
+        const text = typeof statusResult.value === 'string' ? statusResult.value : '';
+        const m = text.match(/players\s*:\s*(\d+)\s*humans,\s*(\d+)\s*bots/i);
+        if (m) {
+          humanCount = parseInt(m[1]!, 10);
+          botCount = parseInt(m[2]!, 10);
+        }
+      } else {
+        logger.error({ server_id: serverId, err: statusResult.reason }, '[status] RCON status error');
       }
 
-      // Query sv_maxplayers separately — status reports (0 max) when no game is running
-      try {
-        const cvarResp = await rcon.executeCommand(serverId, 'sv_visiblemaxplayers');
-        const cm = cvarResp.match(/sv_visiblemaxplayers\s*=\s*(-?\d+)/i);
+      // sv_visiblemaxplayers is best-effort — status reports (0 max) when no game is running
+      if (cvarResult.status === 'fulfilled') {
+        const cm = cvarResult.value.match(/sv_visiblemaxplayers\s*=\s*(-?\d+)/i);
         if (cm && cm[1] !== undefined) {
           const val = parseInt(cm[1], 10);
           if (val > 0) maxPlayers = val;
         }
-      } catch {
-        // best-effort
       }
     } catch (err) {
-      logger.error({ server_id: serverId, err }, '[status] RCON status error');
+      logger.error({ server_id: serverId, err }, '[status] RCON error');
     }
 
     return res.json({

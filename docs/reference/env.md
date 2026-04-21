@@ -14,3 +14,5 @@ Minimum secrets:
 - `RCON_PASSWORD`: per-server runtime credential
 
 Do not publish placeholder secrets in compose files or startup templates.
+
+The committed `*.env.example` files are reference material only. Shared compose examples are written to consume operator-local env files or exported shell variables instead of loading committed placeholder secrets directly.

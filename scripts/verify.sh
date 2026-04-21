@@ -51,8 +51,8 @@ run shfmt -d -i 2 -bn -ci \
   "${ROOT}/apps/provision/bootstrap/scripts/bootstrap-admins.sh" \
   "${ROOT}/apps/provision/bootstrap/scripts/bootstrap-plugins.sh" \
   "${ROOT}/configs/examples/startup/server-start.sh"
-run ruby -ryaml -e "YAML.load_file('${ROOT}/configs/examples/compose/panel.compose.yaml')" >/dev/null
-run ruby -ryaml -e "YAML.load_file('${ROOT}/configs/examples/compose/server-runtime.compose.yaml')" >/dev/null
+run ruby -ryaml -e "YAML.safe_load(File.read('${ROOT}/configs/examples/compose/panel.compose.yaml'), aliases: false, filename: '${ROOT}/configs/examples/compose/panel.compose.yaml')" >/dev/null
+run ruby -ryaml -e "YAML.safe_load(File.read('${ROOT}/configs/examples/compose/server-runtime.compose.yaml'), aliases: false, filename: '${ROOT}/configs/examples/compose/server-runtime.compose.yaml')" >/dev/null
 run jq . "${ROOT}/apps/operate/panel/package.json" >/dev/null
 run jq . "${ROOT}/apps/operate/panel/package-lock.json" >/dev/null
 run jq . "${ROOT}/apps/operate/panel/cfg/maps.json" >/dev/null

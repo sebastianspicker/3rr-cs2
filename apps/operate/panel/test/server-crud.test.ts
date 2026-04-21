@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { after, before, test } from 'node:test';
+import { after, before, mock, test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { AddressInfo } from 'net';
 import type { Server } from 'http';
@@ -9,6 +9,7 @@ import type { Express } from 'express';
 let tmpDir: string;
 let dbPath: string;
 let app: Express;
+let probeShouldFail = false;
 
 async function getLoginPageCsrfAndCookie(
   port: number
@@ -66,6 +67,26 @@ before(async () => {
   process.env.DEFAULT_PASSWORD = 'testpass12345';
   process.env.ALLOW_DEFAULT_CREDENTIALS = 'true';
   process.env.SESSION_SECRET = 'test-session-secret';
+
+  mock.module('../modules/rcon.js', {
+    defaultExport: {
+      readyPromise: Promise.resolve(),
+      executeCommand: async (_serverId: string, command: string) => {
+        if (command === 'hostname') return 'hostname = Test Server';
+        return 'ok';
+      },
+      probeServer: async () => {
+        if (probeShouldFail) {
+          throw new Error('probe failed');
+        }
+      },
+      connectServer: async () => {},
+      hasConnection: () => false,
+      getConnectionInfo: () => null,
+      removeServer: async () => {},
+      shutdownAll: async () => {},
+    },
+  });
 
   const mod = await import('../app');
   app = mod.default;
@@ -224,6 +245,45 @@ test('POST /api/add-server rejects missing password', async () => {
     const body = (await res.json()) as Record<string, unknown>;
     assert.ok(typeof body.error === 'string');
   } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
+});
+
+test('POST /api/add-server returns a generic auth failure for existing servers', async () => {
+  const server: Server = app.listen(0);
+  try {
+    const { better_sqlite_client: db } = await import('../db');
+    db.prepare(
+      `INSERT OR IGNORE INTO servers (serverIP, serverPort, rconPassword, owner_id) VALUES ('203.0.113.9', 27015, 'stored-password', 1)`
+    ).run();
+
+    probeShouldFail = true;
+    const { port } = server.address() as AddressInfo;
+    const { sessionCookie, csrfToken } = await loginAndGetSession(port);
+
+    const res = await fetch(`http://127.0.0.1:${port}/api/add-server`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        accept: 'application/json',
+        cookie: sessionCookie,
+        'x-csrf-token': csrfToken,
+      },
+      body: JSON.stringify({
+        server_ip: '203.0.113.9',
+        server_port: 27015,
+        rcon_password: 'wrong-password',
+      }),
+    });
+
+    assert.equal(res.status, 400);
+    const body = (await res.json()) as Record<string, unknown>;
+    assert.equal(
+      body.error,
+      'Unable to authenticate to the server with the provided RCON credentials'
+    );
+  } finally {
+    probeShouldFail = false;
     await new Promise<void>((resolve) => server.close(() => resolve()));
   }
 });

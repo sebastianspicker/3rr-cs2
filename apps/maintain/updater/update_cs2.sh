@@ -20,7 +20,7 @@ PATH="${PATH:-/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin}:/usr
 export PATH
 
 # Version (match CHANGELOG)
-VERSION="1.7.0"
+VERSION="1.8.0"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Parse arguments (before loading config so --dry-run/--config can be set)
@@ -55,6 +55,11 @@ while [ $# -gt 0 ]; do
             echo "  SLEEP_SECS           Seconds between retries     [5]"
             echo "  LOG_LEVEL            quiet, normal, or verbose   [normal]"
             echo "  NOTIFY_WEBHOOK_URL   Webhook URL on update       (optional)"
+            echo "  NOTIFY_PLAYERS_MESSAGE  In-game RCON message before stop (optional)"
+            echo "  RCON_CLI             RCON CLI binary             [rcon-cli]"
+            echo "  RCON_HOST            RCON host                   [127.0.0.1]"
+            echo "  RCON_PORT            RCON port                   [27015]"
+            echo "  RCON_PASSWORD        RCON password               (optional)"
             echo ""
             echo "Examples:"
             echo "  sudo $0                     # check and apply updates"
@@ -154,19 +159,75 @@ LOG_LEVEL="${LOG_LEVEL:-normal}"
 # Optional webhook URL (e.g. Discord/Slack) to notify on successful update; empty = disabled
 NOTIFY_WEBHOOK_URL="${NOTIFY_WEBHOOK_URL:-}"
 
+# Optional: notify in-game players before stopping the server for an update.
+# Requires an RCON CLI tool (e.g. rcon-cli from https://github.com/gorcon/rcon-cli).
+# Set NOTIFY_PLAYERS_MESSAGE to a non-empty string to enable; leave empty to disable.
+RCON_CLI="${RCON_CLI:-rcon-cli}"
+RCON_HOST="${RCON_HOST:-127.0.0.1}"
+RCON_PORT="${RCON_PORT:-27015}"
+RCON_PASSWORD="${RCON_PASSWORD:-}"
+NOTIFY_PLAYERS_MESSAGE="${NOTIFY_PLAYERS_MESSAGE:-}"
+
 # Single source of truth: config-file whitelist and trim loop use this list.
-CONFIG_AND_TRIM_VARS="LOCKDIR LOGFILE CS2_DIR SERVICE_NAME STEAMCMD CS2_APP_ID REQUIRED_SPACE MAX_ATTEMPTS SLEEP_SECS ALLOW_NONROOT NO_SLEEP LOG_LEVEL DRY_RUN NOTIFY_WEBHOOK_URL"
+CONFIG_AND_TRIM_VARS="LOCKDIR LOGFILE CS2_DIR SERVICE_NAME STEAMCMD CS2_APP_ID REQUIRED_SPACE MAX_ATTEMPTS SLEEP_SECS ALLOW_NONROOT NO_SLEEP LOG_LEVEL DRY_RUN NOTIFY_WEBHOOK_URL RCON_CLI RCON_HOST RCON_PORT RCON_PASSWORD NOTIFY_PLAYERS_MESSAGE"
+
+trim_whitespace() {
+    local value
+    value="$1"
+    value="${value#"${value%%[![:space:]]*}"}"
+    value="${value%"${value##*[![:space:]]}"}"
+    printf '%s' "$value"
+}
+
+strip_unquoted_comment() {
+    local input out char quote i
+    input="$1"
+    out=""
+    quote=""
+
+    for ((i = 0; i < ${#input}; i++)); do
+        char="${input:$i:1}"
+        if [ -z "$quote" ]; then
+            case "$char" in
+                "#") break ;;
+                "'" | '"') quote="$char" ;;
+            esac
+        elif [ "$char" = "$quote" ]; then
+            quote=""
+        fi
+        out+="$char"
+    done
+
+    printf '%s' "$out"
+}
+
+parse_config_value() {
+    local value quote
+    value="$(trim_whitespace "$1")"
+    if [ -z "$value" ]; then
+        printf ''
+        return 0
+    fi
+
+    quote="${value:0:1}"
+    if [ "$quote" = '"' ] || [ "$quote" = "'" ]; then
+        value="${value:1}"
+        if [ "${value: -1}" = "$quote" ]; then
+            value="${value:0:${#value}-1}"
+        fi
+    fi
+
+    printf '%s' "$value"
+}
 
 load_config_file() {
     local path line key val allowed
     path="$1"
     while IFS= read -r line || [ -n "$line" ]; do
-        line="${line%%#*}"
-        line="${line#"${line%%[![:space:]]*}"}"
-        line="${line%"${line##*[![:space:]]}"}"
+        line="$(trim_whitespace "$(strip_unquoted_comment "$line")")"
         if [[ "$line" =~ ^([A-Za-z_][A-Za-z0-9_]*)=(.*)$ ]]; then
             key="${BASH_REMATCH[1]}"
-            val="${BASH_REMATCH[2]}"
+            val="$(parse_config_value "${BASH_REMATCH[2]}")"
             # Keep parser portable to older /bin/bash versions (e.g., macOS bash 3.2).
             val="${val//$'\r'/}"
             val="${val//$'\n'/}"
@@ -226,6 +287,7 @@ CLEANUP_ENABLED=0
 TMP_UPDATE_OUTPUT=""
 TMP_GET_REMOTE_BUILDID=""
 LOCK_PID_FILE=""
+LOCK_META_FILE=""
 
 #### Helper Functions ####
 log() {
@@ -417,6 +479,10 @@ cleanup() {
         rm -f "$LOCK_PID_FILE" 2> /dev/null || true
         LOCK_PID_FILE=""
     fi
+    if [ -n "$LOCK_META_FILE" ] && [ -f "$LOCK_META_FILE" ]; then
+        rm -f "$LOCK_META_FILE" 2> /dev/null || true
+        LOCK_META_FILE=""
+    fi
     # Use a safe prefix for temp file removal if needed or just handle registered ones.
     # Remove the lock dir only if we created it and it is not a symlink (safety). Idempotent: run once.
     if [ "$CLEANUP_ENABLED" -eq 1 ] && [ -d "$LOCKDIR" ] && [ ! -L "$LOCKDIR" ]; then
@@ -460,14 +526,68 @@ write_lock_pid() {
     printf '%s\n' "$$" > "$LOCK_PID_FILE" || exit_with_error "Failed to write lock PID file: $LOCK_PID_FILE"
 }
 
+process_start_time() {
+    local pid started
+    pid="$1"
+    started=$(ps -o lstart= -p "$pid" 2> /dev/null | awk '{$1=$1; print}')
+    printf '%s' "$started"
+}
+
+write_lock_metadata() {
+    local started script_path
+    started="$(process_start_time "$$")"
+    script_path="${SCRIPT_DIR}/$(basename -- "$0")"
+    LOCK_META_FILE="${LOCKDIR%/}/meta"
+    {
+        printf 'pid=%s\n' "$$"
+        printf 'started=%s\n' "$started"
+        printf 'script=%s\n' "$script_path"
+    } > "$LOCK_META_FILE" || exit_with_error "Failed to write lock metadata file: $LOCK_META_FILE"
+}
+
+read_lock_metadata() {
+    local meta_file key val
+    meta_file="$1"
+    LOCK_META_PID=""
+    LOCK_META_STARTED=""
+    LOCK_META_SCRIPT=""
+    [ -f "$meta_file" ] || return 1
+    while IFS='=' read -r key val; do
+        case "$key" in
+            pid) LOCK_META_PID="$val" ;;
+            started) LOCK_META_STARTED="$val" ;;
+            script) LOCK_META_SCRIPT="$val" ;;
+        esac
+    done < "$meta_file"
+    return 0
+}
+
+lock_matches_running_process() {
+    local pid meta_file live_started script_path
+    pid="$1"
+    meta_file="$2"
+    script_path="${SCRIPT_DIR}/$(basename -- "$0")"
+
+    if ! read_lock_metadata "$meta_file"; then
+        return 1
+    fi
+
+    live_started="$(process_start_time "$pid")"
+    [ -n "$live_started" ] || return 1
+    [ "$LOCK_META_PID" = "$pid" ] || return 1
+    [ "$LOCK_META_STARTED" = "$live_started" ] || return 1
+    [ "$LOCK_META_SCRIPT" = "$script_path" ] || return 1
+}
+
 init_lock() {
-    local owner_uid current_uid lock_pid_file lock_pid
+    local owner_uid current_uid lock_pid_file lock_pid lock_meta_file
     current_uid="${EUID:-$(id -u)}"
 
     # mkdir is atomic; avoids races when two instances start simultaneously.
     if mkdir "$LOCKDIR" 2> /dev/null; then
         CLEANUP_ENABLED=1
         write_lock_pid
+        write_lock_metadata
         log "Lock acquired."
         return 0
     fi
@@ -479,20 +599,31 @@ init_lock() {
         fi
 
         lock_pid_file="${LOCKDIR%/}/pid"
+        lock_meta_file="${LOCKDIR%/}/meta"
         if [ -f "$lock_pid_file" ]; then
             lock_pid="$(awk 'NR==1{print; exit}' "$lock_pid_file" 2> /dev/null || true)"
             lock_pid="${lock_pid//[[:space:]]/}"
             if [[ "$lock_pid" =~ ^[0-9]+$ ]] && pid_exists "$lock_pid"; then
-                log "An update process is already running (lock: $LOCKDIR, pid: $lock_pid). Exiting."
-                exit 0
+                if [ -f "$lock_meta_file" ]; then
+                    if lock_matches_running_process "$lock_pid" "$lock_meta_file"; then
+                        log "An update process is already running (lock: $LOCKDIR, pid: $lock_pid). Exiting."
+                        exit 0
+                    fi
+                    log "WARNING: Lock metadata does not match the running process; treating lock as stale."
+                else
+                    log "WARNING: Legacy lock detected without metadata; trusting running pid $lock_pid."
+                    exit 0
+                fi
             fi
 
             log "WARNING: Stale lock detected (pid ${lock_pid:-unknown} not running). Attempting recovery..."
             rm -f "$lock_pid_file" || exit_with_error "Failed to remove stale lock PID file: $lock_pid_file"
+            rm -f "$lock_meta_file" 2> /dev/null || true
             if rmdir "$LOCKDIR" 2> /dev/null; then
                 if mkdir "$LOCKDIR" 2> /dev/null; then
                     CLEANUP_ENABLED=1
                     write_lock_pid
+                    write_lock_metadata
                     log "Recovered stale lock and acquired a new lock."
                     return 0
                 fi
@@ -506,6 +637,7 @@ init_lock() {
             if mkdir "$LOCKDIR" 2> /dev/null; then
                 CLEANUP_ENABLED=1
                 write_lock_pid
+                write_lock_metadata
                 log "Recovered stale lock (no PID file) and acquired a new lock."
                 return 0
             fi
@@ -518,17 +650,9 @@ init_lock() {
 }
 
 #### Step 2: Check Disk Space ####
-# GNU df --output=avail uses 1024-byte blocks; REQUIRED_SPACE is in KB.
 check_space() {
     local avail
-    if df --version 2>&1 | grep -q "GNU coreutils"; then
-        avail=$(df --output=avail "$CS2_DIR" 2> /dev/null | awk 'NR==2 {print $1}')
-    else
-        # Fallback for non-GNU df (macos/bsd/busybox). Result is in blocks;
-        # usually 512-byte blocks or 1K depending on flags. Column layout is OS-dependent;
-        # NF-2 is typically "Available" for 1K-block output.
-        avail=$(df -k "$CS2_DIR" 2> /dev/null | awk 'NR==2 {print $(NF-2)}')
-    fi
+    avail=$(df -Pk "$CS2_DIR" 2> /dev/null | awk 'NR==2 {print $4}')
     if [ -z "$avail" ]; then
         exit_with_error "Failed to determine free disk space for: $CS2_DIR"
     fi
@@ -573,6 +697,7 @@ run_as_steam() {
 retry_systemctl() {
     local action
     action="$1"
+    require_cmd systemctl
 
     local attempt
     for ((attempt = 1; attempt <= MAX_ATTEMPTS; attempt++)); do
@@ -629,14 +754,14 @@ read_buildid() {
     awk -F'"' '
         { gsub(/^[ \t]+|[ \t]+$/, "", $2); gsub(/^[ \t]+|[ \t]+$/, "", $4) }
         $2 == "buildid" && $4 != "" { print $4; exit }
-    ' "$manifest" 2> /dev/null || log "WARNING: Failed to parse buildid from manifest: $manifest"
+    ' "$manifest" 2> /dev/null || log "WARNING: Failed to parse buildid from manifest: $manifest" >&2
 }
 
 get_remote_buildid() {
     local tmpfile buildid run_ret
 
     tmpfile=$(mktemp "${TMPDIR:-/tmp}/cs2_appinfo.XXXXXX") || {
-        log "Warning: mktemp failed, cannot get remote buildid; will fall back to safe update if needed."
+        log "WARNING: mktemp failed; remote build status is unknown." >&2
         printf ''
         return 0
     }
@@ -644,8 +769,8 @@ get_remote_buildid() {
     run_ret=0
     run_as_steam "$STEAMCMD" +login anonymous +app_info_update 1 +app_info_print "$CS2_APP_ID" +quit > "$tmpfile" 2>&1 || run_ret=$?
     if [ "$run_ret" -ne 0 ]; then
-        log "SteamCMD app_info_print failed; output:"
-        log_multiline "steamcmd: " < "$tmpfile"
+        log "SteamCMD app_info_print failed; output:" >&2
+        log_multiline "steamcmd: " < "$tmpfile" >&2
         rm -f "$tmpfile"
         TMP_GET_REMOTE_BUILDID=""
         printf ''
@@ -669,6 +794,45 @@ get_remote_buildid() {
     printf '%s' "$buildid"
 }
 
+determine_update_state() {
+    local before remote
+    before="$1"
+    remote="$2"
+
+    if [ -n "$before" ] && [ -n "$remote" ]; then
+        if [ "$before" = "$remote" ]; then
+            printf 'up-to-date'
+        else
+            printf 'update-required'
+        fi
+        return 0
+    fi
+
+    printf 'unknown-status'
+}
+
+determine_post_update_state() {
+    local before remote after
+    before="$1"
+    remote="$2"
+    after="$3"
+
+    if [ -z "$after" ]; then
+        printf 'update-failed'
+        return 0
+    fi
+    if [ "$after" = "$before" ]; then
+        printf 'no-change-after-update'
+        return 0
+    fi
+    if [ -n "$remote" ] && [ "$after" != "$remote" ]; then
+        printf 'update-failed'
+        return 0
+    fi
+
+    printf 'update-applied'
+}
+
 #### Step 5: Start Service ####
 start_service() {
     log "Starting $SERVICE_NAME..."
@@ -678,6 +842,7 @@ start_service() {
 
 #### Step 6: Ensure Service Running ####
 ensure_service_running() {
+    require_cmd systemctl
     if systemctl is-active --quiet "$SERVICE_NAME"; then
         log "$SERVICE_NAME is already running."
     else
@@ -734,6 +899,23 @@ notify_webhook() {
     fi
 }
 
+# Notify in-game players via RCON before the service is stopped.
+# Graceful: RCON failures are logged as warnings and never block the update.
+notify_players_before_update() {
+    [ -z "${NOTIFY_PLAYERS_MESSAGE:-}" ] && return 0
+    log "Notifying players before update: '${NOTIFY_PLAYERS_MESSAGE}'"
+    if ! command -v "$RCON_CLI" > /dev/null 2>&1; then
+        log "WARNING: RCON_CLI ('$RCON_CLI') not found in PATH. Skipping player notification."
+        return 0
+    fi
+    if "$RCON_CLI" -a "${RCON_HOST}:${RCON_PORT}" -p "${RCON_PASSWORD}" \
+        "say ${NOTIFY_PLAYERS_MESSAGE}" > /dev/null 2>&1; then
+        log "Player notification sent via RCON."
+    else
+        log "WARNING: RCON notification failed. Continuing with update anyway."
+    fi
+}
+
 #### Main Execution Flow ####
 require_root
 require_steam_user
@@ -741,7 +923,7 @@ validate_config
 ensure_logfile_writable
 require_cmd awk
 require_cmd df
-require_cmd systemctl
+require_cmd ps
 
 if [ ! -x "$STEAMCMD" ]; then
     exit_with_error "SteamCMD not found or not executable at '$STEAMCMD'. Install it (apt install steamcmd) or set STEAMCMD=/path/to/steamcmd in your config."
@@ -761,29 +943,44 @@ log "Detected buildid before update: ${BUILDID_BEFORE:-unknown}"
 
 REMOTE_BUILDID=$(get_remote_buildid)
 log "Detected remote buildid: ${REMOTE_BUILDID:-unknown}"
+UPDATE_STATE=$(determine_update_state "$BUILDID_BEFORE" "$REMOTE_BUILDID")
 
 if [ "$STATUS_ONLY" = "1" ]; then
-    if [ -n "$BUILDID_BEFORE" ] && [ -n "$REMOTE_BUILDID" ] && [ "$BUILDID_BEFORE" = "$REMOTE_BUILDID" ]; then
-        log "Status: up-to-date (buildid $BUILDID_BEFORE)"
-    else
-        log "Status: update available (local ${BUILDID_BEFORE:-unknown}, remote ${REMOTE_BUILDID:-unknown})"
-    fi
-    log "=== Update process completed (status only, $(($(date +%s) - UPDATE_START_TIME))s) ==="
-    exit 0
+    case "$UPDATE_STATE" in
+        up-to-date)
+            log "Status: up-to-date (buildid $BUILDID_BEFORE)"
+            log "=== Update process completed (status only, $(($(date +%s) - UPDATE_START_TIME))s) ==="
+            exit 0
+            ;;
+        update-required)
+            log "Status: update available (local ${BUILDID_BEFORE:-unknown}, remote ${REMOTE_BUILDID:-unknown})"
+            log "=== Update process completed (status only, $(($(date +%s) - UPDATE_START_TIME))s) ==="
+            exit 0
+            ;;
+        *)
+            log "Status: unknown (local ${BUILDID_BEFORE:-unknown}, remote ${REMOTE_BUILDID:-unknown})"
+            log "=== Update process completed (status only, $(($(date +%s) - UPDATE_START_TIME))s) ==="
+            exit 1
+            ;;
+    esac
 fi
 
-if [ -n "$BUILDID_BEFORE" ] && [ -n "$REMOTE_BUILDID" ] && [ "$BUILDID_BEFORE" = "$REMOTE_BUILDID" ]; then
-    log "No update required (local buildid matches remote)."
-    ensure_service_running
-    log "=== Update process completed ($(($(date +%s) - UPDATE_START_TIME))s) ==="
-    exit 0
-fi
-
-if [ -n "$BUILDID_BEFORE" ] && [ -n "$REMOTE_BUILDID" ] && [ "$BUILDID_BEFORE" != "$REMOTE_BUILDID" ]; then
-    log "Update required (local buildid differs from remote)."
-else
-    log "Unable to determine update requirement reliably; falling back to safe update run."
-fi
+case "$UPDATE_STATE" in
+    up-to-date)
+        log "No update required (local buildid matches remote)."
+        ensure_service_running
+        log "=== Update process completed ($(($(date +%s) - UPDATE_START_TIME))s) ==="
+        exit 0
+        ;;
+    update-required)
+        log "Update required (local buildid differs from remote)."
+        ;;
+    *)
+        log "Unable to determine update requirement reliably; refusing to stop the service while remote status is unknown."
+        log "=== Update process completed ($(($(date +%s) - UPDATE_START_TIME))s) ==="
+        exit 1
+        ;;
+esac
 
 if [ "$DRY_RUN" = "1" ]; then
     log "Dry run: skipping service stop, SteamCMD update, and service start."
@@ -791,6 +988,7 @@ if [ "$DRY_RUN" = "1" ]; then
     exit 0
 fi
 
+notify_players_before_update
 stop_service
 run_update
 
@@ -799,9 +997,25 @@ log "Detected buildid after update: ${BUILDID_AFTER:-unknown}"
 
 start_service
 
-if [ -n "${NOTIFY_WEBHOOK_URL:-}" ]; then
-    notify_webhook "$NOTIFY_WEBHOOK_URL" "CS2 server updated successfully."
-fi
+POST_UPDATE_STATE=$(determine_post_update_state "$BUILDID_BEFORE" "$REMOTE_BUILDID" "$BUILDID_AFTER")
 
-log "=== Update process completed ($(($(date +%s) - UPDATE_START_TIME))s) ==="
-exit 0
+case "$POST_UPDATE_STATE" in
+    update-applied)
+        log "Update applied successfully (before ${BUILDID_BEFORE:-unknown}, after ${BUILDID_AFTER:-unknown}, remote ${REMOTE_BUILDID:-unknown})."
+        if [ -n "${NOTIFY_WEBHOOK_URL:-}" ]; then
+            notify_webhook "$NOTIFY_WEBHOOK_URL" "CS2 server updated successfully."
+        fi
+        log "=== Update process completed ($(($(date +%s) - UPDATE_START_TIME))s) ==="
+        exit 0
+        ;;
+    no-change-after-update)
+        log "ERROR: SteamCMD exited successfully but buildid did not change after the update attempt (still ${BUILDID_AFTER:-unknown})."
+        log "=== Update process completed ($(($(date +%s) - UPDATE_START_TIME))s) ==="
+        exit 1
+        ;;
+    *)
+        log "ERROR: Update attempt did not converge to the expected build (before ${BUILDID_BEFORE:-unknown}, after ${BUILDID_AFTER:-unknown}, remote ${REMOTE_BUILDID:-unknown})."
+        log "=== Update process completed ($(($(date +%s) - UPDATE_START_TIME))s) ==="
+        exit 1
+        ;;
+esac

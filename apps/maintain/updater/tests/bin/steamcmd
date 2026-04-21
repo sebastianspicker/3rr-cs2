@@ -7,10 +7,21 @@ manifest="${cs2_dir%/}/steamapps/appmanifest_${app_id}.acf"
 
 remote="${REMOTE_BUILDID:-}"
 update_exit="${STEAMCMD_UPDATE_EXIT:-0}"
+appinfo_exit="${STEAMCMD_APPINFO_EXIT:-0}"
+update_buildid="${STEAMCMD_UPDATE_BUILDID:-${remote}}"
+calls_file="${STEAMCMD_CALLS_FILE:-}"
 
 args="$*"
 
+if [ -n "$calls_file" ]; then
+    printf '%s\n' "$args" >> "$calls_file"
+fi
+
 if grep -Fq "+app_info_print" <<< "$args"; then
+    if [ "$appinfo_exit" -ne 0 ]; then
+        echo "ERROR! app_info_print simulated failure" >&2
+        exit "$appinfo_exit"
+    fi
     cat << EOF
 "$app_id"
 {
@@ -32,13 +43,13 @@ if grep -Fq "+app_update" <<< "$args"; then
         exit "$update_exit"
     fi
 
-    if [ -n "$remote" ]; then
+    if [ -n "$update_buildid" ]; then
         mkdir -p "$(dirname "$manifest")"
         cat > "$manifest" << EOF
 "AppState"
 {
     "appid"  "$app_id"
-    "buildid"    "$remote"
+    "buildid"    "$update_buildid"
 }
 EOF
     fi

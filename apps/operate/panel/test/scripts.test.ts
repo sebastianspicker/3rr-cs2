@@ -271,7 +271,11 @@ test('.gitignore keeps validation and regression tests tracked', () => {
 
 test('server route keeps add-server limiter Redis-capable', () => {
   const serverRoute = fs.readFileSync(path.resolve('routes/server.ts'), 'utf8');
+  const redisUtil = fs.readFileSync(path.resolve('utils/redis.ts'), 'utf8');
 
-  assert.match(serverRoute, /RateLimitRedisStore/);
-  assert.match(serverRoute, /store: addServerLimiterStore/);
+  // The RateLimitRedisStore wiring lives in the shared redis utility now.
+  assert.match(redisUtil, /RateLimitRedisStore/);
+  // server.ts must still use the store via the shared factory.
+  assert.match(serverRoute, /makeRateLimitStore/);
+  assert.match(serverRoute, /store: makeRateLimitStore\(\)/);
 });
