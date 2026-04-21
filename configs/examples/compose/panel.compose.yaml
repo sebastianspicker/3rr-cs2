@@ -1,0 +1,14 @@
+services:
+  panel:
+    build:
+      context: ../../../apps/operate/panel
+    env_file:
+      - ../../../apps/operate/panel/.env.example
+    ports:
+      - "3000:3000"
+    volumes:
+      - panel-data:/app/data
+    restart: unless-stopped
+
+volumes:
+  panel-data:

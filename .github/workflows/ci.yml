@@ -1,18 +1,31 @@
-name: verify
+name: CI
+
 on:
   push:
-    branches: [dev]
+    branches:
+      - dev
+  pull_request:
+    branches:
+      - dev
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
 jobs:
   verify:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: git status --short
-docker: bootstrap
-github-actions: core-build-out
-add-shared-verification-: expansion
-python: publication
-ruff: publication
-      - run: ./scripts/verify.sh  # forced-ruff-6
-service: publication
-config: maintenance
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/operate/panel/package-lock.json
+
+      - name: Install shell tooling
+        run: sudo apt-get update && sudo apt-get install -y shellcheck shfmt jq ruby
+
+      - name: Verify repository
+        run: ./scripts/verify.sh

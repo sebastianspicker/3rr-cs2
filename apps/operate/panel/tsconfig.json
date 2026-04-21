@@ -1,0 +1,31 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "commonjs",
+    "lib": ["ES2022"],
+    "outDir": "dist",
+    "rootDir": ".",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": false,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "moduleResolution": "node",
+    "ignoreDeprecations": "6.0" /* Suppresses TS6 deprecation of module:"commonjs" + moduleResolution:"node". TODO: migrate to ESM (module:"node16") */
+  },
+  "include": [
+    "app.ts",
+    "db.ts",
+    "modules/**/*.ts",
+    "routes/**/*.ts",
+    "scripts/**/*.ts",
+    "utils/**/*.ts",
+    "types/**/*.ts",
+    "test/**/*.ts"
+  ],
+  "exclude": ["node_modules", "dist", "public"]
+}

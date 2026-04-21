@@ -1,0 +1,196 @@
+{
+  "gameTypes": {
+    "competitive": {
+      "gameModes": {
+        "competitive": {
+          "exec": "warmup.cfg",
+          "mapGroups": ["mg_active"]
+        },
+        "wingman": {
+          "exec": "wingman.cfg",
+          "mapGroups": ["mg_wingman"]
+        }
+      }
+    },
+    "casual": {
+      "gameModes": {
+        "deathmatch": {
+          "exec": "deathmatch.cfg",
+          "mapGroups": ["mg_active"]
+        },
+        "gungame": {
+          "exec": "gungame.cfg",
+          "mapGroups": ["mg_gungame"]
+        }
+      }
+    },
+    "fun": {
+      "gameModes": {
+        "bunnyhop": {
+          "exec": "bhop.cfg",
+          "mapGroups": ["mg_bhop"]
+        },
+        "ctf": {
+          "exec": "ctf.cfg",
+          "mapGroups": ["mg_ctf"]
+        },
+        "scoutzknivez": {
+          "exec": "scoutzknivez.cfg",
+          "mapGroups": ["mg_scoutzknivez"]
+        },
+        "surf": {
+          "exec": "surf.cfg",
+          "mapGroups": ["mg_surf"]
+        },
+        "deathrun": {
+          "exec": "deathrun.cfg",
+          "mapGroups": ["mg_deathrun"]
+        },
+        "oitc": {
+          "exec": "oitc.cfg",
+          "mapGroups": ["mg_oitc"]
+        },
+        "1v1arenas": {
+          "exec": "1v1arenas.cfg",
+          "mapGroups": ["mg_1v1"]
+        }
+      }
+    }
+  },
+  "mapGroups": {
+    "mg_active": {
+      "displayName": "Active Duty",
+      "maps": [
+        "de_ancient",
+        "de_anubis",
+        "de_dust2",
+        "de_inferno",
+        "de_mirage",
+        "de_nuke",
+        "de_overpass"
+      ]
+    },
+    "mg_wingman": {
+      "displayName": "Wingman",
+      "maps": [
+        "de_overpass",
+        "de_vertigo",
+        "de_ancient",
+        "de_inferno",
+        "de_nuke",
+        "ar_shoots",
+        "ar_baggage",
+        "de_brewery",
+        "de_dogtown",
+        "workshop/3329258290/de_basalt",
+        "workshop/3328169568/de_edin",
+        "workshop/3085490518/gd_rialto",
+        "workshop/3070550406/de_safehouse",
+        "workshop/3070563536/de_lake",
+        "workshop/3070581293/de_bank",
+        "workshop/3070612859/de_shortdust"
+      ]
+    },
+    "mg_ctf": {
+      "displayName": "CTF Maps",
+      "maps": [
+        "workshop/3555531615/ctf_2fort",
+        "workshop/3555532817/ctf_doublecross",
+        "workshop/3555534037/ctf_turbine"
+      ]
+    },
+    "mg_scoutzknivez": {
+      "displayName": "ScoutzKnivez",
+      "maps": [
+        "workshop/3073929825/scoutzknivez_pure_cs2",
+        "workshop/3070553020/ar_dizzy"
+      ]
+    },
+    "mg_bhop": {
+      "displayName": "Bhop",
+      "maps": [
+        "workshop/3077211069/bhop_at_night",
+        "workshop/3077153735/bhop_ragnarok",
+        "workshop/3077475505/bhop_zunron",
+        "workshop/3077596014/bhop_1derland",
+        "workshop/3078523849/bhop_whiteshit",
+        "workshop/3082038560/bhop_cherryblossom",
+        "workshop/3088973190/bhop_arcturus",
+        "workshop/3095219437/bhop_kiwi_cwfx"
+      ]
+    },
+    "mg_surf": {
+      "displayName": "Surf",
+      "maps": [
+        "workshop/3070321829/surf_beginner",
+        "workshop/3082548297/surf_rookie",
+        "workshop/3076153623/surf_kitsune",
+        "workshop/3073875025/surf_utopia_njv",
+        "workshop/3076980482/surf_mesa_revo",
+        "workshop/3080544577/surf_deathstar",
+        "workshop/3098973196/surf_benevolent",
+        "workshop/3088413071/surf_ace",
+        "workshop/3133346713/surf_boreas",
+        "workshop/3129698096/surf_nyx",
+        "workshop/3296258296/surf_whiteout",
+        "workshop/3079877518/surf_ski_2"
+      ]
+    },
+    "mg_deathrun": {
+      "displayName": "Deathrun",
+      "maps": [
+        "workshop/3164611860/deathrun_playground",
+        "workshop/3311285877/deathrun_egypt",
+        "workshop/3188021118/deathrun_civilization",
+        "workshop/3083325292/deathrun_iceworld_cs2"
+      ]
+    },
+    "mg_oitc": {
+      "displayName": "OITC",
+      "maps": [
+        "de_ancient",
+        "de_anubis",
+        "de_dust2",
+        "de_inferno",
+        "de_mirage",
+        "de_nuke",
+        "de_overpass"
+      ]
+    },
+    "mg_1v1": {
+      "displayName": "1v1 Arenas",
+      "maps": [
+        "workshop/3070581293/de_bank",
+        "workshop/3082605693/1v1aim_map_longdustversion_d",
+        "workshop/3070550406/de_safehouse"
+      ]
+    },
+    "mg_gungame": {
+      "displayName": "GunGame",
+      "maps": [
+        "ar_shoots",
+        "ar_baggage",
+        "ar_pool_day",
+        "workshop/3443206318/speedball",
+        "workshop/3071005299/de_assembly",
+        "workshop/3070238628/fy_iceworld",
+        "workshop/3072640420/daymare",
+        "workshop/3070348309/aim_theorem",
+        "workshop/3070550406/de_safehouse",
+        "workshop/3070563536/de_lake",
+        "workshop/3070581293/de_bank",
+        "workshop/3088183343/fun_bounce",
+        "workshop/3082605693/1v1aim_map_longdustversion_d",
+        "workshop/3070291913/ar_churches_s2r",
+        "workshop/3082113929/aim_ag_texture_city_advanced",
+        "workshop/3086555291/shipment_version_1_0",
+        "workshop/3074966697/aim_ag_texture2",
+        "workshop/3095779105/aim_ag_texture_jungle",
+        "workshop/3071890065/cs2_bloodstrike",
+        "workshop/3345551391/twofort_cs2",
+        "workshop/3386116667/de_ema",
+        "workshop/3360723913/paintit"
+      ]
+    }
+  }
+}

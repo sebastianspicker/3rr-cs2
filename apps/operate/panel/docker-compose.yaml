@@ -1,0 +1,29 @@
+# IMPORTANT: This service does not terminate TLS. In production, place a
+# TLS-terminating reverse proxy (e.g. nginx, Traefik, or Caddy) in front of
+# the cs2rcon container to encrypt traffic between clients and the panel.
+#
+# Copy .env.example to .env and set a strong SESSION_SECRET before running.
+# For production, also set RCON_SECRET_KEY and any required Redis settings.
+# Override env vars in .env; do not commit real credentials.
+services:
+  cs2rcon:
+    build:
+      context: .
+    ports:
+      - '3000:3000'
+    env_file:
+      - .env
+    environment:
+      PORT: 3000
+    volumes:
+      - ./data:/home/container/data
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp:noexec,nosuid,size=64m
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          memory: 512m

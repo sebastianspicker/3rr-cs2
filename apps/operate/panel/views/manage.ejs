@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="color-scheme" content="dark">
+  <meta name="csrf-token" content="<%= csrfToken %>">
+  <title>CS2 Panel — <%= hostname %></title>
+  <link rel="stylesheet" href="/css/panel.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to main content</a>
+  <%- include('partials/navbar') %>
+
+  <main class="container" id="main" data-server-id="<%= server_id %>">
+    <div class="manage-header">
+      <h1><%= hostname %></h1>
+      <div class="manage-header-right">
+        <div class="server-addr">
+          <span class="status-dot <%= connected && authenticated ? 'online' : 'offline' %>"></span>
+          <%= host %>:<%= port %>
+          <span class="badge <%= connected && authenticated ? 'badge-connected' : 'badge-disconnected' %>">
+            <%= connected && authenticated ? 'Connected' : 'Disconnected' %>
+          </span>
+        </div>
+        <button id="mode-toggle" class="btn btn-sm mode-toggle" aria-pressed="false" aria-label="Toggle expert mode">
+          Expert
+        </button>
+        <button type="submit" form="server_setup_form" class="btn btn-primary btn-sm">Deploy Match</button>
+      </div>
+    </div>
+    <% if (!(connected && authenticated)) { %>
+      <div class="alert alert-disconnected">
+        RCON is not connected. Commands will fail until the server reconnects. Return to
+        <a href="/servers">Servers</a> to reconnect.
+      </div>
+    <% } %>
+
+    <div class="manage-grid">
+      <!-- LEFT COLUMN -->
+      <div>
+        <!-- Setup Game -->
+        <div class="panel">
+          <div class="panel-header">
+            <h2>Setup Game</h2>
+          </div>
+          <form id="server_setup_form" novalidate>
+            <div class="mb-3 expert-only">
+              <label for="team1" class="form-label">Team 1</label>
+              <input type="text" id="team1" name="team1" class="form-control" placeholder="Team name...">
+            </div>
+            <div class="mb-3 expert-only">
+              <label for="team2" class="form-label">Team 2</label>
+              <input type="text" id="team2" name="team2" class="form-control" placeholder="Team name...">
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Game Type</label>
+              <div class="btn-grid cols-3" id="gameTypeBtns">
+                <% gameTypes.forEach(type => { %>
+                  <button type="button" class="btn btn-secondary" data-game-type="<%= type %>">
+                    <%= type.charAt(0).toUpperCase() + type.slice(1) %>
+                  </button>
+                <% }) %>
+              </div>
+              <input type="hidden" id="gameTypeValue" name="game_type" value="">
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Game Mode</label>
+              <div class="btn-grid" id="gameModeBtns"></div>
+              <input type="hidden" id="gameModeValue" name="game_mode" value="">
+            </div>
+            <div class="mb-3">
+              <label for="selectedMap" class="form-label">Map</label>
+              <select id="selectedMap" name="selectedMap" class="form-select" required>
+                <option disabled selected>Choose a game mode first</option>
+              </select>
+            </div>
+            <div class="mb-3 expert-only">
+              <label for="workshopUrl" class="form-label">Or paste Workshop URL</label>
+              <div class="input-row">
+                <input type="text" id="workshopUrl" name="workshop_url" class="form-control"
+                       placeholder="https://steamcommunity.com/sharedfiles/filedetails/?id=...">
+                <button type="button" id="loadWorkshopMap" class="btn btn-secondary">Load</button>
+              </div>
+              <small class="text-muted">Paste a Steam Workshop URL to load any workshop map</small>
+            </div>
+            <div class="mb-3 expert-only">
+              <label for="workshopCollectionId" class="form-label">Or load Workshop Collection</label>
+              <div class="input-row">
+                <input type="text" id="workshopCollectionId" name="workshop_collection_id" class="form-control"
+                       placeholder="Collection ID (5–20 digits)" maxlength="20" autocomplete="off">
+                <button type="button" id="loadWorkshopCollection" class="btn btn-secondary">Load</button>
+              </div>
+              <small class="text-muted">Loads all maps in a Workshop Collection for rotation</small>
+            </div>
+            <div class="mb-3 expert-only">
+              <label for="mapGroupSelect" class="form-label">Set Map Group</label>
+              <div class="input-row">
+                <select id="mapGroupSelect" class="form-select">
+                  <% mapGroups.forEach(function(group) { %>
+                    <option value="<%= group.id %>"><%= group.displayName %> (<%= group.id %>)</option>
+                  <% }) %>
+                </select>
+                <button type="button" id="setMapGroupBtn" class="btn btn-secondary">Set</button>
+              </div>
+              <small class="text-muted">Sets <code>mp_mapgroupname</code> for map cycling</small>
+            </div>
+          </form>
+        </div>
+
+        <!-- Live Status -->
+        <div class="panel">
+          <div class="panel-header">
+            <h2>Live Status</h2>
+            <button id="refresh_status" class="btn btn-ghost btn-sm" aria-label="Refresh live status">&#8635; Refresh</button>
+          </div>
+          <p class="small text-muted mb-sm" id="live-status-updated" aria-live="polite">Last updated: --</p>
+          <div class="data-grid">
+            <div class="data-item">
+              <span class="data-label">Map</span>
+              <span class="data-value" id="live-map">--</span>
+            </div>
+            <div class="data-item">
+              <span class="data-label">Game Type</span>
+              <span class="data-value" id="last-game-type"><%= lastGameType %></span>
+            </div>
+            <div class="data-item">
+              <span class="data-label">Players</span>
+              <span class="data-value" id="live-players">--</span>
+            </div>
+            <div class="data-item">
+              <span class="data-label">Game Mode</span>
+              <span class="data-value" id="last-game-mode"><%= lastGameMode %></span>
+            </div>
+            <div class="data-item">
+              <span class="data-label">Bots</span>
+              <span class="data-value" id="live-bots">--</span>
+            </div>
+            <div class="data-item">
+              <span class="data-label">Last Map</span>
+              <span class="data-value"><%= lastMap || '--' %></span>
+            </div>
+            <div class="data-item">
+              <span class="data-label">Active Config</span>
+              <span class="data-value" id="live-active-cfg">--</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Scrim Controls -->
+        <div class="panel expert-only">
+          <div class="panel-header">
+            <h2>Scrim Controls</h2>
+          </div>
+
+          <div class="section-label">Round Count</div>
+          <div class="btn-grid cols-3" id="maxrounds-presets">
+            <button id="maxrounds_16" class="btn btn-secondary">16 Rounds</button>
+            <button id="maxrounds_24" class="btn btn-secondary">24 Rounds</button>
+            <button id="maxrounds_30" class="btn btn-secondary">30 Rounds</button>
+          </div>
+
+          <div class="section-label">Overtime</div>
+          <div class="btn-grid cols-2">
+            <div class="btn-pair" role="group">
+              <button id="overtime_on"  data-toggle-group="overtime" data-toggle-val="1" aria-pressed="false" class="btn btn-info">OT On</button>
+              <button id="overtime_off" data-toggle-group="overtime" data-toggle-val="0" aria-pressed="false" class="btn btn-outline-info">Off</button>
+            </div>
+          </div>
+          <div class="btn-grid cols-3 mt-sm" id="ot-rounds-presets">
+            <button id="ot_rounds_3" class="btn btn-secondary">MR3</button>
+            <button id="ot_rounds_5" class="btn btn-secondary">MR5</button>
+            <button id="ot_rounds_6" class="btn btn-secondary">MR6</button>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- RIGHT COLUMN -->
+      <div>
+        <!-- RCON -->
+        <div class="panel expert-only">
+          <div class="panel-header">
+            <h2>RCON Console</h2>
+            <span class="badge <%= connected && authenticated ? 'badge-connected' : 'badge-disconnected' %>">
+              <%= connected && authenticated ? 'Connected' : 'Disconnected' %>
+            </span>
+          </div>
+          <div class="input-row">
+            <input
+              type="text"
+              id="say_input"
+              name="say_message"
+              class="form-control"
+              placeholder="Say as admin... (Enter to send)"
+              aria-label="Say as admin message"
+              autocomplete="off"
+            >
+            <button id="say_input_btn" class="btn btn-secondary">Say</button>
+          </div>
+          <div class="input-row">
+            <input
+              type="text"
+              id="rconInput"
+              name="rcon_command"
+              class="form-control"
+              placeholder="RCON command... (Enter to send)"
+              aria-label="RCON command"
+              autocomplete="off"
+            >
+            <button id="rconInputBtn" class="btn btn-primary">Send</button>
+          </div>
+          <div id="rconResultBox" class="rcon-response">
+            <div class="rcon-response-header">
+              <span class="rcon-response-label">Output</span>
+              <button id="rconClearBtn" class="btn btn-ghost btn-sm" aria-label="Clear console output">Clear</button>
+            </div>
+            <pre id="rconResultText"></pre>
+          </div>
+        </div>
+
+        <!-- Quick Commands -->
+        <div class="panel expert-only">
+          <div class="panel-header">
+            <h2>Quick Commands</h2>
+          </div>
+
+          <div class="section-label">Bots</div>
+          <div class="btn-grid cols-3">
+            <button id="add_bot"       class="btn btn-secondary">Add Bot</button>
+            <button id="kill_bots"     class="btn btn-secondary">Kill Bots</button>
+            <button id="kick_all_bots" class="btn btn-warning">Kick All</button>
+          </div>
+
+          <div class="section-label">Match Control</div>
+          <div class="btn-grid cols-4">
+            <button id="pause_game"     class="btn btn-info">Pause</button>
+            <button id="unpause_game"   class="btn btn-success">Unpause</button>
+            <button id="restart_game"   class="btn btn-danger">Restart</button>
+            <button id="scramble_teams" class="btn btn-warning">Scramble</button>
+          </div>
+          <div class="btn-grid cols-4 mt-sm">
+            <button id="start_warmup"   class="btn btn-secondary">Warmup</button>
+            <button id="knife_start"    class="btn btn-secondary">Knife</button>
+            <button id="swap_team"      class="btn btn-secondary">Swap</button>
+            <button id="matchzy_abort"  class="btn btn-danger">Abort Match</button>
+          </div>
+          <div class="btn-grid cols-2 mt-sm">
+            <button id="matchzy_coach_ct" class="btn btn-secondary">Coach CT</button>
+            <button id="matchzy_coach_t"  class="btn btn-secondary">Coach T</button>
+          </div>
+          <button id="matchzy_match" class="btn btn-success w-100 mt-sm">Start Match (MatchZy)</button>
+
+          <div class="section-label">Match Settings</div>
+          <div class="btn-grid cols-2">
+            <div class="btn-pair" role="group">
+              <button id="limitteams_on"  data-toggle-group="limitteams" data-toggle-val="1" aria-pressed="false" class="btn btn-info">Limit On</button>
+              <button id="limitteams_off" data-toggle-group="limitteams" data-toggle-val="0" aria-pressed="false" class="btn btn-outline-info">Off</button>
+            </div>
+            <div class="btn-pair" role="group">
+              <button id="autoteam_on"  data-toggle-group="autoteam" data-toggle-val="1" aria-pressed="false" class="btn btn-info">Balance On</button>
+              <button id="autoteam_off" data-toggle-group="autoteam" data-toggle-val="0" aria-pressed="false" class="btn btn-outline-info">Off</button>
+            </div>
+            <div class="btn-pair" role="group">
+              <button id="friendlyfire_on"  data-toggle-group="friendlyfire" data-toggle-val="1" aria-pressed="false" class="btn btn-info">FF On</button>
+              <button id="friendlyfire_off" data-toggle-group="friendlyfire" data-toggle-val="0" aria-pressed="false" class="btn btn-outline-info">Off</button>
+            </div>
+            <div class="btn-pair" role="group">
+              <button id="autokick_on"  data-toggle-group="autokick" data-toggle-val="1" aria-pressed="false" class="btn btn-info">Kick On</button>
+              <button id="autokick_off" data-toggle-group="autokick" data-toggle-val="0" aria-pressed="false" class="btn btn-outline-info">Off</button>
+            </div>
+          </div>
+
+          <div class="section-label">Player Management</div>
+          <div class="input-row">
+            <input type="text" id="player_userid_input" class="form-control" placeholder="User ID (from status)" maxlength="4" aria-label="Player user ID">
+            <button id="player_kick_btn" class="btn btn-warning">Kick</button>
+          </div>
+          <small class="text-muted mb-sm">Run RCON <code>status</code> to get user IDs</small>
+          <div class="input-row mt-sm">
+            <input type="text" id="player_steamid_input" class="form-control" placeholder="SteamID64 (17 digits)" maxlength="17" aria-label="Player SteamID64">
+            <button id="player_mute_btn"   class="btn btn-secondary">Mute</button>
+            <button id="player_unmute_btn" class="btn btn-secondary">Unmute</button>
+          </div>
+
+          <div class="section-label">Round Backups</div>
+          <div class="btn-grid cols-3">
+            <button id="list_backups"          class="btn btn-secondary">List</button>
+            <button id="restore_backup"        class="btn btn-secondary">Restore</button>
+            <button id="restore_latest_backup" class="btn btn-secondary">Latest</button>
+          </div>
+          <div id="restore_backup_row" class="input-row mt-sm" hidden>
+            <input type="number" id="restore_round_input" class="form-control" placeholder="Round # (1–99)" min="1" max="99" aria-label="Round number to restore (1–99)">
+            <button id="restore_round_submit" class="btn btn-primary">Go</button>
+            <button id="restore_round_cancel" class="btn btn-secondary">✕</button>
+          </div>
+        </div>
+
+        <!-- Practice Controls -->
+        <div class="panel">
+          <div class="panel-header">
+            <h2>Practice Controls</h2>
+          </div>
+
+          <div class="section-label">MatchZy</div>
+          <div class="btn-grid cols-3">
+            <button id="matchzy_practice" class="btn btn-info">Practice Mode</button>
+            <button id="matchzy_exitprac" class="btn btn-warning">Exit Practice</button>
+            <button id="matchzy_playout"  class="btn btn-secondary">Force Playout</button>
+          </div>
+          <div class="input-row mt-sm expert-only">
+            <input type="text" id="matchzy_match_file_input" class="form-control" placeholder="match.json" maxlength="100" aria-label="MatchZy match config filename">
+            <button id="matchzy_load_match_file_btn" class="btn btn-secondary">Load File</button>
+          </div>
+          <small class="text-muted mb-sm expert-only">File must exist on the server</small>
+
+          <div class="section-label expert-only">Server Settings</div>
+          <div class="btn-grid cols-2 expert-only">
+            <div class="btn-pair" role="group">
+              <button id="cheats_on"  data-toggle-group="cheats" data-toggle-val="1" aria-pressed="false" class="btn btn-info">Cheats On</button>
+              <button id="cheats_off" data-toggle-group="cheats" data-toggle-val="0" aria-pressed="false" class="btn btn-outline-info">Off</button>
+            </div>
+            <div class="btn-pair" role="group">
+              <button id="free_armor_on"  data-toggle-group="free_armor" data-toggle-val="1" aria-pressed="false" class="btn btn-info">Free Armor On</button>
+              <button id="free_armor_off" data-toggle-group="free_armor" data-toggle-val="0" aria-pressed="false" class="btn btn-outline-info">Off</button>
+            </div>
+            <div class="btn-pair" role="group">
+              <button id="buy_anywhere_on"  data-toggle-group="buy_anywhere" data-toggle-val="1" aria-pressed="false" class="btn btn-info">Buy Anywhere On</button>
+              <button id="buy_anywhere_off" data-toggle-group="buy_anywhere" data-toggle-val="0" aria-pressed="false" class="btn btn-outline-info">Off</button>
+            </div>
+            <div class="btn-pair" role="group">
+              <button id="respawn_on"  data-toggle-group="respawn" data-toggle-val="1" aria-pressed="false" class="btn btn-info">Respawn On</button>
+              <button id="respawn_off" data-toggle-group="respawn" data-toggle-val="0" aria-pressed="false" class="btn btn-outline-info">Off</button>
+            </div>
+            <div class="btn-pair" role="group">
+              <button id="damage_print_on"  data-toggle-group="damage_print" data-toggle-val="1" aria-pressed="false" class="btn btn-info">Dmg Print On</button>
+              <button id="damage_print_off" data-toggle-group="damage_print" data-toggle-val="0" aria-pressed="false" class="btn btn-outline-info">Off</button>
+            </div>
+          </div>
+          <div class="btn-grid cols-3 mt-sm expert-only" id="inf-ammo-presets">
+            <button id="inf_ammo_0" class="btn btn-secondary">Ammo Off</button>
+            <button id="inf_ammo_1" class="btn btn-secondary">Full</button>
+            <button id="inf_ammo_2" class="btn btn-secondary">Nades</button>
+          </div>
+
+          <div class="section-label expert-only">Game Modifiers</div>
+          <div class="btn-grid cols-2 expert-only">
+            <div class="btn-pair" role="group">
+              <button id="random_rounds_on"  data-toggle-group="random_rounds" data-toggle-val="1" aria-pressed="false" class="btn btn-info">Random Rounds On</button>
+              <button id="random_rounds_off" data-toggle-group="random_rounds" data-toggle-val="0" aria-pressed="false" class="btn btn-outline-info">Off</button>
+            </div>
+            <div class="btn-pair" role="group">
+              <button id="rtd_on"  data-toggle-group="rtd" data-toggle-val="1" aria-pressed="false" class="btn btn-info">RTD On</button>
+              <button id="rtd_off" data-toggle-group="rtd" data-toggle-val="0" aria-pressed="false" class="btn btn-outline-info">Off</button>
+            </div>
+          </div>
+          <button id="rtd_force_roll" class="btn btn-warning w-100 mt-sm expert-only">Force Roll (RTD)</button>
+
+          <div class="section-label expert-only">Visibility</div>
+          <div class="btn-grid cols-2 expert-only">
+            <div class="btn-pair" role="group">
+              <button id="grenade_trail_on"  data-toggle-group="grenade_trail" data-toggle-val="1" aria-pressed="false" class="btn btn-info">Nade Trail On</button>
+              <button id="grenade_trail_off" data-toggle-group="grenade_trail" data-toggle-val="0" aria-pressed="false" class="btn btn-outline-info">Off</button>
+            </div>
+            <div class="btn-pair" role="group">
+              <button id="show_impacts_on"  data-toggle-group="show_impacts" data-toggle-val="1" aria-pressed="false" class="btn btn-info">Impacts On</button>
+              <button id="show_impacts_off" data-toggle-group="show_impacts" data-toggle-val="0" aria-pressed="false" class="btn btn-outline-info">Off</button>
+            </div>
+          </div>
+
+          <div class="section-label expert-only">Timing &amp; Economy</div>
+          <div class="btn-grid cols-5 expert-only" id="freezetime-presets">
+            <button id="freezetime_0"  class="btn btn-secondary">0s</button>
+            <button id="freezetime_5"  class="btn btn-secondary">5s</button>
+            <button id="freezetime_10" class="btn btn-secondary">10s</button>
+            <button id="freezetime_15" class="btn btn-secondary">15s</button>
+            <button id="freezetime_20" class="btn btn-secondary">20s</button>
+          </div>
+          <div class="btn-grid cols-5 mt-sm expert-only" id="startmoney-presets">
+            <button id="startmoney_0"     class="btn btn-secondary">$0</button>
+            <button id="startmoney_800"   class="btn btn-secondary">$800</button>
+            <button id="startmoney_1600"  class="btn btn-secondary">$1600</button>
+            <button id="startmoney_3200"  class="btn btn-secondary">$3200</button>
+            <button id="startmoney_16000" class="btn btn-secondary">$16k</button>
+          </div>
+          <div class="section-label expert-only">Buy Time</div>
+          <div class="btn-grid cols-5 expert-only" id="buytime-presets">
+            <button id="buytime_10"  class="btn btn-secondary">10s</button>
+            <button id="buytime_15"  class="btn btn-secondary">15s</button>
+            <button id="buytime_30"  class="btn btn-secondary">30s</button>
+            <button id="buytime_45"  class="btn btn-secondary">45s</button>
+            <button id="buytime_90"  class="btn btn-secondary">90s</button>
+          </div>
+
+          <div class="section-label expert-only">Bot Difficulty</div>
+          <div class="btn-grid cols-4 expert-only" id="bot-difficulty-presets">
+            <button id="bot_difficulty_0" class="btn btn-secondary">Easy</button>
+            <button id="bot_difficulty_1" class="btn btn-secondary">Normal</button>
+            <button id="bot_difficulty_2" class="btn btn-secondary">Hard</button>
+            <button id="bot_difficulty_3" class="btn btn-secondary">Expert</button>
+          </div>
+
+          <div class="section-label expert-only">Round Time</div>
+          <div class="btn-grid cols-4 expert-only" id="roundtime-presets">
+            <button id="roundtime_1"  class="btn btn-secondary">1 min</button>
+            <button id="roundtime_2"  class="btn btn-secondary">2 min</button>
+            <button id="roundtime_5"  class="btn btn-secondary">5 min</button>
+            <button id="roundtime_60" class="btn btn-secondary">Unlimited</button>
+          </div>
+
+          <div class="section-label expert-only">Team Bots</div>
+          <div class="btn-grid cols-2 expert-only">
+            <div class="btn-pair" role="group">
+              <button id="bot_add_ct"  class="btn btn-secondary">+ CT Bot</button>
+              <button id="bot_kick_ct" class="btn btn-warning">Kick CT</button>
+            </div>
+            <div class="btn-pair" role="group">
+              <button id="bot_add_t"  class="btn btn-secondary">+ T Bot</button>
+              <button id="bot_kick_t" class="btn btn-warning">Kick T</button>
+            </div>
+          </div>
+
+          <div class="section-label expert-only">Movement</div>
+          <div class="btn-grid cols-2 expert-only">
+            <button id="noclip_btn"       class="btn btn-secondary">Noclip</button>
+            <button id="rethrow_nade_btn" class="btn btn-secondary">Rethrow Nade</button>
+          </div>
+
+          <div class="section-label expert-only">Give Nade Kit</div>
+          <div class="btn-grid cols-3 expert-only">
+            <button id="give_flash"   class="btn btn-secondary">Flash</button>
+            <button id="give_smoke"   class="btn btn-secondary">Smoke</button>
+            <button id="give_he"      class="btn btn-secondary">HE</button>
+            <button id="give_molotov" class="btn btn-secondary">Molotov</button>
+            <button id="give_decoy"   class="btn btn-secondary">Decoy</button>
+            <button id="give_incen"   class="btn btn-secondary">Incendiary</button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </main>
+
+  <%- include('partials/footer') %>
+  <script src="/js/console.js"></script>
+</body>
+</html>

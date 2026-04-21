@@ -1,0 +1,8 @@
+node_modules
+npm-debug.log*
+.env
+.git
+.github
+data
+panel_screenshot.PNG
+readme.md.bak

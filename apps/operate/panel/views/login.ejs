@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="color-scheme" content="dark">
+  <meta name="csrf-token" content="<%= csrfToken %>">
+  <title>CS2 Panel — Login</title>
+  <link rel="stylesheet" href="/css/panel.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to main content</a>
+  <div class="auth-page" id="main">
+    <div class="auth-card">
+      <div class="panel">
+        <h1 class="auth-title">CS2 Panel</h1>
+        <p class="auth-subtitle">Server Control Console</p>
+        <div id="error-msg" class="alert alert-danger" role="alert" hidden></div>
+        <form id="login-form">
+          <div class="mb-3">
+            <label for="username" class="form-label">Username</label>
+            <input
+              type="text"
+              id="username"
+              name="username"
+              class="form-control"
+              autocomplete="username"
+              spellcheck="false"
+              required
+              maxlength="255"
+            >
+          </div>
+          <div class="mb-3">
+            <label for="password" class="form-label">Password</label>
+            <input
+              type="password"
+              id="password"
+              name="password"
+              class="form-control"
+              autocomplete="current-password"
+              required
+              minlength="12"
+              maxlength="1024"
+            >
+          </div>
+          <div class="btn-container">
+            <button id="login_btn" type="submit" class="btn btn-primary">Authenticate</button>
+            <button type="reset" class="btn btn-secondary">Clear</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <%- include('partials/footer') %>
+  <script src="/js/toast-inline.js"></script>
+  <script nonce="<%= cspNonce %>">
+    document.addEventListener('DOMContentLoaded', function () {
+      var csrfToken = document.querySelector('meta[name="csrf-token"]').content;
+      var form = document.getElementById('login-form');
+      form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        var username = document.getElementById('username').value;
+        var password = document.getElementById('password').value;
+        var errorEl = document.getElementById('error-msg');
+        if (errorEl) {
+          errorEl.setAttribute('hidden', 'hidden');
+          errorEl.textContent = '';
+        }
+        if (!username || !password) {
+          showToast('All fields are required.', 'error');
+          return;
+        }
+        fetch('/auth/login', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-Token': csrfToken,
+          },
+          body: JSON.stringify({ username: username, password: password }),
+        })
+          .then(function (resp) {
+            return resp.json().then(function (data) {
+              if (!resp.ok) {
+                throw new Error(data.error || data.message || 'Login failed');
+              }
+              return data;
+            });
+          })
+          .then(function (data) {
+            window.location.href = '/servers';
+          })
+          .catch(function (err) {
+            if (errorEl) {
+              errorEl.textContent = err.message || 'Login failed';
+              errorEl.removeAttribute('hidden');
+            }
+          });
+      });
+    });
+  </script>
+</body>
+</html>
