@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Removed
+- Removed optional webhook and RCON player notifications; old config keys now emit warnings when ignored.
+- Removed unused `LOG_LEVEL=verbose`; supported values are `quiet` and `normal`.
+
 ## [1.8.0] - 2026-04-19
 
 ### Security
@@ -19,9 +25,7 @@ All notable changes to this project will be documented in this file.
 ### Tests
 - Test harness covers false-success updates, remote lookup failure in `--status`, PID-reuse stale-lock, and stop/start retry failures (finding #18).
 
-
 ### Added
-- `CLAUDE.md` project configuration for Claude Code.
 - 19 new test cases (40 total): `--help`, `--version`, `--status`, `-c FILE`, validation edge cases, disk space, webhook, config file parsing, stale lock without PID file.
 - Configurable `df` mock (`DF_AVAILABLE`) and `curl` mock for webhook tests.
 - Test counter and summary output.

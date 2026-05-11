@@ -53,13 +53,7 @@ while [ $# -gt 0 ]; do
             echo "  REQUIRED_SPACE       Min free disk space in KB   [5000000 (~5 GB)]"
             echo "  MAX_ATTEMPTS         Retries for stop/start      [5]"
             echo "  SLEEP_SECS           Seconds between retries     [5]"
-            echo "  LOG_LEVEL            quiet, normal, or verbose   [normal]"
-            echo "  NOTIFY_WEBHOOK_URL   Webhook URL on update       (optional)"
-            echo "  NOTIFY_PLAYERS_MESSAGE  In-game RCON message before stop (optional)"
-            echo "  RCON_CLI             RCON CLI binary             [rcon-cli]"
-            echo "  RCON_HOST            RCON host                   [127.0.0.1]"
-            echo "  RCON_PORT            RCON port                   [27015]"
-            echo "  RCON_PASSWORD        RCON password               (optional)"
+            echo "  LOG_LEVEL            quiet or normal             [normal]"
             echo ""
             echo "Examples:"
             echo "  sudo $0                     # check and apply updates"
@@ -154,22 +148,14 @@ apply_defaults
 # Testing helper: set to 1 to allow running as non-root (runs SteamCMD as the current user).
 ALLOW_NONROOT="${ALLOW_NONROOT:-0}"
 NO_SLEEP="${NO_SLEEP:-0}"
-# quiet = only ERROR/WARNING; normal = all; verbose = all (future: more detail)
+# quiet = only ERROR/WARNING; normal = all
 LOG_LEVEL="${LOG_LEVEL:-normal}"
-# Optional webhook URL (e.g. Discord/Slack) to notify on successful update; empty = disabled
-NOTIFY_WEBHOOK_URL="${NOTIFY_WEBHOOK_URL:-}"
-
-# Optional: notify in-game players before stopping the server for an update.
-# Requires an RCON CLI tool (e.g. rcon-cli from https://github.com/gorcon/rcon-cli).
-# Set NOTIFY_PLAYERS_MESSAGE to a non-empty string to enable; leave empty to disable.
-RCON_CLI="${RCON_CLI:-rcon-cli}"
-RCON_HOST="${RCON_HOST:-127.0.0.1}"
-RCON_PORT="${RCON_PORT:-27015}"
-RCON_PASSWORD="${RCON_PASSWORD:-}"
-NOTIFY_PLAYERS_MESSAGE="${NOTIFY_PLAYERS_MESSAGE:-}"
-
 # Single source of truth: config-file whitelist and trim loop use this list.
-CONFIG_AND_TRIM_VARS="LOCKDIR LOGFILE CS2_DIR SERVICE_NAME STEAMCMD CS2_APP_ID REQUIRED_SPACE MAX_ATTEMPTS SLEEP_SECS ALLOW_NONROOT NO_SLEEP LOG_LEVEL DRY_RUN NOTIFY_WEBHOOK_URL RCON_CLI RCON_HOST RCON_PORT RCON_PASSWORD NOTIFY_PLAYERS_MESSAGE"
+CONFIG_AND_TRIM_VARS="LOCKDIR LOGFILE CS2_DIR SERVICE_NAME STEAMCMD CS2_APP_ID REQUIRED_SPACE MAX_ATTEMPTS SLEEP_SECS ALLOW_NONROOT NO_SLEEP LOG_LEVEL DRY_RUN"
+# Keep old keys visible to operators after feature removal. Warning is safer
+# than silently ignoring a config file copied from an older deployment.
+REMOVED_CONFIG_VARS="NOTIFY_WEBHOOK_URL NOTIFY_PLAYERS_MESSAGE RCON_CLI RCON_HOST RCON_PORT RCON_PASSWORD"
+REMOVED_CONFIG_KEYS=""
 
 trim_whitespace() {
     local value
@@ -220,8 +206,26 @@ parse_config_value() {
     printf '%s' "$value"
 }
 
+remember_removed_config_key() {
+    local key existing
+    key="$1"
+    for existing in $REMOVED_CONFIG_KEYS; do
+        [ "$existing" = "$key" ] && return 0
+    done
+    REMOVED_CONFIG_KEYS="${REMOVED_CONFIG_KEYS}${REMOVED_CONFIG_KEYS:+ }${key}"
+}
+
+detect_removed_env_config_keys() {
+    local key
+    for key in $REMOVED_CONFIG_VARS; do
+        if [ "${!key+x}" = "x" ]; then
+            remember_removed_config_key "$key"
+        fi
+    done
+}
+
 load_config_file() {
-    local path line key val allowed
+    local path line key val allowed removed matched
     path="$1"
     while IFS= read -r line || [ -n "$line" ]; do
         line="$(trim_whitespace "$(strip_unquoted_comment "$line")")"
@@ -231,12 +235,22 @@ load_config_file() {
             # Keep parser portable to older /bin/bash versions (e.g., macOS bash 3.2).
             val="${val//$'\r'/}"
             val="${val//$'\n'/}"
+            matched=0
             for allowed in $CONFIG_AND_TRIM_VARS; do
                 if [ "$key" = "$allowed" ]; then
                     printf -v "$key" '%s' "$val"
+                    matched=1
                     break
                 fi
             done
+            if [ "$matched" = "0" ]; then
+                for removed in $REMOVED_CONFIG_VARS; do
+                    if [ "$key" = "$removed" ]; then
+                        remember_removed_config_key "$key"
+                        break
+                    fi
+                done
+            fi
         fi
     done < "$path"
 }
@@ -276,6 +290,7 @@ trim_config_vars() {
 }
 trim_config_vars
 apply_defaults
+detect_removed_env_config_keys
 
 # CLI flags must have highest precedence over config file values.
 if [ "$CLI_DRY_RUN_SET" = "1" ]; then
@@ -318,6 +333,13 @@ log_multiline() {
     prefix="${1:-}"
     while IFS= read -r line || [ -n "$line" ]; do
         log "${prefix}${line}"
+    done
+}
+
+warn_removed_config_keys() {
+    local key
+    for key in $REMOVED_CONFIG_KEYS; do
+        log "WARNING: Config key $key is no longer supported and was ignored."
     done
 }
 
@@ -381,8 +403,8 @@ validate_config() {
         exit_with_error "CS2_APP_ID must be a numeric app id (e.g. 730). Current: $CS2_APP_ID"
     fi
     case "${LOG_LEVEL:-}" in
-        quiet | normal | verbose) ;;
-        *) exit_with_error "LOG_LEVEL must be one of: quiet, normal, verbose. Current: $LOG_LEVEL" ;;
+        quiet | normal) ;;
+        *) exit_with_error "LOG_LEVEL must be one of: quiet, normal. Current: $LOG_LEVEL" ;;
     esac
     if ! [[ "${ALLOW_NONROOT:-}" =~ ^[01]$ ]]; then
         exit_with_error "ALLOW_NONROOT must be 0 or 1. Current: $ALLOW_NONROOT"
@@ -799,6 +821,9 @@ determine_update_state() {
     before="$1"
     remote="$2"
 
+    # Downtime is allowed only when both sides of the comparison are known.
+    # Unknown remote status is a hard stop so transient SteamCMD/network issues
+    # cannot trigger speculative service restarts.
     if [ -n "$before" ] && [ -n "$remote" ]; then
         if [ "$before" = "$remote" ]; then
             printf 'up-to-date'
@@ -817,6 +842,8 @@ determine_post_update_state() {
     remote="$2"
     after="$3"
 
+    # SteamCMD can exit 0 without changing the installed build. Treat that as
+    # failed convergence, not as a successful update.
     if [ -z "$after" ]; then
         printf 'update-failed'
         return 0
@@ -851,76 +878,12 @@ ensure_service_running() {
     fi
 }
 
-#### Notify (optional webhook) ####
-# Validate webhook URL to prevent SSRF: allow only https or localhost http.
-validate_webhook_url() {
-    local url
-    url="$1"
-    if [ -z "$url" ]; then
-        return 0
-    fi
-    if [[ "$url" =~ ^https:// ]]; then
-        return 0
-    fi
-    if [[ "$url" =~ ^http://(127\.0\.0\.1|localhost)(/|:|$) ]]; then
-        return 0
-    fi
-    return 1
-}
-
-notify_webhook() {
-    local url payload escaped_payload
-    url="$1"
-    payload="${2:-CS2 server updated successfully.}"
-    if [ -z "$url" ]; then
-        return 0
-    fi
-    if ! validate_webhook_url "$url"; then
-        log "WARNING: NOTIFY_WEBHOOK_URL must be https:// or http://127.0.0.1|localhost. Skipping webhook."
-        return 0
-    fi
-
-    # JSON-safe escaping: backslashes first, then double quotes, then control characters.
-    escaped_payload="${payload//\\/\\\\}"
-    escaped_payload="${escaped_payload//\"/\\\"}"
-    escaped_payload="${escaped_payload//$'\n'/\\n}"
-    escaped_payload="${escaped_payload//$'\r'/\\r}"
-    escaped_payload="${escaped_payload//$'\t'/\\t}"
-
-    if command -v curl > /dev/null 2>&1; then
-        if curl -fsS -X POST -H "Content-Type: application/json" \
-            -d "{\"text\":\"$escaped_payload\"}" "$url" > /dev/null 2>&1; then
-            log "Webhook notification sent."
-        else
-            log "WARNING: Webhook request failed (non-fatal)."
-        fi
-    else
-        log "WARNING: curl not found; skipping webhook (non-fatal)."
-    fi
-}
-
-# Notify in-game players via RCON before the service is stopped.
-# Graceful: RCON failures are logged as warnings and never block the update.
-notify_players_before_update() {
-    [ -z "${NOTIFY_PLAYERS_MESSAGE:-}" ] && return 0
-    log "Notifying players before update: '${NOTIFY_PLAYERS_MESSAGE}'"
-    if ! command -v "$RCON_CLI" > /dev/null 2>&1; then
-        log "WARNING: RCON_CLI ('$RCON_CLI') not found in PATH. Skipping player notification."
-        return 0
-    fi
-    if "$RCON_CLI" -a "${RCON_HOST}:${RCON_PORT}" -p "${RCON_PASSWORD}" \
-        "say ${NOTIFY_PLAYERS_MESSAGE}" > /dev/null 2>&1; then
-        log "Player notification sent via RCON."
-    else
-        log "WARNING: RCON notification failed. Continuing with update anyway."
-    fi
-}
-
 #### Main Execution Flow ####
 require_root
 require_steam_user
 validate_config
 ensure_logfile_writable
+warn_removed_config_keys
 require_cmd awk
 require_cmd df
 require_cmd ps
@@ -988,7 +951,6 @@ if [ "$DRY_RUN" = "1" ]; then
     exit 0
 fi
 
-notify_players_before_update
 stop_service
 run_update
 
@@ -1002,9 +964,6 @@ POST_UPDATE_STATE=$(determine_post_update_state "$BUILDID_BEFORE" "$REMOTE_BUILD
 case "$POST_UPDATE_STATE" in
     update-applied)
         log "Update applied successfully (before ${BUILDID_BEFORE:-unknown}, after ${BUILDID_AFTER:-unknown}, remote ${REMOTE_BUILDID:-unknown})."
-        if [ -n "${NOTIFY_WEBHOOK_URL:-}" ]; then
-            notify_webhook "$NOTIFY_WEBHOOK_URL" "CS2 server updated successfully."
-        fi
         log "=== Update process completed ($(($(date +%s) - UPDATE_START_TIME))s) ==="
         exit 0
         ;;

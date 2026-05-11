@@ -9,6 +9,7 @@ node_modules/
 *.sqlite-wal
 .env
 .env.*
+.e2e/
 data/
 
 npm-debug.log*
@@ -42,6 +43,8 @@ dist/
 build/
 out/
 tmp/
+tmp-cs2-*
+tmp-cs2-*/
 tmp-cs2-panel-*
 tmp-cs2-panel-*/
 tmp-entry-cs2-panel-*
@@ -49,6 +52,7 @@ tmp-entry-cs2-panel-*/
 *.tmp
 *.pid
 reports/
+playwright-report/
 
 .DS_Store
 .vscode/

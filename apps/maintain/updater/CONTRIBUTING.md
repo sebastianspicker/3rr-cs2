@@ -25,7 +25,6 @@ Or install manually: [shellcheck](https://github.com/koalaman/shellcheck) 0.10.0
 - 4-space indentation (enforced by shfmt)
 - Declare all function-scoped variables with `local`
 - Quote all variable expansions
-- See `CLAUDE.md` for full conventions
 
 ## Pull Requests
 

@@ -43,6 +43,17 @@
           <label for="new-user-password">Password <span class="hint">(min 12 characters)</span></label>
           <input type="password" id="new-user-password" name="password" required minlength="12" autocomplete="new-password">
         </div>
+        <% if (servers.length > 0) { %>
+          <div class="form-group">
+            <label for="new-user-server">Initial server access</label>
+            <select id="new-user-server" name="serverId">
+              <option value="">No initial access</option>
+              <% servers.forEach(function (server) { %>
+                <option value="<%= server.id %>"><%= server.serverIP %>:<%= server.serverPort %></option>
+              <% }) %>
+            </select>
+          </div>
+        <% } %>
         <div id="add-user-status" role="status" aria-live="polite"></div>
         <button type="submit" class="btn btn-primary">Add user</button>
       </form>
@@ -60,14 +71,38 @@
           });
           var data = await res.json();
           var tbody = document.getElementById('user-table-body');
-          tbody.innerHTML = '';
+          tbody.textContent = '';
           data.users.forEach(function (user) {
             var tr = document.createElement('tr');
             var role = user.is_admin ? 'Admin' : 'User';
-            var deleteBtn = user.id === currentUserId
-              ? '<span class="hint">(you)</span>'
-              : '<button class="btn btn-sm btn-danger" data-userid="' + user.id + '" data-username="' + user.username.replace(/"/g, '&quot;') + '">Delete</button>';
-            tr.innerHTML = '<td>' + user.id + '</td><td>' + user.username + '</td><td>' + role + '</td><td>' + deleteBtn + '</td>';
+
+            var idCell = document.createElement('td');
+            idCell.textContent = user.id;
+            tr.appendChild(idCell);
+
+            var usernameCell = document.createElement('td');
+            usernameCell.textContent = user.username;
+            tr.appendChild(usernameCell);
+
+            var roleCell = document.createElement('td');
+            roleCell.textContent = role;
+            tr.appendChild(roleCell);
+
+            var actionCell = document.createElement('td');
+            if (user.id === currentUserId) {
+              var currentMarker = document.createElement('span');
+              currentMarker.className = 'hint';
+              currentMarker.textContent = '(you)';
+              actionCell.appendChild(currentMarker);
+            } else {
+              var deleteBtn = document.createElement('button');
+              deleteBtn.className = 'btn btn-sm btn-danger';
+              deleteBtn.dataset.userid = user.id;
+              deleteBtn.dataset.username = user.username;
+              deleteBtn.textContent = 'Delete';
+              actionCell.appendChild(deleteBtn);
+            }
+            tr.appendChild(actionCell);
             tbody.appendChild(tr);
           });
           tbody.querySelectorAll('[data-userid]').forEach(function (btn) {
@@ -109,13 +144,18 @@
         var status = document.getElementById('add-user-status');
         var username = document.getElementById('new-username').value;
         var password = document.getElementById('new-user-password').value;
+        var serverSelect = document.getElementById('new-user-server');
+        var payload = { username: username, password: password };
+        if (serverSelect && serverSelect.value) {
+          payload.serverId = parseInt(serverSelect.value, 10);
+        }
         status.textContent = '';
         status.className = '';
         try {
           var res = await fetch('/api/users/add', {
             method: 'POST',
             headers: { 'content-type': 'application/json', 'x-csrf-token': csrfToken },
-            body: JSON.stringify({ username: username, password: password })
+            body: JSON.stringify(payload)
           });
           var data = await res.json();
           if (res.ok) {
