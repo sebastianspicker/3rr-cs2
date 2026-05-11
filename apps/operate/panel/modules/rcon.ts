@@ -40,6 +40,14 @@ interface ServerDetails {
 
 type PasswordProvider = (serverId: number) => string | null;
 
+/**
+ * Owns live RCON sockets for known servers.
+ *
+ * Invariants:
+ * - `servers` caches address/port only; passwords are fetched from SQLite when connecting.
+ * - commands for one server are serialized to protect the single RCON response stream.
+ * - shutdown tears down both stored sockets and sockets still authenticating.
+ */
 export class RconManager {
   private rcons: Record<string, Rcon>;
   private details: Record<string, ServerDetails>;
@@ -88,12 +96,14 @@ export class RconManager {
     }
     logger.warn(
       { server_id, serverIP: server.serverIP },
-      '[rcon] connect blocked: hostname resolves to private/reserved IP'
+      '[rcon] connect blocked: hostname resolves to a blocked local/control IP'
     );
     return false;
   }
 
   private enqueueServerTask<T>(server_id: string, task: () => Promise<T>): Promise<T> {
+    // rcon-srcds exposes one socket per server. Queue same-server operations so
+    // command responses cannot interleave across concurrent HTTP requests.
     const previous = this.commandChains.get(server_id) ?? Promise.resolve();
     const result = previous.catch(() => undefined).then(task);
     const tail = result.then(

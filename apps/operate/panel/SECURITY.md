@@ -17,7 +17,7 @@ We will acknowledge receipt within 7 days and provide a remediation plan or requ
 
 ## Supported Versions
 
-This module follows the umbrella repository release flow. The `dev` branch is the supported branch for security fixes.
+This module follows the umbrella repository release flow. The `main` branch is the supported branch for security fixes.
 
 ## Security Expectations
 
@@ -25,13 +25,13 @@ This module follows the umbrella repository release flow. The `dev` branch is th
 - Enable `SESSION_COOKIE_SECURE=true` behind HTTPS.
 - Configure Redis sessions via `REDIS_URL` for production use.
 - Avoid default credentials unless explicitly allowed with `ALLOW_DEFAULT_CREDENTIALS=true`.
+- Treat RCON console input as single-command ASCII input. Reject separators, control bytes, and non-ASCII characters before sending commands to the RCON client.
 
 ## Automated Scans
 
 CI is configured to run:
 
 - Secret scanning (Gitleaks)
-- SAST (CodeQL)
-- Dependency review (GitHub Dependency Review)
+- The root repository verification suite
 
 See `docs/RUNBOOK.md` for verification commands.

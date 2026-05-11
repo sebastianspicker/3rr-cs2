@@ -240,28 +240,6 @@
     }
   }
 
-  /* Expert mode toggle */
-  .mode-toggle {
-    font-family: var(--font-mono);
-    font-size: 0.7rem;
-    font-weight: 600;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    padding: 0.2rem 0.6rem;
-    border: 1px solid var(--border-subtle);
-    color: var(--text-muted);
-    background: transparent;
-    border-radius: 3px;
-    cursor: pointer;
-    transition: color 0.15s, border-color 0.15s;
-
-    &:hover { color: var(--text-primary); border-color: var(--text-secondary); }
-    &.mode-toggle--active { color: var(--accent); border-color: var(--accent); }
-  }
-
-  /* Hide expert-only elements in normal mode */
-  body:not([data-mode="expert"]) .expert-only { display: none !important; }
-
   /* Utilities */
   .w-100 { width: 100%; }
   .w-50  { width: 50%;  }
@@ -735,6 +713,14 @@
       border-radius: 2px;
       font-weight: 500;
     }
+  }
+
+  .advanced-panel > .panel-header { cursor: pointer; }
+
+  .advanced-panel:not([open]) > .panel-header {
+    margin-bottom: 0;
+    padding-bottom: 0;
+    border-bottom: 0;
   }
 
   /* Staggered entry delays */

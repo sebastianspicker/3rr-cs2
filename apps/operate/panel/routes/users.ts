@@ -7,12 +7,34 @@ import isAuthenticated from '../modules/middleware';
 
 const router = express.Router();
 
+const selectAccessibleServersStmt = better_sqlite_client.prepare(`
+  SELECT s.id, s.serverIP, s.serverPort
+    FROM servers s
+    JOIN server_access sa ON sa.server_id = s.id
+   WHERE sa.user_id = ?
+   ORDER BY s.id
+`);
+const selectAccessibleServerStmt = better_sqlite_client.prepare(`
+  SELECT s.id
+    FROM servers s
+    JOIN server_access sa ON sa.server_id = s.id
+   WHERE s.id = ? AND sa.user_id = ?
+`);
+const insertUserStmt = better_sqlite_client.prepare(
+  `INSERT INTO users (username, password, is_admin) VALUES (?, ?, 0)`
+);
+const insertServerAccessStmt = better_sqlite_client.prepare(
+  `INSERT OR IGNORE INTO server_access (user_id, server_id) VALUES (?, ?)`
+);
+
+interface AccessibleServer {
+  id: number;
+  serverIP: string;
+  serverPort: number;
+}
+
 /** Require the requesting user to have is_admin = 1. */
-function isAdmin(
-  req: express.Request,
-  res: express.Response,
-  next: express.NextFunction
-): void {
+function isAdmin(req: express.Request, res: express.Response, next: express.NextFunction): void {
   if (!req.session?.user?.is_admin) {
     res.status(403).json({ error: 'Forbidden' });
     return;
@@ -31,7 +53,9 @@ router.get('/settings', isAuthenticated, (req, res) => {
 // GET /admin/users — admin user management page
 // ---------------------------------------------------------------------------
 router.get('/admin/users', isAuthenticated, isAdmin, (req, res) => {
-  res.render('admin-users', { currentUserId: req.session.user!.id });
+  const currentUserId = req.session.user!.id;
+  const servers = selectAccessibleServersStmt.all(currentUserId) as AccessibleServer[];
+  res.render('admin-users', { currentUserId, servers });
 });
 
 // ---------------------------------------------------------------------------
@@ -89,12 +113,13 @@ router.post('/api/users/change-password', isAuthenticated, async (req, res) => {
 // ---------------------------------------------------------------------------
 // POST /api/users/add  (admin only)
 // Create a new user.
-// Body: { username: string, password: string }
+// Body: { username: string, password: string, serverId?: number }
 // ---------------------------------------------------------------------------
 router.post('/api/users/add', isAuthenticated, isAdmin, async (req, res) => {
   const schema = z.object({
-    username: z.string().min(1).max(255),
+    username: z.string().trim().min(1).max(255),
     password: z.string().min(12, 'Password must be at least 12 characters'),
+    serverId: z.number().int().positive().optional(),
   });
 
   const parseResult = schema.safeParse(req.body);
@@ -102,14 +127,21 @@ router.post('/api/users/add', isAuthenticated, isAdmin, async (req, res) => {
     return res.status(400).json({ error: parseResult.error.issues[0]?.message ?? 'Invalid input' });
   }
 
-  const { username, password } = parseResult.data;
-  const safeUsername = username.trim();
+  const { username: safeUsername, password, serverId } = parseResult.data;
+  const currentUserId = req.session.user!.id;
 
   const existing = better_sqlite_client
     .prepare(`SELECT id FROM users WHERE username = ?`)
     .get(safeUsername);
   if (existing) {
     return res.status(409).json({ error: 'Username already exists' });
+  }
+
+  if (serverId) {
+    const server = selectAccessibleServerStmt.get(serverId, currentUserId);
+    if (!server) {
+      return res.status(400).json({ error: 'Initial server access is invalid' });
+    }
   }
 
   let hashed: string;
@@ -120,10 +152,16 @@ router.post('/api/users/add', isAuthenticated, isAdmin, async (req, res) => {
     return res.status(500).json({ error: 'Internal server error' });
   }
 
-  better_sqlite_client
-    .prepare(`INSERT INTO users (username, password, is_admin) VALUES (?, ?, 0)`)
-    .run(safeUsername, hashed);
-  logger.info({ username: safeUsername }, '[users] user added');
+  const createUser = better_sqlite_client.transaction(() => {
+    const info = insertUserStmt.run(safeUsername, hashed);
+    const userId = Number(info.lastInsertRowid);
+    if (serverId) {
+      insertServerAccessStmt.run(userId, serverId);
+    }
+    return userId;
+  });
+  const newUserId = createUser();
+  logger.info({ username: safeUsername, userId: newUserId, serverId }, '[users] user added');
   return res.status(201).json({ message: 'User created' });
 });
 
@@ -148,9 +186,7 @@ router.post('/api/users/delete', isAuthenticated, isAdmin, (req, res) => {
     return res.status(400).json({ error: 'Cannot delete your own account' });
   }
 
-  const info = better_sqlite_client
-    .prepare(`DELETE FROM users WHERE id = ?`)
-    .run(userId);
+  const info = better_sqlite_client.prepare(`DELETE FROM users WHERE id = ?`).run(userId);
 
   if (info.changes === 0) {
     return res.status(404).json({ error: 'User not found' });

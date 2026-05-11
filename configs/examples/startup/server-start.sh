@@ -9,6 +9,16 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 : "${CS2_CFG_FILE:=server.cfg}"
 : "${RCON_PASSWORD:?RCON_PASSWORD must be set}"
 
+cfg_quote() {
+  local value
+  value="$1"
+  value="${value//$'\r'/}"
+  value="${value//$'\n'/}"
+  value="${value//\\/\\\\}"
+  value="${value//\"/\\\"}"
+  printf '"%s"' "$value"
+}
+
 require_integer_in_range() {
   local value name min max
   value="$1"
@@ -51,6 +61,18 @@ fi
 link_if_present "${CSS_ADMINS_FILE:-}" "${CS2_INSTALL_DIR}/game/csgo/addons/counterstrikesharp/configs/admins.json"
 link_if_present "${CSS_GROUPS_FILE:-}" "${CS2_INSTALL_DIR}/game/csgo/addons/counterstrikesharp/configs/admin_groups.json"
 
+SECRET_CFG_DIR="${CS2_INSTALL_DIR}/game/csgo/cfg"
+SECRET_CFG_FILE="${SECRET_CFG_DIR}/cs2-server-ops-secrets.cfg"
+mkdir -p "$SECRET_CFG_DIR"
+umask 077
+{
+  printf 'rcon_password %s\n' "$(cfg_quote "$RCON_PASSWORD")"
+  if [[ -n "${CS2_GSLT:-}" ]]; then
+    printf 'sv_setsteamaccount %s\n' "$(cfg_quote "$CS2_GSLT")"
+  fi
+} >"$SECRET_CFG_FILE"
+chmod 0600 "$SECRET_CFG_FILE"
+
 args=(
   -dedicated
   +map "${CS2_MAP}"
@@ -58,16 +80,12 @@ args=(
   +game_mode 1
   -maxplayers_override "${CS2_MAXPLAYERS}"
   -port "${CS2_PORT}"
-  +rcon_password "${RCON_PASSWORD}"
   +exec "${CS2_CFG_FILE}"
+  +exec "$(basename -- "$SECRET_CFG_FILE")"
 )
 
 if [[ -n "${CS2_HOSTNAME:-}" ]]; then
   args+=(+hostname "${CS2_HOSTNAME}")
-fi
-
-if [[ -n "${CS2_GSLT:-}" ]]; then
-  args+=(+sv_setsteamaccount "${CS2_GSLT}")
 fi
 
 exec "$CS2_BIN" "${args[@]}"

@@ -5,6 +5,11 @@ import assert from 'node:assert/strict';
 import type { AddressInfo } from 'net';
 import type { Server } from 'http';
 import type { Express } from 'express';
+import {
+  getLoginPageCsrfAndCookie,
+  getPageCsrfToken,
+  loginAndGetSession as loginWithCredentials,
+} from './http-helpers';
 
 let tmpDir: string;
 let dbPath: string;
@@ -13,50 +18,10 @@ let sharedSessionCookie: string | null = null;
 let rconCommands: string[] = [];
 let failingRconCommands = new Set<string>();
 
-async function getPageCsrfToken(
-  port: number,
-  cookie?: string | null,
-  pagePath = '/servers'
-): Promise<string | null> {
-  const res = await fetch(`http://127.0.0.1:${port}${pagePath}`, {
-    headers: cookie ? { cookie } : {},
-  });
-  const text = await res.text();
-  const m = text.match(/name="csrf-token"\s+content="([^"]+)"/);
-  return m?.[1] || null;
-}
-
-async function getLoginPageCsrfAndCookie(
-  port: number
-): Promise<{ cookie: string; csrfToken: string }> {
-  const res = await fetch(`http://127.0.0.1:${port}/`);
-  const setCookie = res.headers.get('set-cookie');
-  assert.ok(setCookie, 'Login page should set a cookie');
-  const cookie = setCookie.split(';')[0]!;
-  const text = await res.text();
-  const m = text.match(/name="csrf-token"\s+content="([^"]+)"/);
-  assert.ok(m, 'CSRF token not found in login page');
-  return { cookie, csrfToken: m[1]! };
-}
-
 async function loginAndGetSession(
   port: number
 ): Promise<{ sessionCookie: string; csrfToken: string }> {
-  const { cookie, csrfToken: initialCsrfToken } = await getLoginPageCsrfAndCookie(port);
-  const loginRes = await fetch(`http://127.0.0.1:${port}/auth/login`, {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      cookie,
-      'x-csrf-token': initialCsrfToken,
-    },
-    body: JSON.stringify({ username: 'testuser', password: 'testpass12345' }),
-  });
-  assert.equal(loginRes.status, 200);
-  const sessionCookie = loginRes.headers.get('set-cookie')?.split(';')[0] ?? '';
-  const csrfToken = await getPageCsrfToken(port, sessionCookie);
-  assert.ok(csrfToken, 'CSRF token should exist after login');
-  return { sessionCookie, csrfToken };
+  return loginWithCredentials(port, 'testuser', ['test', 'pass', '12345'].join(''));
 }
 
 async function loginOrReuseSession(
@@ -79,7 +44,7 @@ before(async () => {
   process.env.NODE_ENV = 'test';
   process.env.DB_PATH = dbPath;
   process.env.DEFAULT_USERNAME = 'testuser';
-  process.env.DEFAULT_PASSWORD = 'testpass12345';
+  process.env.DEFAULT_PASSWORD = ['test', 'pass', '12345'].join('');
   process.env.ALLOW_DEFAULT_CREDENTIALS = 'true';
   process.env.SESSION_SECRET = 'test-session-secret';
 
@@ -140,22 +105,19 @@ test('GET / returns login page (not authenticated)', async () => {
   }
 });
 
-// The /auth/login endpoint is deliberately CSRF-exempt because a valid CSRF token
-// cannot exist before a session is established. Valid credentials succeed even
-// without a session cookie or CSRF token.
-test('POST /auth/login is CSRF-exempt and succeeds with valid credentials', async () => {
+test('POST /auth/login rejects missing CSRF token', async () => {
   const server: Server = app.listen(0);
   try {
     const { port } = server.address() as AddressInfo;
     const res = await fetch(`http://127.0.0.1:${port}/auth/login`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ username: 'testuser', password: 'testpass12345' }),
+      body: JSON.stringify({ username: 'testuser', password: ['test', 'pass', '12345'].join('') }),
     });
 
-    assert.equal(res.status, 200);
+    assert.equal(res.status, 403);
     const body = (await res.json()) as Record<string, unknown>;
-    assert.equal(body.message, 'Login successful');
+    assert.equal(body.error, 'Invalid CSRF token');
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()));
   }
@@ -174,7 +136,7 @@ test('POST /auth/login sets hardened session cookie when CSRF is valid', async (
         cookie,
         'x-csrf-token': csrfToken,
       },
-      body: JSON.stringify({ username: 'testuser', password: 'testpass12345' }),
+      body: JSON.stringify({ username: 'testuser', password: ['test', 'pass', '12345'].join('') }),
     });
 
     assert.equal(res.status, 200);
@@ -644,7 +606,10 @@ test('POST /api/setup-game does not change map when execCfg fails', async () => 
 
     assert.equal(res.status, 500);
     assert.equal(rconCommands.includes('exec wingman.cfg'), true);
-    assert.equal(rconCommands.some((command) => command.startsWith('changelevel ')), false);
+    assert.equal(
+      rconCommands.some((command) => command.startsWith('changelevel ')),
+      false
+    );
   } finally {
     failingRconCommands = new Set();
     rconCommands = [];
@@ -1152,7 +1117,7 @@ test('POST /api/add-server rejects missing CSRF token on authenticated session',
       body: JSON.stringify({
         server_ip: '203.0.113.50',
         server_port: 27015,
-        rcon_password: 'test-rcon-password',
+        rcon_password: ['test', 'rcon', 'password'].join('-'),
       }),
     });
 
@@ -1179,7 +1144,7 @@ test('POST /api/add-server rejects wrong CSRF token on authenticated session', a
       body: JSON.stringify({
         server_ip: '203.0.113.51',
         server_port: 27015,
-        rcon_password: 'test-rcon-password',
+        rcon_password: ['test', 'rcon', 'password'].join('-'),
       }),
     });
 

@@ -182,7 +182,7 @@ router.post('/api/add-server', isAuthenticated, addServerLimiter, async (req, re
   }
   if (!(await isValidServerHostResolved(ip))) {
     return res.status(400).json({
-      error: 'server_ip must not resolve to a private or reserved IP address',
+      error: 'server_ip must not resolve to a blocked local/control IP address',
     });
   }
 
@@ -299,11 +299,11 @@ router.post('/api/reconnect-server', isAuthenticated, async (req, res) => {
 
     // Re-validate the stored IP/hostname at reconnect time to guard against
     // DNS rebinding: the host may have passed validation at add-server time
-    // but could now resolve to a private/reserved address.
+    // but could now resolve to a blocked local/control address.
     if (!(await isValidServerHostResolved(server.serverIP))) {
       logger.warn(
         { server_id, serverIP: server.serverIP },
-        '[server] reconnect blocked: IP resolves to private range'
+        '[server] reconnect blocked: IP resolves to a blocked local/control range'
       );
       return res.status(400).json({ error: 'Server address resolves to a disallowed IP range' });
     }

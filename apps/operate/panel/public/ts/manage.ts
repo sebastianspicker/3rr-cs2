@@ -597,30 +597,8 @@ function initLiveStatus(): void {
   });
 }
 
-const MODE_KEY = 'cs2panel-mode';
-
-function initModeToggle(): void {
-  const btn = document.getElementById('mode-toggle');
-  if (!btn) return;
-
-  const apply = (expert: boolean): void => {
-    document.body.dataset['mode'] = expert ? 'expert' : 'normal';
-    btn.setAttribute('aria-pressed', String(expert));
-    btn.classList.toggle('mode-toggle--active', expert);
-  };
-
-  apply(localStorage.getItem(MODE_KEY) === 'expert');
-
-  btn.addEventListener('click', () => {
-    const next = document.body.dataset['mode'] !== 'expert';
-    localStorage.setItem(MODE_KEY, next ? 'expert' : 'normal');
-    apply(next);
-  });
-}
-
 export function initManagePage(): void {
   initToast();
-  initModeToggle();
   initGameSetup();
   initQuickCommands();
   initMatchSettings();

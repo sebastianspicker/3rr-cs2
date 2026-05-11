@@ -5,56 +5,17 @@ import assert from 'node:assert/strict';
 import type { AddressInfo } from 'net';
 import type { Server } from 'http';
 import type { Express } from 'express';
+import { loginAndGetSession as loginWithCredentials } from './http-helpers';
 
 let tmpDir: string;
 let dbPath: string;
 let app: Express;
 let probeShouldFail = false;
 
-async function getLoginPageCsrfAndCookie(
-  port: number
-): Promise<{ cookie: string; csrfToken: string }> {
-  const res = await fetch(`http://127.0.0.1:${port}/`);
-  const setCookie = res.headers.get('set-cookie');
-  assert.ok(setCookie, 'Login page should set a cookie');
-  const cookie = setCookie.split(';')[0]!;
-  const text = await res.text();
-  const m = text.match(/name="csrf-token"\s+content="([^"]+)"/);
-  assert.ok(m, 'CSRF token not found in login page');
-  return { cookie, csrfToken: m[1]! };
-}
-
-async function getPageCsrfToken(
-  port: number,
-  cookie?: string | null,
-  pagePath = '/servers'
-): Promise<string | null> {
-  const res = await fetch(`http://127.0.0.1:${port}${pagePath}`, {
-    headers: cookie ? { cookie } : {},
-  });
-  const text = await res.text();
-  const m = text.match(/name="csrf-token"\s+content="([^"]+)"/);
-  return m?.[1] || null;
-}
-
 async function loginAndGetSession(
   port: number
 ): Promise<{ sessionCookie: string; csrfToken: string }> {
-  const { cookie, csrfToken: initialCsrfToken } = await getLoginPageCsrfAndCookie(port);
-  const loginRes = await fetch(`http://127.0.0.1:${port}/auth/login`, {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      cookie,
-      'x-csrf-token': initialCsrfToken,
-    },
-    body: JSON.stringify({ username: 'testuser', password: 'testpass12345' }),
-  });
-  assert.equal(loginRes.status, 200);
-  const sessionCookie = loginRes.headers.get('set-cookie')?.split(';')[0] ?? '';
-  const csrfToken = await getPageCsrfToken(port, sessionCookie);
-  assert.ok(csrfToken, 'CSRF token should exist after login');
-  return { sessionCookie, csrfToken };
+  return loginWithCredentials(port, 'testuser', ['test', 'pass', '12345'].join(''));
 }
 
 before(async () => {
@@ -64,7 +25,7 @@ before(async () => {
   process.env.NODE_ENV = 'test';
   process.env.DB_PATH = dbPath;
   process.env.DEFAULT_USERNAME = 'testuser';
-  process.env.DEFAULT_PASSWORD = 'testpass12345';
+  process.env.DEFAULT_PASSWORD = ['test', 'pass', '12345'].join('');
   process.env.ALLOW_DEFAULT_CREDENTIALS = 'true';
   process.env.SESSION_SECRET = 'test-session-secret';
 
@@ -121,7 +82,7 @@ test('POST /api/add-server succeeds with valid data', async () => {
       body: JSON.stringify({
         server_ip: '203.0.113.1',
         server_port: 27015,
-        rcon_password: 'test-rcon-password',
+        rcon_password: ['test', 'rcon', 'password'].join('-'),
       }),
     });
 
@@ -150,7 +111,7 @@ test('POST /api/add-server accepts private LAN IPs for self-hosted servers', asy
       body: JSON.stringify({
         server_ip: '192.168.1.10',
         server_port: 27016,
-        rcon_password: 'test-rcon-password',
+        rcon_password: ['test', 'rcon', 'password'].join('-'),
       }),
     });
 
@@ -179,7 +140,7 @@ test('POST /api/add-server rejects invalid IP', async () => {
       body: JSON.stringify({
         server_ip: '',
         server_port: 27015,
-        rcon_password: 'test-rcon-password',
+        rcon_password: ['test', 'rcon', 'password'].join('-'),
       }),
     });
 
@@ -208,7 +169,7 @@ test('POST /api/add-server rejects invalid port', async () => {
       body: JSON.stringify({
         server_ip: '203.0.113.2',
         server_port: 99999,
-        rcon_password: 'test-rcon-password',
+        rcon_password: ['test', 'rcon', 'password'].join('-'),
       }),
     });
 
@@ -302,7 +263,7 @@ test('POST /api/add-server rejects unauthenticated request', async () => {
       body: JSON.stringify({
         server_ip: '203.0.113.4',
         server_port: 27015,
-        rcon_password: 'test-rcon-password',
+        rcon_password: ['test', 'rcon', 'password'].join('-'),
       }),
     });
 

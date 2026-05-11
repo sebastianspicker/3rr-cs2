@@ -18,6 +18,13 @@ describe('isBlockedIP', () => {
   it('blocks unspecified 0.0.0.0', () => assert.equal(isBlockedIP('0.0.0.0'), true));
   it('blocks IPv6 loopback ::1', () => assert.equal(isBlockedIP('::1'), true));
   it('blocks IPv6 unspecified ::', () => assert.equal(isBlockedIP('::'), true));
+  it('blocks the full IPv6 link-local fe80::/10 range', () => {
+    assert.equal(isBlockedIP('fe80::1'), true);
+    assert.equal(isBlockedIP('fe90::1'), true);
+    assert.equal(isBlockedIP('febf::1'), true);
+  });
+  it('allows IPv6 outside the link-local fe80::/10 range', () =>
+    assert.equal(isBlockedIP('fec0::1'), false));
   it('blocks IPv4-mapped IPv6 ::ffff:127.0.0.1', () =>
     assert.equal(isBlockedIP('::ffff:127.0.0.1'), true));
   it('blocks expanded IPv6 loopback 0:0:0:0:0:0:0:1', () =>
@@ -69,6 +76,11 @@ describe('isValidServerHostResolved', () => {
   it('rejects link-local IPv4', async () => {
     assert.equal(await isValidServerHostResolved('169.254.169.254'), false);
   });
+  it('rejects literal IPv6 link-local addresses across fe80::/10', async () => {
+    assert.equal(await isValidServerHostResolved('fe80::1'), false);
+    assert.equal(await isValidServerHostResolved('fe90::1'), false);
+    assert.equal(await isValidServerHostResolved('febf::1'), false);
+  });
   it('rejects hostname when any resolved answer is disallowed', async () => {
     mock.method(dns.promises, 'lookup', async () => [
       { address: '203.0.113.10', family: 4 },
@@ -82,5 +94,12 @@ describe('isValidServerHostResolved', () => {
       { address: '2001:db8::10', family: 6 },
     ]);
     assert.equal(await isValidServerHostResolved('example.com'), true);
+  });
+  it('rejects hostname when any resolved answer is IPv6 link-local', async () => {
+    mock.method(dns.promises, 'lookup', async () => [
+      { address: '203.0.113.10', family: 4 },
+      { address: 'fe90::1', family: 6 },
+    ]);
+    assert.equal(await isValidServerHostResolved('example.com'), false);
   });
 });

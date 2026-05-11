@@ -23,9 +23,6 @@
             <%= connected && authenticated ? 'Connected' : 'Disconnected' %>
           </span>
         </div>
-        <button id="mode-toggle" class="btn btn-sm mode-toggle" aria-pressed="false" aria-label="Toggle expert mode">
-          Expert
-        </button>
         <button type="submit" form="server_setup_form" class="btn btn-primary btn-sm">Deploy Match</button>
       </div>
     </div>
@@ -45,11 +42,11 @@
             <h2>Setup Game</h2>
           </div>
           <form id="server_setup_form" novalidate>
-            <div class="mb-3 expert-only">
+            <div class="mb-3">
               <label for="team1" class="form-label">Team 1</label>
               <input type="text" id="team1" name="team1" class="form-control" placeholder="Team name...">
             </div>
-            <div class="mb-3 expert-only">
+            <div class="mb-3">
               <label for="team2" class="form-label">Team 2</label>
               <input type="text" id="team2" name="team2" class="form-control" placeholder="Team name...">
             </div>
@@ -75,7 +72,7 @@
                 <option disabled selected>Choose a game mode first</option>
               </select>
             </div>
-            <div class="mb-3 expert-only">
+            <div class="mb-3">
               <label for="workshopUrl" class="form-label">Or paste Workshop URL</label>
               <div class="input-row">
                 <input type="text" id="workshopUrl" name="workshop_url" class="form-control"
@@ -84,7 +81,7 @@
               </div>
               <small class="text-muted">Paste a Steam Workshop URL to load any workshop map</small>
             </div>
-            <div class="mb-3 expert-only">
+            <div class="mb-3">
               <label for="workshopCollectionId" class="form-label">Or load Workshop Collection</label>
               <div class="input-row">
                 <input type="text" id="workshopCollectionId" name="workshop_collection_id" class="form-control"
@@ -93,7 +90,7 @@
               </div>
               <small class="text-muted">Loads all maps in a Workshop Collection for rotation</small>
             </div>
-            <div class="mb-3 expert-only">
+            <div class="mb-3">
               <label for="mapGroupSelect" class="form-label">Set Map Group</label>
               <div class="input-row">
                 <select id="mapGroupSelect" class="form-select">
@@ -148,10 +145,10 @@
         </div>
 
         <!-- Scrim Controls -->
-        <div class="panel expert-only">
-          <div class="panel-header">
+        <details class="panel advanced-panel">
+          <summary class="panel-header">
             <h2>Scrim Controls</h2>
-          </div>
+          </summary>
 
           <div class="section-label">Round Count</div>
           <div class="btn-grid cols-3" id="maxrounds-presets">
@@ -172,20 +169,20 @@
             <button id="ot_rounds_5" class="btn btn-secondary">MR5</button>
             <button id="ot_rounds_6" class="btn btn-secondary">MR6</button>
           </div>
-        </div>
+        </details>
 
       </div>
 
       <!-- RIGHT COLUMN -->
       <div>
         <!-- RCON -->
-        <div class="panel expert-only">
-          <div class="panel-header">
+        <details class="panel advanced-panel">
+          <summary class="panel-header">
             <h2>RCON Console</h2>
             <span class="badge <%= connected && authenticated ? 'badge-connected' : 'badge-disconnected' %>">
               <%= connected && authenticated ? 'Connected' : 'Disconnected' %>
             </span>
-          </div>
+          </summary>
           <div class="input-row">
             <input
               type="text"
@@ -217,13 +214,13 @@
             </div>
             <pre id="rconResultText"></pre>
           </div>
-        </div>
+        </details>
 
         <!-- Quick Commands -->
-        <div class="panel expert-only">
-          <div class="panel-header">
+        <details class="panel advanced-panel">
+          <summary class="panel-header">
             <h2>Quick Commands</h2>
-          </div>
+          </summary>
 
           <div class="section-label">Bots</div>
           <div class="btn-grid cols-3">
@@ -294,13 +291,13 @@
             <button id="restore_round_submit" class="btn btn-primary">Go</button>
             <button id="restore_round_cancel" class="btn btn-secondary">✕</button>
           </div>
-        </div>
+        </details>
 
         <!-- Practice Controls -->
-        <div class="panel">
-          <div class="panel-header">
+        <details class="panel advanced-panel">
+          <summary class="panel-header">
             <h2>Practice Controls</h2>
-          </div>
+          </summary>
 
           <div class="section-label">MatchZy</div>
           <div class="btn-grid cols-3">
@@ -308,14 +305,14 @@
             <button id="matchzy_exitprac" class="btn btn-warning">Exit Practice</button>
             <button id="matchzy_playout"  class="btn btn-secondary">Force Playout</button>
           </div>
-          <div class="input-row mt-sm expert-only">
+          <div class="input-row mt-sm">
             <input type="text" id="matchzy_match_file_input" class="form-control" placeholder="match.json" maxlength="100" aria-label="MatchZy match config filename">
             <button id="matchzy_load_match_file_btn" class="btn btn-secondary">Load File</button>
           </div>
-          <small class="text-muted mb-sm expert-only">File must exist on the server</small>
+          <small class="text-muted mb-sm">File must exist on the server</small>
 
-          <div class="section-label expert-only">Server Settings</div>
-          <div class="btn-grid cols-2 expert-only">
+          <div class="section-label">Server Settings</div>
+          <div class="btn-grid cols-2">
             <div class="btn-pair" role="group">
               <button id="cheats_on"  data-toggle-group="cheats" data-toggle-val="1" aria-pressed="false" class="btn btn-info">Cheats On</button>
               <button id="cheats_off" data-toggle-group="cheats" data-toggle-val="0" aria-pressed="false" class="btn btn-outline-info">Off</button>
@@ -337,14 +334,14 @@
               <button id="damage_print_off" data-toggle-group="damage_print" data-toggle-val="0" aria-pressed="false" class="btn btn-outline-info">Off</button>
             </div>
           </div>
-          <div class="btn-grid cols-3 mt-sm expert-only" id="inf-ammo-presets">
+          <div class="btn-grid cols-3 mt-sm" id="inf-ammo-presets">
             <button id="inf_ammo_0" class="btn btn-secondary">Ammo Off</button>
             <button id="inf_ammo_1" class="btn btn-secondary">Full</button>
             <button id="inf_ammo_2" class="btn btn-secondary">Nades</button>
           </div>
 
-          <div class="section-label expert-only">Game Modifiers</div>
-          <div class="btn-grid cols-2 expert-only">
+          <div class="section-label">Game Modifiers</div>
+          <div class="btn-grid cols-2">
             <div class="btn-pair" role="group">
               <button id="random_rounds_on"  data-toggle-group="random_rounds" data-toggle-val="1" aria-pressed="false" class="btn btn-info">Random Rounds On</button>
               <button id="random_rounds_off" data-toggle-group="random_rounds" data-toggle-val="0" aria-pressed="false" class="btn btn-outline-info">Off</button>
@@ -354,10 +351,10 @@
               <button id="rtd_off" data-toggle-group="rtd" data-toggle-val="0" aria-pressed="false" class="btn btn-outline-info">Off</button>
             </div>
           </div>
-          <button id="rtd_force_roll" class="btn btn-warning w-100 mt-sm expert-only">Force Roll (RTD)</button>
+          <button id="rtd_force_roll" class="btn btn-warning w-100 mt-sm">Force Roll (RTD)</button>
 
-          <div class="section-label expert-only">Visibility</div>
-          <div class="btn-grid cols-2 expert-only">
+          <div class="section-label">Visibility</div>
+          <div class="btn-grid cols-2">
             <div class="btn-pair" role="group">
               <button id="grenade_trail_on"  data-toggle-group="grenade_trail" data-toggle-val="1" aria-pressed="false" class="btn btn-info">Nade Trail On</button>
               <button id="grenade_trail_off" data-toggle-group="grenade_trail" data-toggle-val="0" aria-pressed="false" class="btn btn-outline-info">Off</button>
@@ -368,23 +365,23 @@
             </div>
           </div>
 
-          <div class="section-label expert-only">Timing &amp; Economy</div>
-          <div class="btn-grid cols-5 expert-only" id="freezetime-presets">
+          <div class="section-label">Timing &amp; Economy</div>
+          <div class="btn-grid cols-5" id="freezetime-presets">
             <button id="freezetime_0"  class="btn btn-secondary">0s</button>
             <button id="freezetime_5"  class="btn btn-secondary">5s</button>
             <button id="freezetime_10" class="btn btn-secondary">10s</button>
             <button id="freezetime_15" class="btn btn-secondary">15s</button>
             <button id="freezetime_20" class="btn btn-secondary">20s</button>
           </div>
-          <div class="btn-grid cols-5 mt-sm expert-only" id="startmoney-presets">
+          <div class="btn-grid cols-5 mt-sm" id="startmoney-presets">
             <button id="startmoney_0"     class="btn btn-secondary">$0</button>
             <button id="startmoney_800"   class="btn btn-secondary">$800</button>
             <button id="startmoney_1600"  class="btn btn-secondary">$1600</button>
             <button id="startmoney_3200"  class="btn btn-secondary">$3200</button>
             <button id="startmoney_16000" class="btn btn-secondary">$16k</button>
           </div>
-          <div class="section-label expert-only">Buy Time</div>
-          <div class="btn-grid cols-5 expert-only" id="buytime-presets">
+          <div class="section-label">Buy Time</div>
+          <div class="btn-grid cols-5" id="buytime-presets">
             <button id="buytime_10"  class="btn btn-secondary">10s</button>
             <button id="buytime_15"  class="btn btn-secondary">15s</button>
             <button id="buytime_30"  class="btn btn-secondary">30s</button>
@@ -392,24 +389,24 @@
             <button id="buytime_90"  class="btn btn-secondary">90s</button>
           </div>
 
-          <div class="section-label expert-only">Bot Difficulty</div>
-          <div class="btn-grid cols-4 expert-only" id="bot-difficulty-presets">
+          <div class="section-label">Bot Difficulty</div>
+          <div class="btn-grid cols-4" id="bot-difficulty-presets">
             <button id="bot_difficulty_0" class="btn btn-secondary">Easy</button>
             <button id="bot_difficulty_1" class="btn btn-secondary">Normal</button>
             <button id="bot_difficulty_2" class="btn btn-secondary">Hard</button>
             <button id="bot_difficulty_3" class="btn btn-secondary">Expert</button>
           </div>
 
-          <div class="section-label expert-only">Round Time</div>
-          <div class="btn-grid cols-4 expert-only" id="roundtime-presets">
+          <div class="section-label">Round Time</div>
+          <div class="btn-grid cols-4" id="roundtime-presets">
             <button id="roundtime_1"  class="btn btn-secondary">1 min</button>
             <button id="roundtime_2"  class="btn btn-secondary">2 min</button>
             <button id="roundtime_5"  class="btn btn-secondary">5 min</button>
             <button id="roundtime_60" class="btn btn-secondary">Unlimited</button>
           </div>
 
-          <div class="section-label expert-only">Team Bots</div>
-          <div class="btn-grid cols-2 expert-only">
+          <div class="section-label">Team Bots</div>
+          <div class="btn-grid cols-2">
             <div class="btn-pair" role="group">
               <button id="bot_add_ct"  class="btn btn-secondary">+ CT Bot</button>
               <button id="bot_kick_ct" class="btn btn-warning">Kick CT</button>
@@ -420,14 +417,14 @@
             </div>
           </div>
 
-          <div class="section-label expert-only">Movement</div>
-          <div class="btn-grid cols-2 expert-only">
+          <div class="section-label">Movement</div>
+          <div class="btn-grid cols-2">
             <button id="noclip_btn"       class="btn btn-secondary">Noclip</button>
             <button id="rethrow_nade_btn" class="btn btn-secondary">Rethrow Nade</button>
           </div>
 
-          <div class="section-label expert-only">Give Nade Kit</div>
-          <div class="btn-grid cols-3 expert-only">
+          <div class="section-label">Give Nade Kit</div>
+          <div class="btn-grid cols-3">
             <button id="give_flash"   class="btn btn-secondary">Flash</button>
             <button id="give_smoke"   class="btn btn-secondary">Smoke</button>
             <button id="give_he"      class="btn btn-secondary">HE</button>
@@ -435,7 +432,7 @@
             <button id="give_decoy"   class="btn btn-secondary">Decoy</button>
             <button id="give_incen"   class="btn btn-secondary">Incendiary</button>
           </div>
-        </div>
+        </details>
 
       </div>
     </div>

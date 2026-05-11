@@ -4,17 +4,23 @@ set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
 secret_regex='(AKIA[0-9A-Z]{16}|ASIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{36}|github_pat_[A-Za-z0-9_]{82}|-----BEGIN (RSA|DSA|EC|OPENSSH|PGP) PRIVATE KEY-----|xox[baprs]-[A-Za-z0-9-]{10,48}|sk_live_[0-9a-zA-Z]{24}|AIza[0-9A-Za-z_-]{35})'
+secret_hits_file="$(mktemp "${TMPDIR:-/tmp}/cs2-secret-scan.XXXXXX")"
+cleanup() {
+    rm -f "$secret_hits_file"
+}
+trap cleanup EXIT
 
 set +e
 if git rev-parse --is-inside-work-tree > /dev/null 2>&1; then
-    git grep -nI -E "$secret_regex" -- .
+    git grep -nI -E "$secret_regex" -- . > "$secret_hits_file"
 else
-    grep -RInE --binary-files=without-match --exclude-dir=.git "$secret_regex" .
+    grep -RInE --binary-files=without-match --exclude-dir=.git "$secret_regex" . > "$secret_hits_file"
 fi
 secret_scan_rc=$?
 set -e
 
 if [ "$secret_scan_rc" -eq 0 ]; then
+    awk -F: '{ print $1 ":" $2 ": [REDACTED]" }' "$secret_hits_file" >&2
     echo "Potential secret material detected. Redact and remove before committing." >&2
     exit 1
 fi

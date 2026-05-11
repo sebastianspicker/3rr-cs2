@@ -49,7 +49,10 @@ router.get('/api/status/:server_id', isAuthenticated, async (req, res) => {
           botCount = parseInt(m[2]!, 10);
         }
       } else {
-        logger.error({ server_id: serverId, err: statusResult.reason }, '[status] RCON status error');
+        logger.error(
+          { server_id: serverId, err: statusResult.reason },
+          '[status] RCON status error'
+        );
       }
 
       // sv_visiblemaxplayers is best-effort — status reports (0 max) when no game is running

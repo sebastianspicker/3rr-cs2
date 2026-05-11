@@ -19,18 +19,8 @@
 # MAX_ATTEMPTS=5
 # SLEEP_SECS=5
 
-# Optional: log level (quiet | normal | verbose), webhook URL
+# Optional: log level (quiet | normal)
 # LOG_LEVEL=normal
-# NOTIFY_WEBHOOK_URL=
-
-# Optional: notify in-game players via RCON before stopping the server for an update.
-# Requires an RCON CLI tool (e.g. rcon-cli from https://github.com/gorcon/rcon-cli).
-# Set NOTIFY_PLAYERS_MESSAGE to a non-empty string to enable.
-# NOTIFY_PLAYERS_MESSAGE=
-# RCON_CLI=rcon-cli
-# RCON_HOST=127.0.0.1
-# RCON_PORT=27015
-# RCON_PASSWORD=
 
 # Testing / overrides
 # ALLOW_NONROOT=0

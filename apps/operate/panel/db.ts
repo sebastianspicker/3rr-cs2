@@ -6,6 +6,8 @@ import bcrypt from 'bcrypt';
 import { encryptRconSecret, hasRconSecretKey, isEncryptedRconSecret } from './utils/rconSecret';
 
 const nodeEnv = process.env.NODE_ENV || 'development';
+// The default path matches the container volume contract. Local development can
+// fall back to ./data when /home/container is not writable and DB_PATH is unset.
 const defaultDbPath = path.resolve('/home/container/data/cspanel.db');
 const fallbackDbPath = path.resolve(process.cwd(), 'data', 'cspanel.db');
 const dbPathEnv = process.env.DB_PATH?.trim();
@@ -128,10 +130,7 @@ function runMigrations(db: Database.Database): void {
 
   if (currentVersion >= CURRENT_VERSION) return;
 
-  logger.info(
-    { from: currentVersion, to: CURRENT_VERSION },
-    '[db] Running schema migrations'
-  );
+  logger.info({ from: currentVersion, to: CURRENT_VERSION }, '[db] Running schema migrations');
 
   for (let v = currentVersion; v < CURRENT_VERSION; v++) {
     const migrate = db.transaction((migration: Migration) => {
@@ -178,6 +177,8 @@ const userCount = (
 ).count;
 const allowDefaultCredentials = process.env.ALLOW_DEFAULT_CREDENTIALS === 'true';
 
+// First-admin bootstrap is opt-in so redeploying an existing DB never resets
+// credentials or creates surprise users from environment variables.
 if (userCount > 0) {
   logger.info('[db] Users already exist; skipping default user creation');
 } else if (!allowDefaultCredentials) {
@@ -210,4 +211,3 @@ if (userCount > 0) {
 }
 
 export { better_sqlite_client };
-

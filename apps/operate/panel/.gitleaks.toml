@@ -1,4 +1,4 @@
-title = "cs2-modded-server-panel"
+title = "cs2-server-ops-operate-panel"
 
 [allowlist]
 description = "Allow sample default credentials used for local dev/tests."

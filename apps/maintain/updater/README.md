@@ -14,8 +14,16 @@ If the remote build status cannot be determined, the updater exits non-zero and 
 - stop/update/start lifecycle with retries
 - stale-lock recovery
 - disk-space checks
-- optional in-game RCON player notification before server stop
-- optional webhook notification
+
+## Update Decision Flow
+
+1. Load environment/config values, then trim and validate them.
+2. Acquire an atomic lock directory so only one updater runs at a time.
+3. Check free space and read the local CS2 appmanifest build ID.
+4. Ask SteamCMD for the remote public-branch build ID.
+5. Exit before touching systemd when `--status`, `--dry-run`, or unknown remote status applies.
+6. Stop the service only when local and remote build IDs are known and different.
+7. Run `steamcmd +app_update`, restart the service, then verify the post-update build ID.
 
 ## Requirements
 
@@ -45,21 +53,3 @@ make ci
 - this module does not provide a web UI
 - this module can be used without the panel
 - shared publication, docs, and CI live at repo root
-
-## Pre-update Player Notification
-
-Set `NOTIFY_PLAYERS_MESSAGE` in the conf file to broadcast a message to in-game players
-via RCON before the server stops for an update. This requires an RCON CLI tool on the
-system path (default: `rcon-cli` from [gorcon/rcon-cli](https://github.com/gorcon/rcon-cli)).
-
-```ini
-NOTIFY_PLAYERS_MESSAGE=Server is restarting for an update in 30 seconds
-RCON_CLI=rcon-cli
-RCON_HOST=127.0.0.1
-RCON_PORT=27015
-RCON_PASSWORD=your_rcon_password
-```
-
-The notification is **non-fatal**: if the RCON binary is missing or the command fails,
-a warning is logged and the update continues normally. Leave `NOTIFY_PLAYERS_MESSAGE`
-empty (the default) to disable the feature entirely.
