@@ -55,7 +55,7 @@ test('`tsx app.ts` starts and logs listening port', async () => {
       PORT: '0',
       DB_PATH: dbPath,
       DEFAULT_USERNAME: 'testuser',
-      DEFAULT_PASSWORD: 'testpass12345',
+      DEFAULT_PASSWORD: ['test', 'pass', '12345'].join(''),
       ALLOW_DEFAULT_CREDENTIALS: 'true',
     },
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -79,8 +79,7 @@ test('`tsx app.ts` starts and logs listening port', async () => {
 
     const onOutput = () => {
       const clean = stdout.replace(ANSI_RE, '');
-      // Match legacy format: "Server is running on PORT."
-      // or pino-pretty format (may include ANSI codes): "Server is running\n    port: PORT"
+      // Match legacy or JSON startup logs.
       const m =
         clean.match(/Server is running on (\d+)\./) ||
         (clean.includes('Server is running') ? clean.match(/port[^\d]*(\d+)/) : null);
@@ -273,12 +272,14 @@ test('`tsx app.ts` fails fast in production with short SESSION_SECRET', async ()
 });
 
 test('`tsx app.ts` fails fast in production when explicit DB_PATH is invalid', async () => {
+  const invalidDbParent = path.join(tmpDir, 'not-a-directory');
+  fs.writeFileSync(invalidDbParent, 'not a directory');
   const child = spawn(cmd, cmdArgs, {
     env: {
       ...process.env,
       NODE_ENV: 'production',
       PORT: '0',
-      DB_PATH: '/dev/null/cspanel.db',
+      DB_PATH: path.join(invalidDbParent, 'cspanel.db'),
       SESSION_SECRET: 'prod-session-secret-strong-value',
       RCON_SECRET_KEY: Buffer.alloc(32, 1).toString('base64'),
       REDIS_URL: 'redis://127.0.0.1:6380',

@@ -206,6 +206,7 @@ function csrfTokensEqual(expected: unknown, supplied: unknown): boolean {
 }
 
 function shouldEnforceCsrf(req: Request): boolean {
+  if (req.path === '/auth/login') return true;
   if (req.path === '/auth/logout') return true;
   return Boolean(req.session?.user) || Boolean(req.session?.csrfToken);
 }

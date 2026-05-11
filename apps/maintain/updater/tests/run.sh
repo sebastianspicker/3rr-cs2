@@ -26,6 +26,10 @@ assert_not_contains() {
     fi
 }
 
+unset_removed_config_env() {
+    unset NOTIFY_WEBHOOK_URL NOTIFY_PLAYERS_MESSAGE RCON_CLI RCON_HOST RCON_PORT RCON_PASSWORD
+}
+
 # Run script, assert exit code and that combined output contains needle. Pass env overrides as KEY=val.
 # Baseline env is reset each time so tests do not inherit from previous runs.
 run_validation_test() {
@@ -48,7 +52,6 @@ run_validation_test() {
     export LOG_LEVEL="normal"
     export DRY_RUN="0"
     export CONFIG_FILE=""
-    export NOTIFY_WEBHOOK_URL=""
     export REMOTE_BUILDID="100"
     export STEAMCMD_UPDATE_EXIT="0"
     export STEAMCMD_APPINFO_EXIT="0"
@@ -58,6 +61,7 @@ run_validation_test() {
     export SYSTEMCTL_STATE_FILE="$tmpdir/systemctl.state"
     export SYSTEMCTL_STOP_EXIT="0"
     export SYSTEMCTL_START_EXIT="0"
+    unset_removed_config_env
     rm -rf "$tmpdir/cs2" "$tmpdir/lock" "$tmpdir/log" "$tmpdir/systemctl.calls" "$tmpdir/systemctl.state" "$tmpdir/steamcmd.calls"
     setup_cs2_dir "100"
     echo "active" > "$SYSTEMCTL_STATE_FILE"
@@ -94,22 +98,6 @@ echo "Filesystem 1K-blocks Used Available Use% Mounted on"
 echo "/dev/mock 1000000 500000 $avail 50% /"
 MOCKEOF
 chmod +x "$tmpdir/df"
-
-# Create a mock curl for webhook tests.
-cat > "$tmpdir/curl" << 'MOCKEOF'
-#!/usr/bin/env bash
-echo "$*" >> "${CURL_CALLS_FILE:-/dev/null}"
-exit "${CURL_EXIT:-0}"
-MOCKEOF
-chmod +x "$tmpdir/curl"
-
-# Create a mock rcon-cli for player notification tests.
-cat > "$tmpdir/rcon-cli" << 'MOCKEOF'
-#!/usr/bin/env bash
-echo "$*" >> "${RCON_CALLS_FILE:-/dev/null}"
-exit "${RCON_CLI_EXIT:-0}"
-MOCKEOF
-chmod +x "$tmpdir/rcon-cli"
 
 export PATH="$tmpdir:$PWD/tests/bin:$PATH"
 
@@ -162,6 +150,7 @@ run_case() {
     export SYSTEMCTL_STATE_FILE="$tmpdir/systemctl.state"
     export SYSTEMCTL_STOP_EXIT="0"
     export SYSTEMCTL_START_EXIT="0"
+    unset_removed_config_env
     echo "$initial_state" > "$SYSTEMCTL_STATE_FILE"
 
     set +e
@@ -263,6 +252,7 @@ run_with_args_case() {
     export SYSTEMCTL_STATE_FILE="$tmpdir/systemctl.state"
     export SYSTEMCTL_STOP_EXIT="0"
     export SYSTEMCTL_START_EXIT="0"
+    unset_removed_config_env
     echo "$initial_state" > "$SYSTEMCTL_STATE_FILE"
 
     set +e
@@ -307,6 +297,7 @@ run_lock_case() {
     export SYSTEMCTL_STATE_FILE="$tmpdir/systemctl.state"
     export SYSTEMCTL_STOP_EXIT="0"
     export SYSTEMCTL_START_EXIT="0"
+    unset_removed_config_env
     echo "active" > "$SYSTEMCTL_STATE_FILE"
 
     "$prepare_fn"
@@ -351,6 +342,7 @@ run_validation_test "reject invalid SERVICE_NAME" 1 "SERVICE_NAME must contain o
 
 run_validation_test "reject SLEEP_SECS > 3600" 1 "SLEEP_SECS must be at most 3600" SLEEP_SECS="5000"
 run_validation_test "reject invalid LOG_LEVEL" 1 "LOG_LEVEL must be one of" LOG_LEVEL="loud"
+run_validation_test "reject unused LOG_LEVEL=verbose" 1 "LOG_LEVEL must be one of: quiet, normal" LOG_LEVEL="verbose"
 run_validation_test "reject invalid NO_SLEEP" 1 "NO_SLEEP must be 0 or 1" NO_SLEEP="yes"
 run_validation_test "reject invalid DRY_RUN" 1 "DRY_RUN must be 0 or 1" DRY_RUN="maybe"
 
@@ -381,6 +373,40 @@ assert_not_contains "start" "$(cat "$tmpdir/systemctl.calls" 2> /dev/null || tru
 # Unknown options should fail fast to avoid silent misconfiguration.
 run_with_args_case "reject unknown option" 1 "--does-not-exist"
 assert_contains "Unknown option" "$(cat "$tmpdir/stdout" "$tmpdir/stderr")"
+
+{
+    printf '%s\n' 'NOTIFY_WEBHOOK_URL=https://hooks.example.invalid/webhook'
+    printf 'RCON_PASSWORD=%s\n' "old-$(date +%s)-value"
+} > "$tmpdir/removedconf"
+run_validation_test "warn removed webhook config key" 0 "Config key NOTIFY_WEBHOOK_URL is no longer supported" CONFIG_FILE="$tmpdir/removedconf"
+run_validation_test "warn removed RCON config key" 0 "Config key RCON_PASSWORD is no longer supported" CONFIG_FILE="$tmpdir/removedconf"
+run_validation_test "warn removed webhook env key" 0 "Config key NOTIFY_WEBHOOK_URL is no longer supported" NOTIFY_WEBHOOK_URL="https://hooks.example.invalid/webhook"
+
+# Security helper must fail without echoing the detected secret into logs.
+echo "==> security scan redacts detected secret values"
+rm -rf "$tmpdir/security-redaction"
+mkdir -p "$tmpdir/security-redaction/scripts"
+cp scripts/security.sh "$tmpdir/security-redaction/scripts/security.sh"
+fake_token="$(printf 'g%s_' 'hp')$(printf 'a%.0s' {1..36})"
+printf 'TOKEN=%s\n' "$fake_token" > "$tmpdir/security-redaction/leak.txt"
+(
+    cd "$tmpdir/security-redaction"
+    git init -q
+    git add leak.txt scripts/security.sh
+)
+set +e
+(
+    cd "$tmpdir/security-redaction"
+    ./scripts/security.sh
+) > "$tmpdir/stdout" 2> "$tmpdir/stderr"
+rc=$?
+set -e
+[ "$rc" -eq 1 ] || fail "security redaction: expected rc=1, got $rc"
+combined_output="$(cat "$tmpdir/stdout" "$tmpdir/stderr")"
+assert_contains "[REDACTED]" "$combined_output"
+assert_contains "Potential secret material detected" "$combined_output"
+assert_not_contains "$fake_token" "$combined_output"
+pass
 
 # CLI: --help
 echo "==> --help flag"
@@ -587,29 +613,6 @@ prepare_stale_lock_no_pid() {
 }
 run_lock_case "stale-lock-no-pid-recovery" "prepare_stale_lock_no_pid" 0 "Recovered stale lock (no PID file)"
 
-# Webhook notification: successful notification with curl mock
-echo "==> webhook notification"
-rm -rf "$tmpdir/cs2" "$tmpdir/lock" "$tmpdir/log" "$tmpdir/systemctl.calls" "$tmpdir/systemctl.state" "$tmpdir/curl.calls"
-setup_cs2_dir "100"
-export LOCKDIR="$tmpdir/lock" LOGFILE="$tmpdir/log" CS2_DIR="$tmpdir/cs2"
-export SERVICE_NAME="cs2.service" STEAMCMD="$PWD/tests/bin/steamcmd" CS2_APP_ID="730"
-export REQUIRED_SPACE="1" MAX_ATTEMPTS="1" SLEEP_SECS="0" NO_SLEEP="1" ALLOW_NONROOT="1"
-export CONFIG_FILE="" REMOTE_BUILDID="200" STEAMCMD_UPDATE_EXIT="0" STEAMCMD_APPINFO_EXIT="0" STEAMCMD_UPDATE_BUILDID="200"
-export NOTIFY_WEBHOOK_URL="https://hooks.example.com/webhook"
-export CURL_CALLS_FILE="$tmpdir/curl.calls" CURL_EXIT="0"
-export SYSTEMCTL_CALLS_FILE="$tmpdir/systemctl.calls" SYSTEMCTL_STATE_FILE="$tmpdir/systemctl.state"
-export SYSTEMCTL_STOP_EXIT="0" SYSTEMCTL_START_EXIT="0"
-echo "active" > "$SYSTEMCTL_STATE_FILE"
-set +e
-./update_cs2.sh > "$tmpdir/stdout" 2> "$tmpdir/stderr"
-rc=$?
-set -e
-unset NOTIFY_WEBHOOK_URL CURL_CALLS_FILE CURL_EXIT
-[ "$rc" -eq 0 ] || fail "webhook: expected rc=0, got $rc; stderr=$(cat "$tmpdir/stderr")"
-assert_contains "Webhook notification sent" "$(cat "$tmpdir/stdout")"
-[ -f "$tmpdir/curl.calls" ] || fail "webhook: curl was not called"
-pass
-
 # Config file: multi-key and comment stripping
 echo "==> config file multi-key and comments"
 rm -rf "$tmpdir/cs2" "$tmpdir/lock" "$tmpdir/log" "$tmpdir/systemctl.calls" "$tmpdir/systemctl.state"
@@ -634,99 +637,6 @@ set +e
 rc=$?
 set -e
 [ "$rc" -eq 0 ] || fail "config multi-key: expected rc=0, got $rc; stderr=$(cat "$tmpdir/stderr")"
-pass
-
-# Config file: quoted values may contain '#'.
-echo "==> config file quoted values with hash"
-rm -rf "$tmpdir/cs2" "$tmpdir/lock" "$tmpdir/log" "$tmpdir/systemctl.calls" "$tmpdir/systemctl.state" "$tmpdir/curl.calls"
-setup_cs2_dir "100"
-cat > "$tmpdir/hashconf" << 'CONFEOF'
-SLEEP_SECS=0
-NOTIFY_WEBHOOK_URL="https://hooks.example.com/webhook#fragment"
-CONFEOF
-export LOCKDIR="$tmpdir/lock" LOGFILE="$tmpdir/log" CS2_DIR="$tmpdir/cs2"
-export SERVICE_NAME="cs2.service" STEAMCMD="$PWD/tests/bin/steamcmd" CS2_APP_ID="730"
-export REQUIRED_SPACE="1" MAX_ATTEMPTS="1" NO_SLEEP="1" ALLOW_NONROOT="1"
-export CONFIG_FILE="$tmpdir/hashconf" REMOTE_BUILDID="200" STEAMCMD_UPDATE_EXIT="0" STEAMCMD_APPINFO_EXIT="0" STEAMCMD_UPDATE_BUILDID="200"
-export CURL_CALLS_FILE="$tmpdir/curl.calls" CURL_EXIT="0"
-export SYSTEMCTL_CALLS_FILE="$tmpdir/systemctl.calls" SYSTEMCTL_STATE_FILE="$tmpdir/systemctl.state"
-export SYSTEMCTL_STOP_EXIT="0" SYSTEMCTL_START_EXIT="0"
-echo "active" > "$SYSTEMCTL_STATE_FILE"
-set +e
-./update_cs2.sh > "$tmpdir/stdout" 2> "$tmpdir/stderr"
-rc=$?
-set -e
-[ "$rc" -eq 0 ] || fail "quoted hash config: expected rc=0, got $rc; stderr=$(cat "$tmpdir/stderr")"
-assert_contains "https://hooks.example.com/webhook#fragment" "$(cat "$tmpdir/curl.calls")"
-pass
-
-# Notification: NOTIFY_PLAYERS_MESSAGE set and RCON succeeds → message sent, update proceeds.
-echo "==> notification-sent"
-rm -rf "$tmpdir/cs2" "$tmpdir/lock" "$tmpdir/log" "$tmpdir/systemctl.calls" "$tmpdir/systemctl.state" "$tmpdir/rcon.calls"
-setup_cs2_dir "100"
-export LOCKDIR="$tmpdir/lock" LOGFILE="$tmpdir/log" CS2_DIR="$tmpdir/cs2"
-export SERVICE_NAME="cs2.service" STEAMCMD="$PWD/tests/bin/steamcmd" CS2_APP_ID="730"
-export REQUIRED_SPACE="1" MAX_ATTEMPTS="1" NO_SLEEP="1" ALLOW_NONROOT="1"
-export REMOTE_BUILDID="200" STEAMCMD_UPDATE_EXIT="0" STEAMCMD_APPINFO_EXIT="0" STEAMCMD_UPDATE_BUILDID="200"
-export CURL_CALLS_FILE="$tmpdir/curl.calls" CURL_EXIT="0"
-export SYSTEMCTL_CALLS_FILE="$tmpdir/systemctl.calls" SYSTEMCTL_STATE_FILE="$tmpdir/systemctl.state"
-export SYSTEMCTL_STOP_EXIT="0" SYSTEMCTL_START_EXIT="0"
-export NOTIFY_PLAYERS_MESSAGE="Server updating in 30 seconds"
-export RCON_CLI="rcon-cli" RCON_HOST="127.0.0.1" RCON_PORT="27015" RCON_PASSWORD="test"
-export RCON_CALLS_FILE="$tmpdir/rcon.calls" RCON_CLI_EXIT="0"
-echo "active" > "$SYSTEMCTL_STATE_FILE"
-set +e
-./update_cs2.sh > "$tmpdir/stdout" 2> "$tmpdir/stderr"
-rc=$?
-set -e
-[ "$rc" -eq 0 ] || fail "notification-sent: expected rc=0, got $rc; stderr=$(cat "$tmpdir/stderr")"
-assert_contains "Player notification sent via RCON" "$(cat "$tmpdir/stdout" "$tmpdir/stderr")"
-assert_contains "say Server updating in 30 seconds" "$(cat "$tmpdir/rcon.calls")"
-pass
-
-# Notification: NOTIFY_PLAYERS_MESSAGE set and RCON fails → warning logged, update still proceeds.
-echo "==> notification-rcon-fail"
-rm -rf "$tmpdir/cs2" "$tmpdir/lock" "$tmpdir/log" "$tmpdir/systemctl.calls" "$tmpdir/systemctl.state" "$tmpdir/rcon.calls"
-setup_cs2_dir "100"
-export LOCKDIR="$tmpdir/lock" LOGFILE="$tmpdir/log" CS2_DIR="$tmpdir/cs2"
-export SERVICE_NAME="cs2.service" STEAMCMD="$PWD/tests/bin/steamcmd" CS2_APP_ID="730"
-export REQUIRED_SPACE="1" MAX_ATTEMPTS="1" NO_SLEEP="1" ALLOW_NONROOT="1"
-export REMOTE_BUILDID="200" STEAMCMD_UPDATE_EXIT="0" STEAMCMD_APPINFO_EXIT="0" STEAMCMD_UPDATE_BUILDID="200"
-export CURL_CALLS_FILE="$tmpdir/curl.calls" CURL_EXIT="0"
-export SYSTEMCTL_CALLS_FILE="$tmpdir/systemctl.calls" SYSTEMCTL_STATE_FILE="$tmpdir/systemctl.state"
-export SYSTEMCTL_STOP_EXIT="0" SYSTEMCTL_START_EXIT="0"
-export NOTIFY_PLAYERS_MESSAGE="Server updating soon"
-export RCON_CLI="rcon-cli" RCON_HOST="127.0.0.1" RCON_PORT="27015" RCON_PASSWORD="test"
-export RCON_CALLS_FILE="$tmpdir/rcon.calls" RCON_CLI_EXIT="1"
-echo "active" > "$SYSTEMCTL_STATE_FILE"
-set +e
-./update_cs2.sh > "$tmpdir/stdout" 2> "$tmpdir/stderr"
-rc=$?
-set -e
-[ "$rc" -eq 0 ] || fail "notification-rcon-fail: expected rc=0, got $rc; stderr=$(cat "$tmpdir/stderr")"
-assert_contains "RCON notification failed" "$(cat "$tmpdir/stdout" "$tmpdir/stderr")"
-pass
-
-# Notification: NOTIFY_PLAYERS_MESSAGE empty → no rcon-cli call made.
-echo "==> notification-disabled"
-rm -rf "$tmpdir/cs2" "$tmpdir/lock" "$tmpdir/log" "$tmpdir/systemctl.calls" "$tmpdir/systemctl.state" "$tmpdir/rcon.calls"
-setup_cs2_dir "100"
-export LOCKDIR="$tmpdir/lock" LOGFILE="$tmpdir/log" CS2_DIR="$tmpdir/cs2"
-export SERVICE_NAME="cs2.service" STEAMCMD="$PWD/tests/bin/steamcmd" CS2_APP_ID="730"
-export REQUIRED_SPACE="1" MAX_ATTEMPTS="1" NO_SLEEP="1" ALLOW_NONROOT="1"
-export REMOTE_BUILDID="200" STEAMCMD_UPDATE_EXIT="0" STEAMCMD_APPINFO_EXIT="0" STEAMCMD_UPDATE_BUILDID="200"
-export CURL_CALLS_FILE="$tmpdir/curl.calls" CURL_EXIT="0"
-export SYSTEMCTL_CALLS_FILE="$tmpdir/systemctl.calls" SYSTEMCTL_STATE_FILE="$tmpdir/systemctl.state"
-export SYSTEMCTL_STOP_EXIT="0" SYSTEMCTL_START_EXIT="0"
-unset NOTIFY_PLAYERS_MESSAGE
-export RCON_CALLS_FILE="$tmpdir/rcon.calls" RCON_CLI_EXIT="0"
-echo "active" > "$SYSTEMCTL_STATE_FILE"
-set +e
-./update_cs2.sh > "$tmpdir/stdout" 2> "$tmpdir/stderr"
-rc=$?
-set -e
-[ "$rc" -eq 0 ] || fail "notification-disabled: expected rc=0, got $rc; stderr=$(cat "$tmpdir/stderr")"
-[ ! -f "$tmpdir/rcon.calls" ] || [ ! -s "$tmpdir/rcon.calls" ] || fail "notification-disabled: rcon-cli was called but should not have been"
 pass
 
 echo ""

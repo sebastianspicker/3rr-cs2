@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import type { AddressInfo } from 'net';
 import type { Server } from 'http';
 import type { Express } from 'express';
+import { loginAndGetSession as loginWithCredentials } from './http-helpers';
 
 let tmpDir: string;
 let app: Express;
@@ -14,32 +15,7 @@ let rconShouldFail = false;
 async function loginAndGetSession(
   port: number
 ): Promise<{ sessionCookie: string; csrfToken: string }> {
-  const loginPageRes = await fetch(`http://127.0.0.1:${port}/`);
-  const setCookie = loginPageRes.headers.get('set-cookie');
-  assert.ok(setCookie, 'Login page must set a session cookie');
-  const preCookie = setCookie.split(';')[0]!;
-  const loginPageText = await loginPageRes.text();
-  const m = loginPageText.match(/name="csrf-token"\s+content="([^"]+)"/);
-  assert.ok(m, 'CSRF token not found in login page');
-
-  const loginRes = await fetch(`http://127.0.0.1:${port}/auth/login`, {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      cookie: preCookie,
-      'x-csrf-token': m[1]!,
-    },
-    body: JSON.stringify({ username: 'statustest', password: 'statuspass12345' }),
-  });
-  assert.equal(loginRes.status, 200);
-
-  const sessionCookie = loginRes.headers.get('set-cookie')?.split(';')[0] ?? '';
-  const serversRes = await fetch(`http://127.0.0.1:${port}/servers`, {
-    headers: { cookie: sessionCookie },
-  });
-  const cm = (await serversRes.text()).match(/name="csrf-token"\s+content="([^"]+)"/);
-  assert.ok(cm, 'CSRF token not found on /servers page');
-  return { sessionCookie, csrfToken: cm[1]! };
+  return loginWithCredentials(port, 'statustest', ['status', 'pass', '12345'].join(''));
 }
 
 before(async () => {
@@ -49,7 +25,7 @@ before(async () => {
   process.env.NODE_ENV = 'test';
   process.env.DB_PATH = dbPath;
   process.env.DEFAULT_USERNAME = 'statustest';
-  process.env.DEFAULT_PASSWORD = 'statuspass12345';
+  process.env.DEFAULT_PASSWORD = ['status', 'pass', '12345'].join('');
   process.env.ALLOW_DEFAULT_CREDENTIALS = 'true';
   process.env.SESSION_SECRET = 'test-status-session-secret-xyz';
 

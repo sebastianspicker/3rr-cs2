@@ -45,7 +45,8 @@ export const RCON_BLOCKED_COMMANDS = [
 // The rcon-srcds library encodes commands as ASCII, silently truncating high bytes.
 // A char like U+013B ('\u013B') passes JavaScript-level ';' checks but becomes
 // 0x3B (semicolon) after encoding — enabling command separator injection.
-const NON_ASCII_RE = /[^\x20-\x7e]/g;
+const NON_ASCII_RE = /[^\x20-\x7e]/;
+const NON_ASCII_GLOBAL_RE = /[^\x20-\x7e]/g;
 
 export function parseConVarValue(val: unknown): 0 | 1 | null {
   if (val === 0 || val === '0') return 0;
@@ -58,7 +59,7 @@ export function sanitizeString(s: unknown, maxLen: number): string {
   if (typeof s !== 'string') return '';
   return s
     .replace(/["'`\\\r\n;|{}%$\x00-\x1f\x7f]/g, '')
-    .replace(NON_ASCII_RE, '') // Strip non-ASCII to prevent encoding truncation attacks
+    .replace(NON_ASCII_GLOBAL_RE, '') // Strip non-ASCII to prevent encoding truncation attacks
     .trim()
     .slice(0, maxLen);
 }

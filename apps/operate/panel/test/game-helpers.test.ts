@@ -94,6 +94,12 @@ describe('isRconCommandAllowed', () => {
     assert.equal(isRconCommandAllowed('status\nquit'), false);
     assert.equal(isRconCommandAllowed('status\rquit'), false);
   });
+  it('blocks non-ASCII commands consistently across repeated checks', () => {
+    const command = 'say \u013Bquit';
+    assert.equal(isRconCommandAllowed(command), false);
+    assert.equal(isRconCommandAllowed(command), false);
+    assert.equal(isRconCommandAllowed(command), false);
+  });
   it('blocks empty string', () => {
     assert.equal(isRconCommandAllowed(''), false);
   });

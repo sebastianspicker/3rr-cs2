@@ -16,8 +16,19 @@ flowchart LR
 
     P -- "generates admin/plugin files\nconsume env template" --> M
     P -- "generates admin/plugin files\nconsume env template" --> O
-    M -- "update result\noptional health webhook" --> O
+    M -- "separate lifecycle\nno runtime dependency" --> O
 ```
+
+## Runtime Flow
+
+1. `provision` creates files an operator can copy into a CS2 runtime.
+2. `maintain` reads its own config, compares local and remote Steam build IDs, and only stops
+   the service when a real update is known to be required.
+3. `operate` keeps users, server inventory, access grants, and last-known game state in SQLite.
+   It connects to CS2 servers over RCON and does not run SteamCMD or shell into hosts.
+
+The root docs and env examples are the shared contract between modules. Runtime code stays inside
+its module boundary.
 
 ## Why The Split Exists
 
@@ -27,11 +38,9 @@ Operators think in lifecycle stages, but the implementation still needs clear se
 - the updater should remain usable on a plain host
 - the panel should not become a host orchestration daemon
 
-## Source Anchors
+## Historical Notes
 
-- `operate` comes from `02_mid_cs2-modded-server-panel`
-- `maintain` comes from `03_low_cs2-auto-update`
-- `provision` is a curated successor layer derived from the archived egg’s bootstrap ideas, not its shipping runtime model
+Import and migration notes are archived under `docs/archive/migration/`.
 
 ## Explicit Exclusions
 

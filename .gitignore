@@ -1,18 +1,21 @@
 .DS_Store
 
-# AI planning workspaces
-.kilo/
-
-# Root tooling
+# Local environment
 .env
+*.env.local
 
 # Operate module
 apps/operate/panel/node_modules/
 apps/operate/panel/dist/
 apps/operate/panel/data/
+apps/operate/panel/.e2e/
 apps/operate/panel/.env
 apps/operate/panel/tmp-cs2-panel-*/
+apps/operate/panel/tmp-cs2-*/
 apps/operate/panel/.playwright-mcp/
+apps/operate/panel/playwright-report/
+apps/operate/panel/public/js/console.js
+apps/operate/panel/public/fonts/
 
 # Maintain module
 apps/maintain/updater/.cache/
@@ -25,7 +28,51 @@ apps/provision/bootstrap/output/
 # Generic logs
 *.log
 
-# Internal audit / review tracking docs
+# Generated reports and tool caches
+coverage/
+.nyc_output/
+test-results/
+junit.xml
+results.sarif
+*.sarif
+.gitleaks-report.json
+.eslintcache
+.npm/
+.pnpm-store/
+.parcel-cache/
+.turbo/
+.vite/
+.rollup.cache/
+*.tsbuildinfo
+
+# Editor and local tooling
+.vscode/
+.idea/
+.cursor/
+.kilo/
+*.swp
+*.swo
+*~
+
+# Agent/audit/review workspaces and notes
+.claude/
+.codex/
+.agents/
+.github/codex/
+AGENTS.md
+CLAUDE.md
+HARNESS_PRINCIPLES.md
+code_review.md
+progress.md
+prompts/
+docs/agent/
 docs/repo-audit-*.md
 docs/source-audit/
 AUDIT.md
+DECISIONS.md
+FINDINGS.md
+LOG.md
+REFACTOR_PLAN.md
+
+# Screenshot scratch output. Canonical screenshots live under module docs.
+/screenshots/
