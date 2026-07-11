@@ -1,49 +1,91 @@
-import fs from 'fs';
-import path from 'path';
-import { after, before, test } from 'node:test';
-import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
-import http from 'node:http';
+import { test } from 'node:test';
+import {
+  tmpDir,
+  dbPath,
+  cmd,
+  cmdArgs,
+  STARTUP_TIMEOUT_MS,
+  EXIT_TIMEOUT_MS,
+  stripAnsi,
+  get,
+  getAvailablePort,
+  canBindPort,
+  startEntrypoint,
+  stopEntrypoint,
+  postLogin,
+  fs,
+  path,
+  assert,
+  spawn,
+} from './entrypoint-fixture';
 
-let tmpDir: string;
-let dbPath: string;
-
-// Use compiled JS in CI (faster, no tsx overhead), fall back to tsx for local dev.
-const distEntry = path.resolve('dist/app.js');
-const useCompiled = fs.existsSync(distEntry);
-const cmd = useCompiled ? process.execPath : 'npx';
-const cmdArgs = useCompiled ? [distEntry] : ['tsx', 'app.ts'];
-// npx tsx can be slow on CI runners; give it more headroom.
-const STARTUP_TIMEOUT_MS = useCompiled ? 10_000 : 30_000;
-const EXIT_TIMEOUT_MS = useCompiled ? 10_000 : 15_000;
-const ANSI_RE = /\u001b\[[0-9;]*m/g;
-
-function get(pathname: string, port: number): Promise<{ status: number; body: string }> {
-  return new Promise((resolve, reject) => {
-    const req = http.get({ host: '127.0.0.1', port, path: pathname }, (res) => {
-      let body = '';
-      res.setEncoding('utf8');
-      res.on('data', (chunk: string) => {
-        body += chunk;
-      });
-      res.on('end', () => {
-        resolve({ status: res.statusCode ?? 0, body });
-      });
-    });
-    req.on('error', reject);
+test('entrypoint listens on explicit PORT and ignores DEFAULT_PORT', async () => {
+  const requestedPort = await getAvailablePort();
+  const { child, port, output } = await startEntrypoint({
+    PORT: String(requestedPort),
+    DEFAULT_PORT: '0',
+    DB_PATH: path.join(tmpDir, `explicit-port-${Date.now()}.db`),
+    DEFAULT_USERNAME: 'explicit_port_admin',
+    DEFAULT_PASSWORD: ['explicit', 'port', '12345'].join('_'),
+    ALLOW_DEFAULT_CREDENTIALS: 'true',
   });
-}
 
-before(() => {
-  tmpDir = fs.mkdtempSync(path.join(process.cwd(), 'tmp-entry-cs2-panel-'));
-  dbPath = path.join(tmpDir, 'cspanel.db');
+  try {
+    assert.equal(port, requestedPort, output());
+    const health = await get('/api/health', port);
+    assert.equal(health.status, 200);
+  } finally {
+    await stopEntrypoint(child);
+  }
 });
 
-after(() => {
+test('entrypoint defaults to port 3000 when PORT is unset', async (t) => {
+  if (!(await canBindPort(3000))) {
+    t.skip('port 3000 is already in use');
+    return;
+  }
+
+  const { child, port, output } = await startEntrypoint({
+    PORT: undefined,
+    DEFAULT_PORT: '0',
+    DB_PATH: path.join(tmpDir, `default-port-${Date.now()}.db`),
+    DEFAULT_USERNAME: 'default_port_admin',
+    DEFAULT_PASSWORD: ['default', 'port', '12345'].join('_'),
+    ALLOW_DEFAULT_CREDENTIALS: 'true',
+  });
+
   try {
-    fs.rmSync(tmpDir, { recursive: true, force: true });
-  } catch {
-    // ignore cleanup errors
+    assert.equal(port, 3000, output());
+    const health = await get('/api/health', port);
+    assert.equal(health.status, 200);
+  } finally {
+    await stopEntrypoint(child);
+  }
+});
+
+test('entrypoint ignores CONTENT_SECURITY_POLICY and serves nonce-based CSP', async () => {
+  const { child, port, output } = await startEntrypoint({
+    CONTENT_SECURITY_POLICY: "default-src 'none'",
+    DB_PATH: path.join(tmpDir, `csp-env-${Date.now()}.db`),
+    DEFAULT_USERNAME: 'csp_admin',
+    DEFAULT_PASSWORD: ['csp', 'admin', '12345'].join('_'),
+    ALLOW_DEFAULT_CREDENTIALS: 'true',
+  });
+
+  try {
+    const res = await fetch(`http://127.0.0.1:${port}/`);
+    assert.equal(res.status, 200, output());
+    const csp = res.headers.get('content-security-policy') ?? '';
+    assert.match(csp, /default-src 'self'/);
+    assert.match(csp, /script-src 'self' 'nonce-[^']+'/);
+    assert.doesNotMatch(csp, /default-src 'none'/);
+
+    const nonce = csp.match(/script-src 'self' 'nonce-([^']+)'/)?.[1];
+    assert.ok(nonce, csp);
+    const html = await res.text();
+    assert.ok(html.includes(`nonce="${nonce}"`), 'page script nonce should match CSP header');
+  } finally {
+    await stopEntrypoint(child);
   }
 });
 
@@ -64,10 +106,10 @@ test('`tsx app.ts` starts and logs listening port', async () => {
   let stdout = '';
   let stderr = '';
 
-  child.stdout!.on('data', (chunk: Buffer) => {
+  child.stdout?.on('data', (chunk: Buffer) => {
     stdout += chunk.toString();
   });
-  child.stderr!.on('data', (chunk: Buffer) => {
+  child.stderr?.on('data', (chunk: Buffer) => {
     stderr += chunk.toString();
   });
 
@@ -78,7 +120,7 @@ test('`tsx app.ts` starts and logs listening port', async () => {
     }, STARTUP_TIMEOUT_MS);
 
     const onOutput = () => {
-      const clean = stdout.replace(ANSI_RE, '');
+      const clean = stripAnsi(stdout);
       // Match legacy or JSON startup logs.
       const m =
         clean.match(/Server is running on (\d+)\./) ||
@@ -89,8 +131,8 @@ test('`tsx app.ts` starts and logs listening port', async () => {
       }
     };
 
-    child.stdout!.on('data', onOutput);
-    child.stderr!.on('data', onOutput);
+    child.stdout?.on('data', onOutput);
+    child.stderr?.on('data', onOutput);
   });
 
   assert.ok(Number.isInteger(port) && port > 0);
@@ -114,6 +156,74 @@ test('`tsx app.ts` starts and logs listening port', async () => {
   });
 });
 
+test('default admin bootstrap stores usernames that login normalization can find', async () => {
+  const password = ['default', 'admin', '12345'].join('_');
+  const cases = [
+    {
+      label: 'normal username',
+      envUsername: 'normal_admin',
+      loginUsername: 'normal_admin',
+    },
+    {
+      label: 'leading and trailing whitespace',
+      envUsername: '  trimmed_admin  ',
+      loginUsername: 'trimmed_admin',
+    },
+  ];
+
+  for (const { label, envUsername, loginUsername } of cases) {
+    const { child, port, output } = await startEntrypoint({
+      DB_PATH: path.join(tmpDir, `default-user-${label.replaceAll(' ', '-')}-${Date.now()}.db`),
+      DEFAULT_USERNAME: envUsername,
+      DEFAULT_PASSWORD: password,
+      ALLOW_DEFAULT_CREDENTIALS: 'true',
+    });
+    try {
+      const login = await postLogin(port, loginUsername, password);
+      assert.equal(login.status, 200, `${label}\noutput:\n${output()}`);
+    } finally {
+      await stopEntrypoint(child);
+    }
+  }
+});
+
+test('default admin bootstrap rejects whitespace-only username', async () => {
+  const child = spawn(cmd, cmdArgs, {
+    env: {
+      ...process.env,
+      NODE_ENV: 'test',
+      PORT: '0',
+      DB_PATH: path.join(tmpDir, `blank-default-user-${Date.now()}.db`),
+      DEFAULT_USERNAME: '   ',
+      DEFAULT_PASSWORD: ['default', 'admin', '12345'].join('_'),
+      ALLOW_DEFAULT_CREDENTIALS: 'true',
+    },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+
+  let output = '';
+  child.stdout?.on('data', (chunk: Buffer) => {
+    output += chunk.toString();
+  });
+  child.stderr?.on('data', (chunk: Buffer) => {
+    output += chunk.toString();
+  });
+
+  const code = await new Promise<number | null>((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      child.kill('SIGKILL');
+      reject(new Error(`timeout waiting for process exit.\noutput:\n${output}`));
+    }, EXIT_TIMEOUT_MS);
+    child.once('exit', (exitCode) => {
+      clearTimeout(timeout);
+      resolve(exitCode);
+    });
+  });
+
+  assert.notEqual(code, 0);
+  assert.match(output, /DEFAULT_USERNAME must not be empty/);
+});
+
 test('`tsx app.ts` fails fast in production without Redis config', async () => {
   const child = spawn(cmd, cmdArgs, {
     env: {
@@ -129,7 +239,7 @@ test('`tsx app.ts` fails fast in production without Redis config', async () => {
   });
 
   let stderr = '';
-  child.stderr!.on('data', (chunk: Buffer) => {
+  child.stderr?.on('data', (chunk: Buffer) => {
     stderr += chunk.toString();
   });
 
@@ -145,7 +255,46 @@ test('`tsx app.ts` fails fast in production without Redis config', async () => {
   });
 
   assert.notEqual(code, 0);
-  assert.match(stderr, /REDIS_URL .* required in production/);
+  assert.match(stderr, /REDIS_URL is required in production/);
+});
+
+test('`tsx app.ts` rejects Redis host and port aliases in production', async () => {
+  const child = spawn(cmd, cmdArgs, {
+    env: {
+      ...process.env,
+      NODE_ENV: 'production',
+      PORT: '0',
+      DB_PATH: path.join(tmpDir, `redis-alias-${Date.now()}.db`),
+      SESSION_SECRET: 'prod-session-secret-strong-value',
+      RCON_SECRET_KEY: Buffer.alloc(32, 1).toString('base64'),
+      REDIS_HOST: '127.0.0.1',
+      REDIS_PORT: '6379',
+      ALLOW_DEFAULT_CREDENTIALS: 'false',
+    },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+
+  let output = '';
+  child.stdout?.on('data', (chunk: Buffer) => {
+    output += chunk.toString();
+  });
+  child.stderr?.on('data', (chunk: Buffer) => {
+    output += chunk.toString();
+  });
+
+  const code = await new Promise<number | null>((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      child.kill('SIGKILL');
+      reject(new Error(`timeout waiting for process exit.\noutput:\n${output}`));
+    }, EXIT_TIMEOUT_MS);
+    child.once('exit', (exitCode) => {
+      clearTimeout(timeout);
+      resolve(exitCode);
+    });
+  });
+
+  assert.notEqual(code, 0);
+  assert.match(output, /REDIS_URL is required in production/);
 });
 
 test('`tsx app.ts` fails fast in production with weak default password', async () => {
@@ -167,10 +316,10 @@ test('`tsx app.ts` fails fast in production with weak default password', async (
   });
 
   let output = '';
-  child.stdout!.on('data', (chunk: Buffer) => {
+  child.stdout?.on('data', (chunk: Buffer) => {
     output += chunk.toString();
   });
-  child.stderr!.on('data', (chunk: Buffer) => {
+  child.stderr?.on('data', (chunk: Buffer) => {
     output += chunk.toString();
   });
 
@@ -205,10 +354,10 @@ test('`tsx app.ts` fails fast in production with weak SESSION_SECRET', async () 
   });
 
   let output = '';
-  child.stdout!.on('data', (chunk: Buffer) => {
+  child.stdout?.on('data', (chunk: Buffer) => {
     output += chunk.toString();
   });
-  child.stderr!.on('data', (chunk: Buffer) => {
+  child.stderr?.on('data', (chunk: Buffer) => {
     output += chunk.toString();
   });
 
@@ -246,10 +395,10 @@ test('`tsx app.ts` fails fast in production with short SESSION_SECRET', async ()
   });
 
   let output = '';
-  child.stdout!.on('data', (chunk: Buffer) => {
+  child.stdout?.on('data', (chunk: Buffer) => {
     output += chunk.toString();
   });
-  child.stderr!.on('data', (chunk: Buffer) => {
+  child.stderr?.on('data', (chunk: Buffer) => {
     output += chunk.toString();
   });
 
@@ -289,10 +438,10 @@ test('`tsx app.ts` fails fast in production when explicit DB_PATH is invalid', a
   });
 
   let output = '';
-  child.stdout!.on('data', (chunk: Buffer) => {
+  child.stdout?.on('data', (chunk: Buffer) => {
     output += chunk.toString();
   });
-  child.stderr!.on('data', (chunk: Buffer) => {
+  child.stderr?.on('data', (chunk: Buffer) => {
     output += chunk.toString();
   });
 

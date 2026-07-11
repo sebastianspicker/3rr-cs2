@@ -1,6 +1,6 @@
-import fs from 'fs';
-import os from 'os';
-import path from 'path';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
@@ -19,85 +19,71 @@ async function rmRecursiveWithRetry(target: string): Promise<void> {
   }
 }
 
-test('`scripts/validate.sh --require-docker` cleans up temporary .env on compose failure', async () => {
+function createValidationFixture(): { workspace: string } {
   const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'cs2-panel-validate-fixture-'));
-  try {
-    const scriptsDir = path.join(workspace, 'scripts');
-    const libDir = path.join(scriptsDir, 'lib');
-    const fakeBinDir = path.join(workspace, 'fake-bin');
-    const cfgDir = path.join(workspace, 'cfg');
+  const scriptsDir = path.join(workspace, 'scripts');
+  const libDir = path.join(scriptsDir, 'lib');
+  const fakeBinDir = path.join(workspace, 'fake-bin');
+  const cfgDir = path.join(workspace, 'cfg');
 
-    fs.mkdirSync(cfgDir, { recursive: true });
-    fs.mkdirSync(libDir, { recursive: true });
-    fs.mkdirSync(fakeBinDir, { recursive: true });
-    fs.copyFileSync(
-      path.join(projectRoot, 'scripts/validate.sh'),
-      path.join(scriptsDir, 'validate.sh')
-    );
-    fs.copyFileSync(
-      path.join(projectRoot, 'scripts/lib/common.sh'),
-      path.join(libDir, 'common.sh')
-    );
-    fs.copyFileSync(path.join(projectRoot, '.env.example'), path.join(workspace, '.env.example'));
-    fs.copyFileSync(
-      path.join(projectRoot, 'docker-compose.yaml'),
-      path.join(workspace, 'docker-compose.yaml')
-    );
-    fs.copyFileSync(path.join(projectRoot, 'package.json'), path.join(workspace, 'package.json'));
-    fs.copyFileSync(
-      path.join(projectRoot, 'package-lock.json'),
-      path.join(workspace, 'package-lock.json')
-    );
-    fs.copyFileSync(path.join(projectRoot, 'cfg/maps.json'), path.join(cfgDir, 'maps.json'));
+  fs.mkdirSync(cfgDir, { recursive: true });
+  fs.mkdirSync(libDir, { recursive: true });
+  fs.mkdirSync(fakeBinDir, { recursive: true });
+  for (const relativePath of [
+    'scripts/validate.sh',
+    'scripts/lib/common.sh',
+    '.env.example',
+    'docker-compose.yaml',
+    'package.json',
+    'package-lock.json',
+    'cfg/maps.json',
+  ]) {
+    fs.copyFileSync(path.join(projectRoot, relativePath), path.join(workspace, relativePath));
+  }
 
-    for (const stub of ['shellcheck', 'shfmt', 'jq', 'ruby']) {
-      fs.writeFileSync(path.join(fakeBinDir, stub), '#!/usr/bin/env bash\nexit 0\n', {
-        mode: 0o755,
-      });
-    }
-
-    fs.writeFileSync(
-      path.join(fakeBinDir, 'docker'),
-      `#!/usr/bin/env bash
+  for (const stub of ['shellcheck', 'shfmt', 'jq', 'ruby']) {
+    fs.writeFileSync(path.join(fakeBinDir, stub), '#!/usr/bin/env bash\nexit 0\n', {
+      mode: 0o755,
+    });
+  }
+  fs.writeFileSync(
+    path.join(fakeBinDir, 'docker'),
+    `#!/usr/bin/env bash
 set -euo pipefail
-if [[ "$1" == "info" ]]; then
-  exit 0
-fi
-if [[ "$1" == "build" ]]; then
-  exit 0
-fi
-if [[ "$1" == "compose" && "$2" == "version" ]]; then
-  exit 0
-fi
-if [[ "$1" == "compose" ]]; then
-  exit 42
-fi
+if [[ "$1" == "info" || "$1" == "build" ]]; then exit 0; fi
+if [[ "$1" == "compose" && "$2" == "version" ]]; then exit 0; fi
+if [[ "$1" == "compose" ]]; then exit 42; fi
 echo "unexpected docker invocation: $*" >&2
 exit 99
 `,
-      { mode: 0o755 }
-    );
+    { mode: 0o755 }
+  );
+  return { workspace };
+}
 
-    const result = await new Promise<{ code: number | null; output: string }>((resolve, reject) => {
-      const child = spawn(
-        'bash',
-        ['-lc', 'PATH="$PWD/fake-bin:$PATH" scripts/validate.sh --require-docker'],
-        {
-          cwd: workspace,
-          env: process.env,
-          stdio: ['ignore', 'pipe', 'pipe'],
-        }
-      );
-      let output = '';
-      child.stdout!.on('data', (chunk: Buffer) => {
-        output += chunk.toString();
-      });
-      child.stderr!.on('data', (chunk: Buffer) => {
-        output += chunk.toString();
-      });
-      child.once('error', reject);
-      child.once('exit', (code) => resolve({ code, output }));
-    });
+async function runValidation(workspace: string) {
+  return new Promise<{ code: number | null; output: string }>((resolve, reject) => {
+    const child = spawn(
+      'bash',
+      ['-lc', 'PATH="$PWD/fake-bin:$PATH" scripts/validate.sh --require-docker'],
+      {
+        cwd: workspace,
+        env: process.env,
+        stdio: ['ignore', 'pipe', 'pipe'],
+      }
+    );
+    let output = '';
+    child.stdout?.on('data', (chunk: Buffer) => (output += chunk.toString()));
+    child.stderr?.on('data', (chunk: Buffer) => (output += chunk.toString()));
+    child.once('error', reject);
+    child.once('exit', (code) => resolve({ code, output }));
+  });
+}
+
+test('`scripts/validate.sh --require-docker` cleans up temporary .env on compose failure', async () => {
+  const { workspace } = createValidationFixture();
+  try {
+    const result = await runValidation(workspace);
 
     assert.notEqual(result.code, 0);
     assert.match(result.output, /docker compose -f .* config -q/);
@@ -106,6 +92,27 @@ exit 99
     await rmRecursiveWithRetry(workspace);
   }
 });
+
+async function gitCheckIgnoreExitCode(filePath: string): Promise<number | null> {
+  return new Promise((resolve, reject) => {
+    const child = spawn('git', ['check-ignore', '--quiet', filePath], {
+      cwd: projectRoot,
+      stdio: ['ignore', 'ignore', 'pipe'],
+    });
+    let stderr = '';
+    child.stderr?.on('data', (chunk: Buffer) => {
+      stderr += chunk.toString();
+    });
+    child.once('error', reject);
+    child.once('exit', (code) => {
+      if (code !== 0 && code !== 1) {
+        reject(new Error(`git check-ignore failed for ${filePath}: ${stderr}`));
+        return;
+      }
+      resolve(code);
+    });
+  });
+}
 
 test('docs reflect the live auth contract and umbrella module scope', () => {
   const apiDoc = fs.readFileSync(path.resolve('docs/API.md'), 'utf8');
@@ -182,4 +189,9 @@ test('server route keeps add-server limiter Redis-capable', () => {
   // server.ts must still use the store via the shared factory.
   assert.match(serverRoute, /makeRateLimitStore/);
   assert.match(serverRoute, /store: makeRateLimitStore\(\)/);
+});
+
+test('validation and regression files are not ignored by git', async () => {
+  assert.equal(await gitCheckIgnoreExitCode('scripts/validate.sh'), 1);
+  assert.equal(await gitCheckIgnoreExitCode('test/scripts.test.ts'), 1);
 });

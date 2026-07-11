@@ -4,7 +4,10 @@ Thanks for considering a contribution.
 
 ## Local Setup
 
-Install the linting and formatting tools:
+Install the linting and formatting tools. GitHub Actions installs these via
+`apt`. The repository keeps a pinned downloader only for local/manual setup when
+the host package manager cannot provide the required versions and checksum
+verification is useful:
 
 ```bash
 ./scripts/ci-install-tools.sh   # Downloads shellcheck + shfmt with SHA256 verification

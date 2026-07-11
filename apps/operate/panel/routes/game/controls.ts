@@ -1,6 +1,6 @@
 import express from 'express';
 import isAuthenticated from '../../modules/middleware';
-import { requireAuthorizedServerId } from '../../utils/parseServerId';
+import { requireAuthorizedServerId } from '../../utils/serverAccess';
 import logger from '../../utils/logger';
 import {
   parseConVarValue,
@@ -8,11 +8,11 @@ import {
   parseIntBody,
   requireAllowlisted,
   runGameCmd,
+  runGameCmdSequence,
   execCfg,
   makeToggleRoute,
   makeSimpleCmdRoute,
   makePresetRoute,
-  makeMultiPresetRoute,
 } from './helpers';
 
 const router = express.Router();
@@ -58,13 +58,14 @@ router.post('/api/respawn-toggle', isAuthenticated, async (req, res) => {
       { user: req.session?.user?.username ?? 'unknown', action: 'respawn-toggle', value },
       '[game] action'
     );
-    await Promise.all([
-      runGameCmd(server_id, `mp_respawn_on_death_ct ${value}`),
-      runGameCmd(server_id, `mp_respawn_on_death_t ${value}`),
+    await runGameCmdSequence(server_id, [
+      `mp_respawn_on_death_ct ${value}`,
+      `mp_respawn_on_death_t ${value}`,
     ]);
-    return res.status(200).json({ message: `Respawn set to ${value}` });
+    return res.status(200).json({ message: `Respawn command sequence sent with value ${value}.` });
   } catch (err) {
-    return sendGameRouteError(res, err, 'respawn-toggle');
+    sendGameRouteError(res, err, 'respawn-toggle');
+    return;
   }
 });
 
@@ -80,21 +81,37 @@ router.post(
   makePresetRoute('set-freezetime', 'mp_freezetime', [0, 5, 10, 15, 20])
 );
 
-router.post(
-  '/api/set-startmoney',
-  isAuthenticated,
-  makeMultiPresetRoute(
-    'set-startmoney',
-    [0, 800, 1600, 3200, 16000],
-    async (sid, n) => {
-      await Promise.all([
-        runGameCmd(sid, `mp_startmoney ${n}`),
-        runGameCmd(sid, `mp_maxmoney ${Math.max(n, 16000)}`),
-      ]);
-    },
-    (n) => `mp_startmoney set to ${n}`
-  )
-);
+router.post('/api/set-startmoney', isAuthenticated, async (req, res) => {
+  try {
+    const server_id = requireAuthorizedServerId(req, res);
+    if (!server_id) return;
+    const value = parseIntBody(req.body?.value);
+    const allowedValues = [0, 800, 1600, 3200, 16000];
+    if (
+      !requireAllowlisted(
+        res,
+        value,
+        allowedValues,
+        `value must be one of: ${allowedValues.join(', ')}`
+      )
+    )
+      return;
+    logger.info(
+      { user: req.session?.user?.username ?? 'unknown', action: 'set-startmoney', value },
+      '[game] action'
+    );
+    await runGameCmdSequence(server_id, [
+      `mp_startmoney ${value}`,
+      `mp_maxmoney ${Math.max(value, 16000)}`,
+    ]);
+    return res
+      .status(200)
+      .json({ message: `Start money command sequence sent with value ${value}.` });
+  } catch (err) {
+    sendGameRouteError(res, err, 'set-startmoney');
+    return;
+  }
+});
 
 router.post(
   '/api/bot-difficulty',
@@ -105,41 +122,54 @@ router.post(
 //
 // === PRACTICE CONTROLS (extended) ===
 //
-router.post(
-  '/api/set-roundtime',
-  isAuthenticated,
-  makeMultiPresetRoute(
-    'set-roundtime',
-    [1, 2, 5, 60],
-    async (sid, n) => {
-      await Promise.all([
-        runGameCmd(sid, `mp_roundtime ${n}`),
-        runGameCmd(sid, `mp_roundtime_defuse ${n}`),
-      ]);
-    },
-    (n) => `mp_roundtime set to ${n} min`
-  )
-);
+router.post('/api/set-roundtime', isAuthenticated, async (req, res) => {
+  try {
+    const server_id = requireAuthorizedServerId(req, res);
+    if (!server_id) return;
+    const value = parseIntBody(req.body?.value);
+    const allowedValues = [1, 2, 5, 60];
+    if (
+      !requireAllowlisted(
+        res,
+        value,
+        allowedValues,
+        `value must be one of: ${allowedValues.join(', ')}`
+      )
+    )
+      return;
+    logger.info(
+      { user: req.session?.user?.username ?? 'unknown', action: 'set-roundtime', value },
+      '[game] action'
+    );
+    await runGameCmdSequence(server_id, [`mp_roundtime ${value}`, `mp_roundtime_defuse ${value}`]);
+    return res
+      .status(200)
+      .json({ message: `Round time command sequence sent with value ${value} min.` });
+  } catch (err) {
+    sendGameRouteError(res, err, 'set-roundtime');
+    return;
+  }
+});
 
 router.post(
   '/api/bot-add-ct',
   isAuthenticated,
-  makeSimpleCmdRoute('bot-add-ct', 'bot_add ct', 'CT bot added!')
+  makeSimpleCmdRoute('bot-add-ct', 'bot_add ct', 'CT bot add command sent.')
 );
 router.post(
   '/api/bot-add-t',
   isAuthenticated,
-  makeSimpleCmdRoute('bot-add-t', 'bot_add t', 'T bot added!')
+  makeSimpleCmdRoute('bot-add-t', 'bot_add t', 'T bot add command sent.')
 );
 router.post(
   '/api/bot-kick-ct',
   isAuthenticated,
-  makeSimpleCmdRoute('bot-kick-ct', 'bot_kick ct', 'CT bots kicked!')
+  makeSimpleCmdRoute('bot-kick-ct', 'bot_kick ct', 'CT bot kick command sent.')
 );
 router.post(
   '/api/bot-kick-t',
   isAuthenticated,
-  makeSimpleCmdRoute('bot-kick-t', 'bot_kick t', 'T bots kicked!')
+  makeSimpleCmdRoute('bot-kick-t', 'bot_kick t', 'T bot kick command sent.')
 );
 
 const VALID_GIVE_WEAPONS = [
@@ -166,9 +196,10 @@ router.post('/api/give-weapon', isAuthenticated, async (req, res) => {
       '[game] action'
     );
     await runGameCmd(server_id, `give ${weapon}`);
-    return res.status(200).json({ message: `Gave ${weapon}` });
+    return res.status(200).json({ message: `Give ${weapon} command sent.` });
   } catch (err) {
-    return sendGameRouteError(res, err, 'give-weapon');
+    sendGameRouteError(res, err, 'give-weapon');
+    return;
   }
 });
 
@@ -210,15 +241,16 @@ router.post('/api/set-overtime', isAuthenticated, async (req, res) => {
       },
       '[game] action'
     );
-    await Promise.all([
-      runGameCmd(server_id, `mp_overtime_enable ${enable}`),
-      runGameCmd(server_id, `mp_overtime_maxrounds ${otRounds}`),
+    await runGameCmdSequence(server_id, [
+      `mp_overtime_enable ${enable}`,
+      `mp_overtime_maxrounds ${otRounds}`,
     ]);
-    return res
-      .status(200)
-      .json({ message: `Overtime ${enable ? 'enabled' : 'disabled'} (MR${otRounds})` });
+    return res.status(200).json({
+      message: `Overtime command sequence sent: ${enable ? 'enable' : 'disable'}, MR${otRounds}.`,
+    });
   } catch (err) {
-    return sendGameRouteError(res, err, 'set-overtime');
+    sendGameRouteError(res, err, 'set-overtime');
+    return;
   }
 });
 
@@ -243,13 +275,13 @@ router.post(
 router.post(
   '/api/noclip',
   isAuthenticated,
-  makeSimpleCmdRoute('noclip', 'noclip', 'Noclip toggled!')
+  makeSimpleCmdRoute('noclip', 'noclip', 'Noclip command sent.')
 );
 
 router.post(
   '/api/rethrow-grenade',
   isAuthenticated,
-  makeSimpleCmdRoute('rethrow-grenade', 'sv_rethrow_last_grenade', 'Grenade rethrown!')
+  makeSimpleCmdRoute('rethrow-grenade', 'sv_rethrow_last_grenade', 'Rethrow grenade command sent.')
 );
 
 //
@@ -268,9 +300,12 @@ router.post('/api/random-rounds-toggle', isAuthenticated, async (req, res) => {
       '[game] action'
     );
     await execCfg(server_id, value === 1 ? 'random_rounds_on.cfg' : 'random_rounds_off.cfg');
-    return res.status(200).json({ message: `Random Rounds ${value ? 'enabled' : 'disabled'}` });
+    return res.status(200).json({
+      message: `Random Rounds config command sent with value ${value}.`,
+    });
   } catch (err) {
-    return sendGameRouteError(res, err, 'random-rounds-toggle');
+    sendGameRouteError(res, err, 'random-rounds-toggle');
+    return;
   }
 });
 
@@ -287,16 +322,17 @@ router.post('/api/rtd-toggle', isAuthenticated, async (req, res) => {
       '[game] action'
     );
     await execCfg(server_id, value === 1 ? 'rtd_on.cfg' : 'rtd_off.cfg');
-    return res.status(200).json({ message: `RTD ${value ? 'enabled' : 'disabled'}` });
+    return res.status(200).json({ message: `RTD config command sent with value ${value}.` });
   } catch (err) {
-    return sendGameRouteError(res, err, 'rtd-toggle');
+    sendGameRouteError(res, err, 'rtd-toggle');
+    return;
   }
 });
 
 router.post(
   '/api/rtd-force-roll',
   isAuthenticated,
-  makeSimpleCmdRoute('rtd-force-roll', 'css_rtd_forceroll', 'Dice rolled for all players!')
+  makeSimpleCmdRoute('rtd-force-roll', 'css_rtd_forceroll', 'RTD force-roll command sent.')
 );
 
 export default router;

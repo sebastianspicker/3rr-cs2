@@ -22,18 +22,18 @@ const MapsConfigSchema = z.object({
   mapGroups: z.record(z.string(), MapGroupSchema),
 });
 
-export type GameMode = z.infer<typeof GameModeSchema>;
-export type GameType = z.infer<typeof GameTypeSchema>;
-export type MapGroup = z.infer<typeof MapGroupSchema>;
-export type MapsConfig = z.infer<typeof MapsConfigSchema>;
-
-export const mapsConfig: MapsConfig = MapsConfigSchema.parse(mapsConfigRaw);
+export const mapsConfig = MapsConfigSchema.parse(mapsConfigRaw);
+const mapGroupsByName = new Map(Object.entries(mapsConfig.mapGroups));
+const gameTypesByName = new Map(Object.entries(mapsConfig.gameTypes));
 
 function getMapsForMode(gameType: string, gameMode: string): string[] {
-  const gt = mapsConfig.gameTypes?.[gameType];
-  const gm = gt?.gameModes?.[gameMode];
-  if (!gm || !Array.isArray(gm.mapGroups)) return [];
-  return gm.mapGroups.flatMap((mg) => mapsConfig.mapGroups?.[mg]?.maps ?? []);
+  const gameTypeConfig = gameTypesByName.get(gameType);
+  if (!gameTypeConfig) return [];
+  const gameModeConfig = new Map(Object.entries(gameTypeConfig.gameModes)).get(gameMode);
+  if (!gameModeConfig) return [];
+  return gameModeConfig.mapGroups.flatMap(
+    (mapGroupName) => mapGroupsByName.get(mapGroupName)?.maps ?? []
+  );
 }
 
 export { getMapsForMode };

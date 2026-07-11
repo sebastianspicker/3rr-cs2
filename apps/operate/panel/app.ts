@@ -1,6 +1,5 @@
-import crypto from 'crypto';
-import fs from 'fs';
-import path from 'path';
+import crypto from 'node:crypto';
+import path from 'node:path';
 import express from 'express';
 import logger from './utils/logger';
 import rateLimit from 'express-rate-limit';
@@ -16,6 +15,7 @@ import serverRoutes from './routes/server';
 import authRoutes from './routes/auth';
 import statusRoutes from './routes/status';
 import userRoutes from './routes/users';
+import operatorRoutes from './routes/operator';
 
 const app = express();
 app.disable('x-powered-by');
@@ -25,7 +25,7 @@ app.use(express.json({ limit: bodyLimit }));
 app.use(express.urlencoded({ extended: false, limit: bodyLimit, parameterLimit: 100 }));
 app.set('query parser', 'simple');
 
-const nodeEnv = process.env.NODE_ENV || 'development';
+const nodeEnv = process.env.NODE_ENV ?? 'development';
 const trustProxyRaw = process.env.TRUST_PROXY;
 if (trustProxyRaw) {
   if (trustProxyRaw === 'true') {
@@ -69,13 +69,23 @@ const weakSessionSecretValues = new Set([
 
 function isStrongSessionSecret(secret: string): boolean {
   if (secret.length < 32) return false;
-  if (/^[A-Za-z0-9]+$/.test(secret) && (/^[A-Za-z]+$/.test(secret) || /^\d+$/.test(secret))) {
-    return false;
-  }
-  if (/^(.)\1+$/.test(secret)) return false;
-  if (/^(0123|1234|2345|3456|4567|5678|6789|7890)/.test(secret)) return false;
-  return true;
+  return !isTriviallyGuessableSessionSecret(secret);
 }
+
+function isTriviallyGuessableSessionSecret(secret: string): boolean {
+  return (
+    hasSingleCharacterClass(secret) || hasRepeatedCharacter(secret) || hasSequentialDigits(secret)
+  );
+}
+
+const hasSingleCharacterClass = (secret: string): boolean =>
+  /^[A-Za-z0-9]+$/.test(secret) && (/^[A-Za-z]+$/.test(secret) || /^\d+$/.test(secret));
+
+const hasRepeatedCharacter = (secret: string): boolean =>
+  secret.length > 0 && new Set(secret).size === 1;
+
+const hasSequentialDigits = (secret: string): boolean =>
+  /^(0123|1234|2345|3456|4567|5678|6789|7890)/.test(secret);
 
 if (nodeEnv === 'production') {
   const normalizedSessionSecret = String(sessionSecret).trim();
@@ -89,7 +99,7 @@ if (nodeEnv === 'production') {
   }
 }
 
-const sameSiteRaw = (process.env.SESSION_COOKIE_SAMESITE || 'strict').toLowerCase();
+const sameSiteRaw = (process.env.SESSION_COOKIE_SAMESITE ?? 'strict').toLowerCase();
 let cookieSameSite: 'strict' | 'lax' | 'none' = (['strict', 'lax', 'none'] as const).includes(
   sameSiteRaw as 'strict' | 'lax' | 'none'
 )
@@ -115,16 +125,17 @@ function parsePort(raw: unknown, fallback: number): number {
   return Number.isInteger(n) && n >= 0 && n <= 65535 ? n : fallback;
 }
 
-let sessionStore: session.Store | undefined;
-if (redisClient) {
-  sessionStore = new RedisStore({ client: redisClient });
-  logger.info('[session] Using Redis session store.');
-} else {
+const sessionStore = (() => {
+  if (redisClient) {
+    logger.info('[session] Using Redis session store.');
+    return new RedisStore({ client: redisClient });
+  }
   if (nodeEnv === 'production') {
-    throw new Error('REDIS_URL (or REDIS_HOST/REDIS_PORT) is required in production');
+    throw new Error('REDIS_URL is required in production');
   }
   logger.warn('[session] Using in-memory session store. Set REDIS_URL for production use.');
-}
+  return undefined;
+})();
 const DEFAULT_SESSION_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 const sessionMaxAgeMs = (() => {
   const raw = process.env.SESSION_MAX_AGE_MS;
@@ -132,7 +143,7 @@ const sessionMaxAgeMs = (() => {
   const n = parseInt(raw, 10);
   return Number.isFinite(n) && n > 0 ? n : DEFAULT_SESSION_MAX_AGE_MS;
 })();
-const sessionCookieNameRaw = process.env.SESSION_COOKIE_NAME || 'cspanel.sid';
+const sessionCookieNameRaw = process.env.SESSION_COOKIE_NAME ?? 'cspanel.sid';
 const sessionCookieName = /^[A-Za-z0-9_.-]{1,128}$/.test(sessionCookieNameRaw)
   ? sessionCookieNameRaw
   : 'cspanel.sid';
@@ -159,28 +170,21 @@ app.use(
   })
 );
 
-const cspOverride = process.env.CONTENT_SECURITY_POLICY;
-if (cspOverride) {
-  logger.warn('[security] Custom CSP override active -- ensure it includes nonce-based script-src');
-}
-
-function securityHeadersMiddleware(req: Request, res: Response, next: NextFunction): void {
+function securityHeadersMiddleware(_req: Request, res: Response, next: NextFunction): void {
   const nonce = crypto.randomBytes(16).toString('base64');
   res.locals.cspNonce = nonce;
-  const cspHeader =
-    cspOverride ||
-    [
-      "default-src 'self'",
-      `script-src 'self' 'nonce-${nonce}'`,
-      "style-src 'self'",
-      "font-src 'self'",
-      "img-src 'self' data:",
-      "connect-src 'self'",
-      "frame-ancestors 'none'",
-      "base-uri 'self'",
-      "form-action 'self'",
-      'upgrade-insecure-requests',
-    ].join('; ');
+  const cspHeader = [
+    "default-src 'self'",
+    `script-src 'self' 'nonce-${nonce}'`,
+    "style-src 'self'",
+    "font-src 'self'",
+    "img-src 'self' data:",
+    "connect-src 'self'",
+    "frame-ancestors 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    'upgrade-insecure-requests',
+  ].join('; ');
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('X-Permitted-Cross-Domain-Policies', 'none');
@@ -197,53 +201,59 @@ function securityHeadersMiddleware(req: Request, res: Response, next: NextFuncti
 }
 app.use(securityHeadersMiddleware);
 
-function csrfTokensEqual(expected: unknown, supplied: unknown): boolean {
+const csrfTokensEqual = (expected: unknown, supplied: unknown): boolean => {
   if (typeof expected !== 'string' || typeof supplied !== 'string') return false;
   const expectedBuf = Buffer.from(expected, 'utf8');
   const suppliedBuf = Buffer.from(supplied, 'utf8');
   if (expectedBuf.length !== suppliedBuf.length) return false;
   return crypto.timingSafeEqual(expectedBuf, suppliedBuf);
-}
+};
 
-function shouldEnforceCsrf(req: Request): boolean {
+const shouldEnforceCsrf = (req: Request): boolean => {
   if (req.path === '/auth/login') return true;
   if (req.path === '/auth/logout') return true;
   return Boolean(req.session?.user) || Boolean(req.session?.csrfToken);
-}
+};
 
 // CSRF token is generated once per session and not rotated per request.
 // This is acceptable for the current threat model (single-user panel).
 // Full per-request rotation would require additional infrastructure (e.g.
 // token-pair or double-submit with server-side state per form).
-app.use((req, res, next) => {
-  if (!req.session) return next();
+const ensureCsrfToken = (req: Request): void => {
   const isPageRequest =
     req.method === 'GET' && !req.path.startsWith('/api/') && path.extname(req.path) === '';
   if (!req.session.csrfToken && (isPageRequest || req.session.user)) {
     req.session.csrfToken = crypto.randomBytes(32).toString('hex');
   }
-  res.locals.csrfToken = req.session.csrfToken || '';
+};
+
+app.use((req, res, next) => {
+  if (!req.session) return next();
+  ensureCsrfToken(req);
+  res.locals.csrfToken = req.session.csrfToken ?? '';
   res.locals.isAdmin = req.session.user?.is_admin === 1;
   next();
 });
 
+function isSafeHttpMethod(method: string): boolean {
+  return method === 'GET' || method === 'HEAD' || method === 'OPTIONS';
+}
+
+function sendCsrfError(req: Request, res: Response): Response {
+  return (req.headers.accept ?? '').includes('text/html')
+    ? res.status(403).send('Invalid CSRF token')
+    : res.status(403).json({ error: 'Invalid CSRF token' });
+}
+
 app.use((req, res, next) => {
-  if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') {
-    return next();
-  }
+  if (isSafeHttpMethod(req.method)) return next();
   if (!shouldEnforceCsrf(req)) return next();
   const token = req.get('x-csrf-token') || req.body?._csrf;
-  if (!csrfTokensEqual(req.session?.csrfToken, token)) {
-    const acceptHeader = req.headers['accept'] || '';
-    if (acceptHeader.includes('text/html')) {
-      return res.status(403).send('Invalid CSRF token');
-    }
-    return res.status(403).json({ error: 'Invalid CSRF token' });
-  }
+  if (!csrfTokensEqual(req.session?.csrfToken, token)) return sendCsrfError(req, res);
   return next();
 });
 
-const port = parsePort(process.env.PORT || process.env.DEFAULT_PORT || 3000, 3000);
+const port = parsePort(process.env.PORT ?? 3000, 3000);
 
 const rateLimitStore = makeRateLimitStore();
 
@@ -259,7 +269,7 @@ app.use('/auth/login', loginLimiter);
 
 const apiLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 60,
+  max: nodeEnv === 'test' ? 1000 : 60,
   message: { error: 'Too many requests; slow down.' },
   standardHeaders: true,
   legacyHeaders: false,
@@ -278,19 +288,16 @@ app.use('/api/', apiLimiter);
 
 const rconConsoleLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 15,
+  max: nodeEnv === 'test' ? 1000 : 15,
   message: { error: 'Too many RCON commands; slow down.' },
   standardHeaders: true,
   legacyHeaders: false,
   store: rateLimitStore ? makeRateLimitStore() : undefined,
 });
-app.use('/api/rcon', rconConsoleLimiter);
+app.post('/api/rcon', rconConsoleLimiter);
 
-const staticDir = (() => {
-  const compiledDir = path.join(__dirname, 'public');
-  if (fs.existsSync(compiledDir)) return compiledDir;
-  return path.join(__dirname, '..', 'public');
-})();
+const panelRoot = path.basename(__dirname) === 'dist' ? path.dirname(__dirname) : __dirname;
+const staticDir = path.join(panelRoot, 'public');
 
 // Serve static assets before session middleware so CSS/JS/font requests
 // don't create sessions and get aggressive cache headers.
@@ -302,7 +309,7 @@ app.use(
 );
 
 // Avoid caching authenticated/dynamic content (applied after static middleware)
-app.use((req, res, next) => {
+app.use((_req, res, next) => {
   res.setHeader('Cache-Control', 'no-store');
   next();
 });
@@ -313,33 +320,40 @@ app.use('/', authRoutes);
 app.use('/', serverRoutes);
 app.use('/', gameRoutes);
 app.use('/', statusRoutes);
+app.use('/', operatorRoutes);
 app.use('/', userRoutes);
 
 const dbHealthStmt = better_sqlite_client.prepare('SELECT 1');
 
-// Health check for load balancers / k8s
-app.get('/api/health', (req, res) => {
-  const health: { ok: boolean; db: boolean; redis: boolean | null } = {
-    ok: true,
-    db: false,
-    redis: false,
-  };
+function isDatabaseHealthy(): boolean {
   try {
     dbHealthStmt.get();
-    health.db = true;
+    return true;
   } catch {
-    // db may not be ready or not used
+    return false;
   }
-  if (redisClient) {
-    health.redis = redisClient.isReady === true;
-  } else {
-    health.redis = null;
-  }
-  health.ok = health.db && (health.redis === null || health.redis === true);
+}
+
+function redisHealth(): boolean | null {
+  return redisClient ? redisClient.isReady === true : null;
+}
+
+function healthSummary() {
+  const rconInit = rcon.getInitSummary();
+  const db = isDatabaseHealthy();
+  const redis = redisHealth();
+  const rconReady = rconInit.complete && rconInit.failed === 0 && rconInit.errors.length === 0;
+  const ok = db && redis !== false;
+  return { ok, ready: ok && rconReady, db, redis, rcon: { ...rconInit, ready: rconReady } };
+}
+
+// Health check for load balancers / k8s
+app.get('/api/health', (req, res) => {
+  const health = healthSummary();
   const statusCode = health.ok ? 200 : 503;
   const verboseHealth = process.env.HEALTHCHECK_VERBOSE === 'true' || Boolean(req.session?.user);
   if (!verboseHealth) {
-    return res.status(statusCode).json({ ok: health.ok });
+    return res.status(statusCode).json({ ok: health.ok, ready: health.ready });
   }
   return res.status(statusCode).json(health);
 });
@@ -359,6 +373,7 @@ app.use((_req, res) => {
 
 // Global error handler — Express 5 forwards async errors here automatically.
 app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
+  void _next;
   logger.error({ err }, '[app] unhandled route error');
   if (!res.headersSent) {
     res.status(500).json({ error: 'Internal server error' });
@@ -384,7 +399,11 @@ if (require.main === module) {
     // Graceful shutdown: clean up connections before exit
     const shutdown = async (signal: string) => {
       logger.info({ signal }, '[process] received, shutting down...');
-      await new Promise<void>((resolve) => server.close(() => resolve()));
+      await new Promise<void>((resolve) =>
+        server.close(() => {
+          resolve();
+        })
+      );
       await rcon.shutdownAll();
       if (redisClient) {
         try {
@@ -402,7 +421,7 @@ if (require.main === module) {
     };
     process.on('SIGTERM', () => void shutdown('SIGTERM'));
     process.on('SIGINT', () => void shutdown('SIGINT'));
-  })().catch((err) => {
+  })().catch((err: unknown) => {
     logger.error({ err }, 'Fatal startup error');
     process.exit(1);
   });

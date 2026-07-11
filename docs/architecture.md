@@ -40,7 +40,8 @@ Operators think in lifecycle stages, but the implementation still needs clear se
 
 ## Historical Notes
 
-Import and migration notes are archived under `docs/archive/migration/`.
+Import notes, migration notes, and completed remediation packets are indexed in
+`docs/archive/README.md`.
 
 ## Explicit Exclusions
 

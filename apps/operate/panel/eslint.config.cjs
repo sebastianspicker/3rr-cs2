@@ -9,7 +9,20 @@ const sharedRules = {
 
 module.exports = tseslint.config(
   {
-    ignores: ['node_modules/**', 'data/**', 'public/js/**', 'views/**', 'cfg/**', 'dist/**'],
+    ignores: [
+      'node_modules/**',
+      'data/**',
+      'public/js/console.js',
+      'views/**',
+      'cfg/**',
+      'dist/**',
+      'apps/operate/panel/node_modules/**',
+      'apps/operate/panel/data/**',
+      'apps/operate/panel/public/js/console.js',
+      'apps/operate/panel/views/**',
+      'apps/operate/panel/cfg/**',
+      'apps/operate/panel/dist/**',
+    ],
   },
   // TypeScript files: use @typescript-eslint recommended rules
   ...tseslint.configs.recommended.map((cfg) => ({
@@ -18,7 +31,7 @@ module.exports = tseslint.config(
   })),
   {
     files: ['**/*.ts'],
-    ignores: ['public/ts/**'],
+    ignores: ['public/ts/**', 'apps/operate/panel/public/ts/**'],
     languageOptions: {
       globals: globals.node,
     },
@@ -36,7 +49,7 @@ module.exports = tseslint.config(
   },
   // Client-side TypeScript: browser globals
   {
-    files: ['public/ts/**/*.ts'],
+    files: ['public/ts/**/*.ts', 'apps/operate/panel/public/ts/**/*.ts'],
     languageOptions: {
       globals: globals.browser,
     },
@@ -50,10 +63,24 @@ module.exports = tseslint.config(
       '@typescript-eslint/no-explicit-any': 'error',
     },
   },
+  // Hand-written client JavaScript: browser globals
+  {
+    files: ['public/js/**/*.js', 'apps/operate/panel/public/js/**/*.js'],
+    languageOptions: {
+      ecmaVersion: 'latest',
+      sourceType: 'script',
+      globals: globals.browser,
+    },
+    rules: {
+      ...sharedRules,
+      'no-unused-vars': ['error', { argsIgnorePattern: '^_', ignoreRestSiblings: true }],
+      'no-undef': 'error',
+    },
+  },
   // JavaScript files: standard rules only
   {
     files: ['**/*.js'],
-    ignores: ['public/js/**'],
+    ignores: ['public/js/**', 'apps/operate/panel/public/js/**'],
     languageOptions: {
       ecmaVersion: 'latest',
       sourceType: 'script',

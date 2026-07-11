@@ -14,4 +14,4 @@ Open a private security advisory or contact the maintainer directly before discl
 
 ## Boundary Notes
 
-- RCON console input must remain single-command ASCII input. Reject separators, control bytes, and non-ASCII characters before handing commands to the RCON client.
+- RCON console input must remain single-command ASCII input. Reject separators, control bytes, and non-ASCII characters before handing commands to the RCON client. Any protocol-driven exception requires a documented threat model, focused regression tests, and maintainer approval before implementation.

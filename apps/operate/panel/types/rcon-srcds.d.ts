@@ -1,5 +1,5 @@
 declare module 'rcon-srcds' {
-  import type { Socket } from 'net';
+  import type { Socket } from 'node:net';
 
   interface RCONOptions {
     host?: string;

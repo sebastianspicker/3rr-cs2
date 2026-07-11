@@ -10,6 +10,10 @@ State-changing requests (POST/PUT/DELETE) require a CSRF token in the `X-CSRF-To
 3. Use session cookie + CSRF token for all subsequent requests
 4. `POST /auth/logout` — destroy session
 
+Protected requests revalidate the session user against SQLite. Deleted users are
+rejected, and admin-only routes use the current stored admin flag rather than a
+stale session copy.
+
 ## Auth
 
 | Method | Path           | Auth | CSRF | Rate Limit |
@@ -29,6 +33,29 @@ State-changing requests (POST/PUT/DELETE) require a CSRF token in the `X-CSRF-To
 | POST   | `/api/delete-server`    | Yes  | Yes  | Delete server by server_id               |
 | POST   | `/api/reconnect-server` | Yes  | Yes  | Reconnect RCON for server_id             |
 
+`/api/add-server` first probes the supplied RCON credentials. If credentials
+probe successfully but the panel cannot establish an authenticated managed RCON
+connection after saving the server, it returns `502` with an error instead of a
+success response. `/api/reconnect-server` also returns `502` when no
+authenticated RCON connection exists after the reconnect attempt.
+If a stored encrypted RCON credential cannot be decrypted, reconnect and command
+paths report a local credential storage error with `credential_error` instead of
+claiming the remote server rejected authentication.
+
+`/api/servers` treats `status` as the canonical RCON status field:
+`connected`, `disconnected`, `unknown`, or `error`. Each row also includes
+`observed_at`, `status_source`, `timed_out`, and `error` so callers can separate
+unobserved, slow, and failed hostname probes from confirmed disconnection. The
+legacy `connected` and `authenticated` booleans remain for compatibility and
+must not be used alone to distinguish unknown from disconnected.
+
+`/api/delete-server` removes the caller's access first. If no users retain
+access, it deletes the server row and returns `server_deleted: true` with
+`rcon_cleanup: "completed"`. Shared-server access removal returns
+`server_deleted: false` and `rcon_cleanup: "not_needed"`. If the row is deleted
+but RCON cleanup fails, the response is non-2xx and includes
+`rcon_cleanup: "failed"`.
+
 ## Game Setup
 
 | Method | Path                                          | Auth | CSRF | Description                               |
@@ -36,6 +63,10 @@ State-changing requests (POST/PUT/DELETE) require a CSRF token in the `X-CSRF-To
 | POST   | `/api/setup-game`                             | Yes  | Yes  | Deploy match (map, teams, game type/mode) |
 | GET    | `/api/game-types/:type/game-modes`            | Yes  | —    | List game modes for type                  |
 | GET    | `/api/game-types/:type/game-modes/:mode/maps` | Yes  | —    | List maps for mode                        |
+
+`POST /api/setup-game` records the last requested setup selection for the manage
+page. It does not claim the live server map or mode was observed. Success
+includes `setup_state: "requested"`, `observed: false`, and `requested_setup`.
 
 ## Match Control
 
@@ -86,6 +117,14 @@ State-changing requests (POST/PUT/DELETE) require a CSRF token in the `X-CSRF-To
 | POST   | `/api/set-overtime`              | Yes  | Yes  | Configure overtime enable + rounds (3/5/6) |
 | POST   | `/api/give-weapon`               | Yes  | Yes  | Give utility weapon to all players         |
 
+Multi-command controls execute their RCON commands in order. If a later command
+fails after earlier commands were sent, the response is `500` with
+`partial: true`, `applied_commands`, `failed_command`, and
+`failed_command_index` so callers know the server may be partially updated.
+Numeric preset fields such as `value` and `ot_rounds` accept JSON integers or
+string integers only; malformed strings like `5abc` or `5.5` are rejected with
+`400`.
+
 ## Practice Controls
 
 | Method | Path                        | Auth | CSRF | Description                               |
@@ -108,7 +147,7 @@ State-changing requests (POST/PUT/DELETE) require a CSRF token in the `X-CSRF-To
 
 | Method | Path                 | Auth | CSRF | Body field | Description                                |
 | ------ | -------------------- | ---- | ---- | ---------- | ------------------------------------------ |
-| POST   | `/api/player-kick`   | Yes  | Yes  | `userid`   | Kick player by numeric userid (1–4 digits) |
+| POST   | `/api/player-kick`   | Yes  | Yes  | `userid`   | Kick player by numeric userid (1–5 digits) |
 | POST   | `/api/player-mute`   | Yes  | Yes  | `steamid`  | Mute player by SteamID64 (17 digits)       |
 | POST   | `/api/player-unmute` | Yes  | Yes  | `steamid`  | Unmute player by SteamID64                 |
 
@@ -133,19 +172,41 @@ State-changing requests (POST/PUT/DELETE) require a CSRF token in the `X-CSRF-To
 | POST   | `/api/restore-round`         | Yes  | Yes  | Restore specific round (1-99) |
 | POST   | `/api/restore-latest-backup` | Yes  | Yes  | Restore latest backup         |
 
+Backup endpoints include `backup_state` when the server response can be
+classified. Empty, malformed, or unsafe latest-backup responses return non-2xx
+with `backup_state: "unknown"`, `"malformed_response"`, or
+`"unsafe_filename"` instead of claiming no backup exists.
+
 ## RCON & Chat
 
-| Method | Path             | Auth | CSRF | Description                        |
-| ------ | ---------------- | ---- | ---- | ---------------------------------- |
-| POST   | `/api/rcon`      | Yes  | Yes  | Execute RCON command (allowlisted) |
-| POST   | `/api/say-admin` | Yes  | Yes  | Broadcast message to server        |
+| Method | Path                           | Auth | CSRF | Description                        |
+| ------ | ------------------------------ | ---- | ---- | ---------------------------------- |
+| POST   | `/api/rcon`                    | Yes  | Yes  | Execute RCON command (allowlisted) |
+| POST   | `/api/say-admin`               | Yes  | Yes  | Broadcast message to server        |
+| GET    | `/api/rcon/history/:server_id` | Yes  | —    | List sent RCON commands            |
+| DELETE | `/api/rcon/history/:server_id` | Yes  | Yes  | Clear sent RCON command history    |
+
+`/api/rcon` separates command dispatch from command-history persistence. A
+successful dispatch returns `command_sent: true`; `history_recorded: false` and
+`partial: true` mean the RCON command was sent but the post-command history write
+failed.
+
+RCON history is sent-command history, not proof that commands changed server
+state. History list failures return `history_state: "unavailable"` instead of
+being treated as an empty history.
 
 ## Status & Health
 
-| Method | Path                     | Auth | CSRF | Rate Limit | Description                                                                                                               |
-| ------ | ------------------------ | ---- | ---- | ---------- | ------------------------------------------------------------------------------------------------------------------------- |
-| GET    | `/api/status/:server_id` | Yes  | —    | 60/min     | Live server status                                                                                                        |
-| GET    | `/api/health`            | No   | —    | —          | Health check for load balancers; includes DB/Redis details when `HEALTHCHECK_VERBOSE=true` or the caller is authenticated |
+| Method | Path                     | Auth | CSRF | Rate Limit | Description                                                                                                                                                                                  |
+| ------ | ------------------------ | ---- | ---- | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| GET    | `/api/status/:server_id` | Yes  | —    | 60/min     | Live server status                                                                                                                                                                           |
+| GET    | `/api/health`            | No   | —    | —          | Health check for load balancers; minimal payload includes liveness `ok` and readiness `ready`; includes DB/Redis/RCON details when `HEALTHCHECK_VERBOSE=true` or the caller is authenticated |
+
+`/api/status/:server_id` reports RCON connection/authentication separately from
+status data completeness. A response with some successful RCON observations and
+some failed observations has `partial: true`, `complete: false`, null unknown
+counts, and an `error` string naming unavailable observations. Unknown player
+counts remain `null`; clients must not coerce them to zero.
 
 ## User Management
 
@@ -162,7 +223,7 @@ State-changing requests (POST/PUT/DELETE) require a CSRF token in the `X-CSRF-To
 
 **Success:** `{ "message": "..." }` with HTTP 200/201
 
-**Error:** `{ "error": "..." }` with HTTP 400/401/403/404/500
+**Error:** `{ "error": "..." }` with HTTP 400/401/403/404/500/502
 
 **Auth routes:** use the same `{ "message": "..." }` success shape as other success responses.
 

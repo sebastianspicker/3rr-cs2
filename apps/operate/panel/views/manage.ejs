@@ -13,20 +13,31 @@
   <%- include('partials/navbar') %>
 
   <main class="container" id="main" data-server-id="<%= server_id %>">
+    <%
+      const initialRconOnline = connected && authenticated;
+      const initialRconUnknown = Boolean(hostname_error);
+      const initialStatusDotClass = initialRconOnline ? 'online' : initialRconUnknown ? 'unknown' : 'offline';
+      const initialStatusBadgeClass = initialRconOnline ? 'badge-connected' : initialRconUnknown ? 'badge-unknown' : 'badge-disconnected';
+      const initialStatusLabel = initialRconOnline ? 'Connected' : initialRconUnknown ? 'Status not observed' : 'Disconnected';
+    %>
     <div class="manage-header">
-      <h1><%= hostname %></h1>
+      <h1 id="manage-title"><%= hostname %></h1>
       <div class="manage-header-right">
         <div class="server-addr">
-          <span class="status-dot <%= connected && authenticated ? 'online' : 'offline' %>"></span>
+          <span class="status-dot <%= initialStatusDotClass %>"></span>
           <%= host %>:<%= port %>
-          <span class="badge <%= connected && authenticated ? 'badge-connected' : 'badge-disconnected' %>">
-            <%= connected && authenticated ? 'Connected' : 'Disconnected' %>
+          <span class="badge <%= initialStatusBadgeClass %>">
+            <%= initialStatusLabel %>
           </span>
         </div>
-        <button type="submit" form="server_setup_form" class="btn btn-primary btn-sm">Deploy Match</button>
+        <button type="submit" form="server_setup_form" class="btn btn-primary btn-sm">Send Setup Commands</button>
       </div>
     </div>
-    <% if (!(connected && authenticated)) { %>
+    <% if (initialRconUnknown) { %>
+      <div class="alert alert-warning">
+        Initial RCON status was not observed. Live status will refresh below.
+      </div>
+    <% } else if (!initialRconOnline) { %>
       <div class="alert alert-disconnected">
         RCON is not connected. Commands will fail until the server reconnects. Return to
         <a href="/servers">Servers</a> to reconnect.
@@ -39,7 +50,7 @@
         <!-- Setup Game -->
         <div class="panel">
           <div class="panel-header">
-            <h2>Setup Game</h2>
+            <h2>Requested Setup</h2>
           </div>
           <form id="server_setup_form" novalidate>
             <div class="mb-3">
@@ -59,16 +70,16 @@
                   </button>
                 <% }) %>
               </div>
-              <input type="hidden" id="gameTypeValue" name="game_type" value="">
+              <input type="hidden" id="gameTypeValue" name="game_type" value="<%= requestedGameType %>">
             </div>
             <div class="mb-3">
               <label class="form-label">Game Mode</label>
               <div class="btn-grid" id="gameModeBtns"></div>
-              <input type="hidden" id="gameModeValue" name="game_mode" value="">
+              <input type="hidden" id="gameModeValue" name="game_mode" value="<%= requestedGameMode %>">
             </div>
             <div class="mb-3">
               <label for="selectedMap" class="form-label">Map</label>
-              <select id="selectedMap" name="selectedMap" class="form-select" required>
+              <select id="selectedMap" name="selectedMap" class="form-select" required data-requested-map="<%= requestedMap %>">
                 <option disabled selected>Choose a game mode first</option>
               </select>
             </div>
@@ -80,6 +91,20 @@
                 <button type="button" id="loadWorkshopMap" class="btn btn-secondary">Load</button>
               </div>
               <small class="text-muted">Paste a Steam Workshop URL to load any workshop map</small>
+            </div>
+            <div class="mb-3 workshop-favorites">
+              <div class="panel-subheader">
+                <span class="section-label">Workshop Favorites</span>
+                <button type="button" id="refreshWorkshopFavorites" class="btn btn-ghost btn-sm">Refresh</button>
+              </div>
+              <div class="input-row">
+                <input type="text" id="favoriteWorkshopName" class="form-control" placeholder="Favorite name" maxlength="80" aria-label="Workshop favorite name">
+                <input type="text" id="favoriteWorkshopId" class="form-control" placeholder="Workshop ID" maxlength="20" inputmode="numeric" aria-label="Workshop favorite ID">
+                <button type="button" id="addWorkshopFavorite" class="btn btn-secondary">Save</button>
+              </div>
+              <div id="workshopFavoritesList" class="compact-list" aria-live="polite">
+                <p class="empty-state">No favorites loaded.</p>
+              </div>
             </div>
             <div class="mb-3">
               <label for="workshopCollectionId" class="form-label">Or load Workshop Collection</label>
@@ -105,42 +130,55 @@
           </form>
         </div>
 
-        <!-- Live Status -->
+        <!-- RCON Observed Status -->
         <div class="panel">
           <div class="panel-header">
-            <h2>Live Status</h2>
+            <h2>RCON Observed Status</h2>
             <button id="refresh_status" class="btn btn-ghost btn-sm" aria-label="Refresh live status">&#8635; Refresh</button>
           </div>
-          <p class="small text-muted mb-sm" id="live-status-updated" aria-live="polite">Last updated: --</p>
+          <p class="small text-muted mb-sm" id="live-status-updated" aria-live="polite">No RCON observation yet.</p>
+          <p class="small text-danger mb-sm" id="live-status-error" hidden></p>
           <div class="data-grid">
+            <div class="data-item">
+              <span class="data-label">RCON State</span>
+              <span class="data-value" id="live-status-state">--</span>
+            </div>
+            <div class="data-item">
+              <span class="data-label">Hostname</span>
+              <span class="data-value" id="live-hostname">--</span>
+            </div>
             <div class="data-item">
               <span class="data-label">Map</span>
               <span class="data-value" id="live-map">--</span>
-            </div>
-            <div class="data-item">
-              <span class="data-label">Game Type</span>
-              <span class="data-value" id="last-game-type"><%= lastGameType %></span>
             </div>
             <div class="data-item">
               <span class="data-label">Players</span>
               <span class="data-value" id="live-players">--</span>
             </div>
             <div class="data-item">
-              <span class="data-label">Game Mode</span>
-              <span class="data-value" id="last-game-mode"><%= lastGameMode %></span>
-            </div>
-            <div class="data-item">
               <span class="data-label">Bots</span>
               <span class="data-value" id="live-bots">--</span>
             </div>
             <div class="data-item">
-              <span class="data-label">Last Map</span>
-              <span class="data-value"><%= lastMap || '--' %></span>
+              <span class="data-label">Max Players</span>
+              <span class="data-value" id="live-max-players">--</span>
             </div>
-            <div class="data-item">
-              <span class="data-label">Active Config</span>
-              <span class="data-value" id="live-active-cfg">--</span>
-            </div>
+          </div>
+        </div>
+
+        <!-- Players -->
+        <div class="panel">
+          <div class="panel-header">
+            <h2>RCON Players</h2>
+            <button id="refresh_players" class="btn btn-ghost btn-sm" aria-label="Refresh players">&#8635; Refresh</button>
+          </div>
+          <div class="input-row mb-sm">
+            <input type="search" id="playerSearch" class="form-control" placeholder="Search userid, name, or SteamID64" aria-label="Search RCON-observed players" autocomplete="off">
+          </div>
+          <p class="small text-muted mb-sm" id="players-updated" aria-live="polite">No player observation yet.</p>
+          <p class="small text-danger mb-sm" id="players-error" hidden></p>
+          <div id="playersList" class="player-list" aria-live="polite">
+            <p class="empty-state">No players loaded.</p>
           </div>
         </div>
 
@@ -179,8 +217,8 @@
         <details class="panel advanced-panel">
           <summary class="panel-header">
             <h2>RCON Console</h2>
-            <span class="badge <%= connected && authenticated ? 'badge-connected' : 'badge-disconnected' %>">
-              <%= connected && authenticated ? 'Connected' : 'Disconnected' %>
+            <span class="badge <%= initialStatusBadgeClass %>">
+              <%= initialStatusLabel %>
             </span>
           </summary>
           <div class="input-row">
@@ -205,7 +243,16 @@
               aria-label="RCON command"
               autocomplete="off"
             >
+            <button id="rconSuggestRefreshBtn" class="btn btn-secondary">Suggest</button>
             <button id="rconInputBtn" class="btn btn-primary">Send</button>
+          </div>
+          <div id="rconSuggestions" class="rcon-suggestions" hidden></div>
+          <div class="rcon-history-header">
+            <span class="rcon-response-label">Sent Commands</span>
+            <button id="rconHistoryClearBtn" class="btn btn-ghost btn-sm">Clear</button>
+          </div>
+          <div id="rconHistoryList" class="compact-list" aria-live="polite">
+            <p class="empty-state">No sent RCON commands yet.</p>
           </div>
           <div id="rconResultBox" class="rcon-response">
             <div class="rcon-response-header">
@@ -266,18 +313,6 @@
               <button id="autokick_on"  data-toggle-group="autokick" data-toggle-val="1" aria-pressed="false" class="btn btn-info">Kick On</button>
               <button id="autokick_off" data-toggle-group="autokick" data-toggle-val="0" aria-pressed="false" class="btn btn-outline-info">Off</button>
             </div>
-          </div>
-
-          <div class="section-label">Player Management</div>
-          <div class="input-row">
-            <input type="text" id="player_userid_input" class="form-control" placeholder="User ID (from status)" maxlength="4" aria-label="Player user ID">
-            <button id="player_kick_btn" class="btn btn-warning">Kick</button>
-          </div>
-          <small class="text-muted mb-sm">Run RCON <code>status</code> to get user IDs</small>
-          <div class="input-row mt-sm">
-            <input type="text" id="player_steamid_input" class="form-control" placeholder="SteamID64 (17 digits)" maxlength="17" aria-label="Player SteamID64">
-            <button id="player_mute_btn"   class="btn btn-secondary">Mute</button>
-            <button id="player_unmute_btn" class="btn btn-secondary">Unmute</button>
           </div>
 
           <div class="section-label">Round Backups</div>

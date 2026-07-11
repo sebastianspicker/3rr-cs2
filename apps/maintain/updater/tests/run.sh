@@ -26,6 +26,42 @@ assert_not_contains() {
     fi
 }
 
+read_events() {
+    if [ -n "${UPDATER_EVENTS_FILE:-}" ] && [ -f "$UPDATER_EVENTS_FILE" ]; then
+        cat "$UPDATER_EVENTS_FILE"
+    fi
+}
+
+assert_ordered_events() {
+    local last_index needle index event matched events
+    last_index=0
+    for needle in "$@"; do
+        index=0
+        matched=0
+        while IFS= read -r event; do
+            index=$((index + 1))
+            if [ "$index" -le "$last_index" ]; then
+                continue
+            fi
+            if [ "$event" = "$needle" ]; then
+                last_index="$index"
+                matched=1
+                break
+            fi
+        done < "${UPDATER_EVENTS_FILE:-/dev/null}"
+        if [ "$matched" -ne 1 ]; then
+            events="$(read_events)"
+            fail "Expected ordered event '$needle' after position $last_index in: $events"
+        fi
+    done
+}
+
+assert_no_event() {
+    local needle
+    needle="$1"
+    assert_not_contains "$needle" "$(read_events)"
+}
+
 unset_removed_config_env() {
     unset NOTIFY_WEBHOOK_URL NOTIFY_PLAYERS_MESSAGE RCON_CLI RCON_HOST RCON_PORT RCON_PASSWORD
 }
@@ -59,10 +95,12 @@ run_validation_test() {
     export STEAMCMD_CALLS_FILE="$tmpdir/steamcmd.calls"
     export SYSTEMCTL_CALLS_FILE="$tmpdir/systemctl.calls"
     export SYSTEMCTL_STATE_FILE="$tmpdir/systemctl.state"
+    export UPDATER_EVENTS_FILE="$tmpdir/events"
     export SYSTEMCTL_STOP_EXIT="0"
     export SYSTEMCTL_START_EXIT="0"
+    export SYSTEMCTL_START_STATE="active"
     unset_removed_config_env
-    rm -rf "$tmpdir/cs2" "$tmpdir/lock" "$tmpdir/log" "$tmpdir/systemctl.calls" "$tmpdir/systemctl.state" "$tmpdir/steamcmd.calls"
+    rm -rf "$tmpdir/cs2" "$tmpdir/lock" "$tmpdir/log" "$tmpdir/systemctl.calls" "$tmpdir/systemctl.state" "$tmpdir/steamcmd.calls" "$tmpdir/events"
     setup_cs2_dir "100"
     echo "active" > "$SYSTEMCTL_STATE_FILE"
     for pair in "$@"; do
@@ -85,6 +123,7 @@ pass() { PASS_COUNT=$((PASS_COUNT + 1)); }
 
 tmpdir="$(mktemp -d ./tmp.XXXXXX)"
 trap 'rm -rf "$tmpdir"' EXIT
+real_awk="$(command -v awk)"
 
 # Create a mock df that supports --version, -k, and configurable available space.
 cat > "$tmpdir/df" << 'MOCKEOF'
@@ -98,6 +137,25 @@ echo "Filesystem 1K-blocks Used Available Use% Mounted on"
 echo "/dev/mock 1000000 500000 $avail 50% /"
 MOCKEOF
 chmod +x "$tmpdir/df"
+
+# Track build ID reads in the same ordered event log as the service and
+# SteamCMD stubs, then delegate to the real awk implementation.
+cat > "$tmpdir/awk" << EOF
+#!/usr/bin/env bash
+set -euo pipefail
+if [ -n "\${UPDATER_EVENTS_FILE:-}" ]; then
+    for arg in "\$@"; do
+        case "\$arg" in
+            */steamapps/appmanifest_*.acf)
+                printf '%s\n' "buildid read" >> "\$UPDATER_EVENTS_FILE"
+                break
+                ;;
+        esac
+    done
+fi
+exec "$real_awk" "\$@"
+EOF
+chmod +x "$tmpdir/awk"
 
 export PATH="$tmpdir:$PWD/tests/bin:$PATH"
 
@@ -115,7 +173,7 @@ EOF
 }
 
 run_case() {
-    local name local_build remote_build update_exit initial_state rc calls stdout stderr
+    local name local_build remote_build update_exit initial_state rc calls stdout stderr events
     name="$1"
     local_build="$2"
     remote_build="$3"
@@ -124,7 +182,7 @@ run_case() {
 
     echo "==> $name"
 
-    rm -rf "$tmpdir/cs2" "$tmpdir/lock" "$tmpdir/log" "$tmpdir/systemctl.calls" "$tmpdir/systemctl.state" "$tmpdir/steamcmd.calls"
+    rm -rf "$tmpdir/cs2" "$tmpdir/lock" "$tmpdir/log" "$tmpdir/systemctl.calls" "$tmpdir/systemctl.state" "$tmpdir/steamcmd.calls" "$tmpdir/events"
     setup_cs2_dir "$local_build"
 
     export LOCKDIR="$tmpdir/lock"
@@ -148,8 +206,10 @@ run_case() {
 
     export SYSTEMCTL_CALLS_FILE="$tmpdir/systemctl.calls"
     export SYSTEMCTL_STATE_FILE="$tmpdir/systemctl.state"
+    export UPDATER_EVENTS_FILE="$tmpdir/events"
     export SYSTEMCTL_STOP_EXIT="0"
     export SYSTEMCTL_START_EXIT="0"
+    export SYSTEMCTL_START_STATE="active"
     unset_removed_config_env
     echo "$initial_state" > "$SYSTEMCTL_STATE_FILE"
 
@@ -165,6 +225,7 @@ run_case() {
 
     stdout="$(cat "$tmpdir/stdout")"
     stderr="$(cat "$tmpdir/stderr")"
+    events="$(read_events)"
 
     case "$name" in
         "no-update")
@@ -172,6 +233,10 @@ run_case() {
             assert_contains "No update required" "$stdout"
             assert_not_contains "stop" "$calls"
             assert_not_contains "start" "$calls"
+            assert_ordered_events "buildid read" "steamcmd app_info_print" "systemctl is-active"
+            assert_no_event "systemctl stop"
+            assert_no_event "steamcmd app_update"
+            assert_no_event "systemctl start"
             ;;
         "update-applied")
             [ "$rc" -eq 0 ] || fail "expected rc=0, got $rc; stderr=$stderr"
@@ -179,12 +244,14 @@ run_case() {
             assert_contains "Update applied successfully" "$stdout"
             assert_contains "stop" "$calls"
             assert_contains "start" "$calls"
+            assert_ordered_events "buildid read" "steamcmd app_info_print" "systemctl stop" "steamcmd app_update" "buildid read" "systemctl start" "systemctl is-active"
             ;;
         "update-failed")
             [ "$rc" -ne 0 ] || fail "expected non-zero rc, got $rc"
             assert_contains "SteamCMD update failed" "$stdout"
             assert_contains "stop" "$calls"
             assert_contains "start" "$calls"
+            assert_ordered_events "buildid read" "steamcmd app_info_print" "systemctl stop" "steamcmd app_update" "systemctl start" "systemctl is-active"
             ;;
         "unknown-remote")
             [ "$rc" -ne 0 ] || fail "expected non-zero rc, got $rc"
@@ -192,18 +259,24 @@ run_case() {
             assert_not_contains "stop" "$calls"
             assert_not_contains "start" "$calls"
             assert_not_contains "+app_update" "$(cat "$tmpdir/steamcmd.calls" 2> /dev/null || true)"
+            assert_ordered_events "buildid read" "steamcmd app_info_print"
+            assert_no_event "systemctl stop"
+            assert_no_event "steamcmd app_update"
+            assert_no_event "systemctl start"
             ;;
         "false-success-update")
             [ "$rc" -ne 0 ] || fail "expected non-zero rc, got $rc"
             assert_contains "buildid did not change after the update attempt" "$stdout"
             assert_contains "stop" "$calls"
             assert_contains "start" "$calls"
+            assert_ordered_events "buildid read" "steamcmd app_info_print" "systemctl stop" "steamcmd app_update" "buildid read" "systemctl start" "systemctl is-active"
             ;;
         "start-failed-after-update")
             [ "$rc" -ne 0 ] || fail "expected non-zero rc, got $rc"
             assert_contains "Failed to start $SERVICE_NAME after $MAX_ATTEMPTS attempts." "$stdout"
             assert_contains "stop" "$calls"
             assert_contains "start" "$calls"
+            assert_ordered_events "buildid read" "steamcmd app_info_print" "systemctl stop" "steamcmd app_update" "buildid read" "systemctl start"
             ;;
         "no-update-service-inactive")
             [ "$rc" -eq 0 ] || fail "expected rc=0, got $rc; stderr=$stderr"
@@ -211,6 +284,9 @@ run_case() {
             assert_contains "not running; starting" "$stdout"
             assert_not_contains "stop" "$calls"
             assert_contains "start" "$calls"
+            assert_ordered_events "buildid read" "steamcmd app_info_print" "systemctl is-active" "systemctl start" "systemctl is-active"
+            assert_not_contains "systemctl stop" "$events"
+            assert_not_contains "steamcmd app_update" "$events"
             ;;
         *)
             fail "unknown case: $name"
@@ -228,7 +304,7 @@ run_with_args_case() {
 
     echo "==> $name"
 
-    rm -rf "$tmpdir/cs2" "$tmpdir/lock" "$tmpdir/log" "$tmpdir/systemctl.calls" "$tmpdir/systemctl.state"
+    rm -rf "$tmpdir/cs2" "$tmpdir/lock" "$tmpdir/log" "$tmpdir/systemctl.calls" "$tmpdir/systemctl.state" "$tmpdir/events"
     setup_cs2_dir "100"
 
     export LOCKDIR="$tmpdir/lock"
@@ -250,8 +326,10 @@ run_with_args_case() {
     export STEAMCMD_CALLS_FILE="$tmpdir/steamcmd.calls"
     export SYSTEMCTL_CALLS_FILE="$tmpdir/systemctl.calls"
     export SYSTEMCTL_STATE_FILE="$tmpdir/systemctl.state"
+    export UPDATER_EVENTS_FILE="$tmpdir/events"
     export SYSTEMCTL_STOP_EXIT="0"
     export SYSTEMCTL_START_EXIT="0"
+    export SYSTEMCTL_START_STATE="active"
     unset_removed_config_env
     echo "$initial_state" > "$SYSTEMCTL_STATE_FILE"
 
@@ -273,7 +351,7 @@ run_lock_case() {
 
     echo "==> $name"
 
-    rm -rf "$tmpdir/cs2" "$tmpdir/lock" "$tmpdir/log" "$tmpdir/systemctl.calls" "$tmpdir/systemctl.state"
+    rm -rf "$tmpdir/cs2" "$tmpdir/lock" "$tmpdir/log" "$tmpdir/systemctl.calls" "$tmpdir/systemctl.state" "$tmpdir/events"
     setup_cs2_dir "100"
 
     export LOCKDIR="$tmpdir/lock"
@@ -295,8 +373,10 @@ run_lock_case() {
     export STEAMCMD_CALLS_FILE="$tmpdir/steamcmd.calls"
     export SYSTEMCTL_CALLS_FILE="$tmpdir/systemctl.calls"
     export SYSTEMCTL_STATE_FILE="$tmpdir/systemctl.state"
+    export UPDATER_EVENTS_FILE="$tmpdir/events"
     export SYSTEMCTL_STOP_EXIT="0"
     export SYSTEMCTL_START_EXIT="0"
+    export SYSTEMCTL_START_STATE="active"
     unset_removed_config_env
     echo "active" > "$SYSTEMCTL_STATE_FILE"
 
@@ -361,14 +441,46 @@ run_validation_test "reject CONFIG_FILE like option" 1 "must not look like an op
 run_validation_test "empty SERVICE_NAME normalized" 0 "Update process" SERVICE_NAME=""
 # Normalization yields success; assert exit 0 already done by helper; needle "Update process" in stdout
 
+cat > "$tmpdir/unknownconf" << 'CONFEOF'
+BOGUS_KEY=evil
+CONFEOF
+run_validation_test "reject unknown config key" 1 "Unknown config key: BOGUS_KEY" CONFIG_FILE="$tmpdir/unknownconf"
+
+cat > "$tmpdir/testhelperconf" << 'CONFEOF'
+ALLOW_NONROOT=1
+NO_SLEEP=1
+CONFEOF
+run_validation_test "reject test helpers in config file" 1 "Unknown config key: ALLOW_NONROOT" CONFIG_FILE="$tmpdir/testhelperconf"
+
+cat > "$tmpdir/emptycriticalconf" << 'CONFEOF'
+SERVICE_NAME=
+CONFEOF
+run_validation_test "reject empty SERVICE_NAME in config" 1 "Config key SERVICE_NAME must not be empty" CONFIG_FILE="$tmpdir/emptycriticalconf"
+
+cat > "$tmpdir/duplicateconf" << 'CONFEOF'
+SLEEP_SECS=0
+SLEEP_SECS=1
+CONFEOF
+run_validation_test "reject duplicate config key" 1 "Duplicate config key: SLEEP_SECS" CONFIG_FILE="$tmpdir/duplicateconf"
+
+cat > "$tmpdir/quotedconf" << 'CONFEOF'
+SERVICE_NAME='custom.service' # quoted value with trailing comment
+SLEEP_SECS=0
+CONFEOF
+run_validation_test "quoted config value overrides default service" 0 "custom.service is already running" CONFIG_FILE="$tmpdir/quotedconf"
+
 # CLI --dry-run must win over config DRY_RUN=0 (safety).
 cat > "$tmpdir/conf" << 'EOF'
 DRY_RUN=0
 EOF
-run_with_args_case "dry-run CLI overrides config" 0 "--dry-run --config=$tmpdir/conf"
+run_with_args_case "dry-run CLI overrides config" 0 "--dry-run --config=$tmpdir/conf" "inactive"
 assert_contains "Dry run: skipping service stop, SteamCMD update, and service start." "$(cat "$tmpdir/stdout")"
 assert_not_contains "stop" "$(cat "$tmpdir/systemctl.calls" 2> /dev/null || true)"
 assert_not_contains "start" "$(cat "$tmpdir/systemctl.calls" 2> /dev/null || true)"
+assert_ordered_events "buildid read" "steamcmd app_info_print"
+assert_no_event "systemctl stop"
+assert_no_event "steamcmd app_update"
+assert_no_event "systemctl start"
 
 # Unknown options should fail fast to avoid silent misconfiguration.
 run_with_args_case "reject unknown option" 1 "--does-not-exist"
@@ -509,13 +621,15 @@ pass
 
 # SteamCMD exit 0 but unchanged buildid must fail.
 echo "==> unchanged buildid after update"
-rm -rf "$tmpdir/cs2" "$tmpdir/lock" "$tmpdir/log" "$tmpdir/systemctl.calls" "$tmpdir/systemctl.state" "$tmpdir/steamcmd.calls"
+rm -rf "$tmpdir/cs2" "$tmpdir/lock" "$tmpdir/log" "$tmpdir/systemctl.calls" "$tmpdir/systemctl.state" "$tmpdir/steamcmd.calls" "$tmpdir/events"
 setup_cs2_dir "100"
 export LOCKDIR="$tmpdir/lock" LOGFILE="$tmpdir/log" CS2_DIR="$tmpdir/cs2"
 export SERVICE_NAME="cs2.service" STEAMCMD="$PWD/tests/bin/steamcmd" CS2_APP_ID="730"
 export REQUIRED_SPACE="1" MAX_ATTEMPTS="1" SLEEP_SECS="0" NO_SLEEP="1" ALLOW_NONROOT="1"
 export CONFIG_FILE="" REMOTE_BUILDID="200" STEAMCMD_UPDATE_EXIT="0" STEAMCMD_UPDATE_BUILDID="100"
 export SYSTEMCTL_CALLS_FILE="$tmpdir/systemctl.calls" SYSTEMCTL_STATE_FILE="$tmpdir/systemctl.state"
+export UPDATER_EVENTS_FILE="$tmpdir/events"
+export SYSTEMCTL_START_STATE="active"
 echo "active" > "$SYSTEMCTL_STATE_FILE"
 set +e
 ./update_cs2.sh > "$tmpdir/stdout" 2> "$tmpdir/stderr"
@@ -525,18 +639,21 @@ set -e
 assert_contains "buildid did not change after the update attempt" "$(cat "$tmpdir/stdout")"
 assert_contains "stop" "$(cat "$tmpdir/systemctl.calls")"
 assert_contains "start" "$(cat "$tmpdir/systemctl.calls")"
+assert_ordered_events "buildid read" "steamcmd app_info_print" "systemctl stop" "steamcmd app_update" "buildid read" "systemctl start" "systemctl is-active"
 pass
 
 # Start failure after an update attempt must fail the run.
 echo "==> start failure after update"
-rm -rf "$tmpdir/cs2" "$tmpdir/lock" "$tmpdir/log" "$tmpdir/systemctl.calls" "$tmpdir/systemctl.state"
+rm -rf "$tmpdir/cs2" "$tmpdir/lock" "$tmpdir/log" "$tmpdir/systemctl.calls" "$tmpdir/systemctl.state" "$tmpdir/events"
 setup_cs2_dir "100"
 export LOCKDIR="$tmpdir/lock" LOGFILE="$tmpdir/log" CS2_DIR="$tmpdir/cs2"
 export SERVICE_NAME="cs2.service" STEAMCMD="$PWD/tests/bin/steamcmd" CS2_APP_ID="730"
 export REQUIRED_SPACE="1" MAX_ATTEMPTS="1" SLEEP_SECS="0" NO_SLEEP="1" ALLOW_NONROOT="1"
 export CONFIG_FILE="" REMOTE_BUILDID="200" STEAMCMD_UPDATE_EXIT="0" STEAMCMD_UPDATE_BUILDID="200"
 export SYSTEMCTL_CALLS_FILE="$tmpdir/systemctl.calls" SYSTEMCTL_STATE_FILE="$tmpdir/systemctl.state"
+export UPDATER_EVENTS_FILE="$tmpdir/events"
 export SYSTEMCTL_START_EXIT="1"
+export SYSTEMCTL_START_STATE="active"
 echo "active" > "$SYSTEMCTL_STATE_FILE"
 set +e
 ./update_cs2.sh > "$tmpdir/stdout" 2> "$tmpdir/stderr"
@@ -547,6 +664,31 @@ unset SYSTEMCTL_START_EXIT
 assert_contains "Failed to start cs2.service after 1 attempts." "$(cat "$tmpdir/stdout")"
 assert_contains "stop" "$(cat "$tmpdir/systemctl.calls")"
 assert_contains "start" "$(cat "$tmpdir/systemctl.calls")"
+assert_ordered_events "buildid read" "steamcmd app_info_print" "systemctl stop" "steamcmd app_update" "buildid read" "systemctl start"
+pass
+
+# Start returning success is not enough if the service is still inactive.
+echo "==> start succeeds but service remains inactive"
+rm -rf "$tmpdir/cs2" "$tmpdir/lock" "$tmpdir/log" "$tmpdir/systemctl.calls" "$tmpdir/systemctl.state" "$tmpdir/events"
+setup_cs2_dir "100"
+export LOCKDIR="$tmpdir/lock" LOGFILE="$tmpdir/log" CS2_DIR="$tmpdir/cs2"
+export SERVICE_NAME="cs2.service" STEAMCMD="$PWD/tests/bin/steamcmd" CS2_APP_ID="730"
+export REQUIRED_SPACE="1" MAX_ATTEMPTS="1" SLEEP_SECS="0" NO_SLEEP="1" ALLOW_NONROOT="1"
+export CONFIG_FILE="" REMOTE_BUILDID="200" STEAMCMD_UPDATE_EXIT="0" STEAMCMD_UPDATE_BUILDID="200"
+export SYSTEMCTL_CALLS_FILE="$tmpdir/systemctl.calls" SYSTEMCTL_STATE_FILE="$tmpdir/systemctl.state"
+export UPDATER_EVENTS_FILE="$tmpdir/events"
+export SYSTEMCTL_START_EXIT="0"
+export SYSTEMCTL_START_STATE="inactive"
+echo "active" > "$SYSTEMCTL_STATE_FILE"
+set +e
+./update_cs2.sh > "$tmpdir/stdout" 2> "$tmpdir/stderr"
+rc=$?
+set -e
+unset SYSTEMCTL_START_EXIT SYSTEMCTL_START_STATE
+[ "$rc" -ne 0 ] || fail "inactive after start: expected non-zero rc, got $rc"
+assert_contains "start command succeeded but service is not active" "$(cat "$tmpdir/stdout")"
+assert_not_contains "Update applied successfully" "$(cat "$tmpdir/stdout")"
+assert_ordered_events "buildid read" "steamcmd app_info_print" "systemctl stop" "steamcmd app_update" "buildid read" "systemctl start" "systemctl is-active"
 pass
 
 # Validation: reject LOCKDIR with ..
@@ -595,7 +737,7 @@ export SERVICE_NAME="cs2.service" STEAMCMD="$PWD/tests/bin/steamcmd" CS2_APP_ID=
 export REQUIRED_SPACE="999999999" MAX_ATTEMPTS="1" SLEEP_SECS="0" NO_SLEEP="1" ALLOW_NONROOT="1"
 export CONFIG_FILE="" REMOTE_BUILDID="100" STEAMCMD_UPDATE_EXIT="0" STEAMCMD_APPINFO_EXIT="0" STEAMCMD_UPDATE_BUILDID="100"
 export SYSTEMCTL_CALLS_FILE="$tmpdir/systemctl.calls" SYSTEMCTL_STATE_FILE="$tmpdir/systemctl.state"
-export SYSTEMCTL_STOP_EXIT="0" SYSTEMCTL_START_EXIT="0"
+export SYSTEMCTL_STOP_EXIT="0" SYSTEMCTL_START_EXIT="0" SYSTEMCTL_START_STATE="active"
 export DF_AVAILABLE="100"
 echo "active" > "$SYSTEMCTL_STATE_FILE"
 set +e
@@ -621,16 +763,13 @@ cat > "$tmpdir/multiconf" << 'CONFEOF'
 # This is a comment
 SLEEP_SECS=0
 LOG_LEVEL=quiet
-
-# Non-whitelisted key should be ignored
-BOGUS_KEY=evil
 CONFEOF
 export LOCKDIR="$tmpdir/lock" LOGFILE="$tmpdir/log" CS2_DIR="$tmpdir/cs2"
 export SERVICE_NAME="cs2.service" STEAMCMD="$PWD/tests/bin/steamcmd" CS2_APP_ID="730"
 export REQUIRED_SPACE="1" MAX_ATTEMPTS="1" NO_SLEEP="1" ALLOW_NONROOT="1"
 export CONFIG_FILE="$tmpdir/multiconf" REMOTE_BUILDID="100" STEAMCMD_UPDATE_EXIT="0" STEAMCMD_APPINFO_EXIT="0" STEAMCMD_UPDATE_BUILDID="100"
 export SYSTEMCTL_CALLS_FILE="$tmpdir/systemctl.calls" SYSTEMCTL_STATE_FILE="$tmpdir/systemctl.state"
-export SYSTEMCTL_STOP_EXIT="0" SYSTEMCTL_START_EXIT="0"
+export SYSTEMCTL_STOP_EXIT="0" SYSTEMCTL_START_EXIT="0" SYSTEMCTL_START_STATE="active"
 echo "active" > "$SYSTEMCTL_STATE_FILE"
 set +e
 ./update_cs2.sh > "$tmpdir/stdout" 2> "$tmpdir/stderr"

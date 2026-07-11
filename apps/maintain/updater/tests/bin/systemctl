@@ -5,12 +5,20 @@ calls_file="${SYSTEMCTL_CALLS_FILE:-/tmp/systemctl.calls}"
 state_file="${SYSTEMCTL_STATE_FILE:-/tmp/systemctl.state}"
 stop_exit="${SYSTEMCTL_STOP_EXIT:-0}"
 start_exit="${SYSTEMCTL_START_EXIT:-0}"
+start_state="${SYSTEMCTL_START_STATE:-active}"
 
 action="${1:-}"
 shift || true
 
+record_event() {
+    if [ -n "${UPDATER_EVENTS_FILE:-}" ]; then
+        printf 'systemctl %s\n' "$1" >> "$UPDATER_EVENTS_FILE"
+    fi
+}
+
 case "$action" in
     stop)
+        record_event "stop"
         echo "stop" >> "$calls_file"
         if [ "$stop_exit" -ne 0 ]; then
             exit "$stop_exit"
@@ -19,14 +27,16 @@ case "$action" in
         exit 0
         ;;
     start)
+        record_event "start"
         echo "start" >> "$calls_file"
         if [ "$start_exit" -ne 0 ]; then
             exit "$start_exit"
         fi
-        echo "active" > "$state_file"
+        echo "$start_state" > "$state_file"
         exit 0
         ;;
     is-active)
+        record_event "is-active"
         echo "is-active" >> "$calls_file"
         if [ "${1:-}" = "--quiet" ]; then
             shift || true

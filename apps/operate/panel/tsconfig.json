@@ -15,8 +15,11 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "moduleResolution": "node",
-    // Current runtime/tests still use CommonJS.
-    // TODO(human): Module system migration → Decide when to move server and tests to ESM → Options keep CommonJS until TypeScript removes support / migrate to NodeNext in a dedicated PR
+    // Current decision: keep server and test output on CommonJS for the Node 22
+    // contract. Startup uses require.main, tests mock compiled CommonJS modules,
+    // and no ESM runtime contract exists yet.
+    // Keep this suppression until a dedicated NodeNext migration is planned and
+    // verified end to end.
     "ignoreDeprecations": "6.0"
   },
   "include": [

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-const fs = require('fs');
-const path = require('path');
+const fs = process.getBuiltinModule('fs');
+const path = process.getBuiltinModule('path');
 
 const src = path.join(__dirname, '..', 'node_modules', '@fontsource-variable');
 const dest = path.join(__dirname, '..', 'public', 'fonts');

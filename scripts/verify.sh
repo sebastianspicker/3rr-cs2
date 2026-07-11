@@ -198,7 +198,7 @@ else
     -v /workspace/apps/operate/panel/node_modules \
     -w /workspace \
     node:22-bookworm-slim \
-    bash -lc "apt-get update >/dev/null && apt-get install -y python3 make g++ jq ruby shellcheck shfmt >/dev/null && ${operate_cmd}"
+    bash -lc "apt-get update >/dev/null && apt-get install -y git python3 make g++ jq ruby shellcheck shfmt >/dev/null && ${operate_cmd}"
 fi
 
 log "operate docker validation"
