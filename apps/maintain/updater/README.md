@@ -12,6 +12,7 @@ If the remote build status cannot be determined, the updater exits non-zero and 
 - safe update detection via SteamCMD build IDs
 - unknown-remote detection that preserves availability instead of forcing a stop/update/start cycle
 - stop/update/start lifecycle with retries
+- post-start active checks before reporting update success
 - stale-lock recovery
 - disk-space checks
 
@@ -23,7 +24,17 @@ If the remote build status cannot be determined, the updater exits non-zero and 
 4. Ask SteamCMD for the remote public-branch build ID.
 5. Exit before touching systemd when `--status`, `--dry-run`, or unknown remote status applies.
 6. Stop the service only when local and remote build IDs are known and different.
-7. Run `steamcmd +app_update`, restart the service, then verify the post-update build ID.
+7. Run `steamcmd +app_update`, read the post-update build ID, restart the service, verify it is active, then report the result.
+
+## Config Policy
+
+Config files accept only the documented `KEY=value` settings. Unknown keys,
+duplicate active keys, and explicit empty critical values fail fast; removed
+legacy keys are ignored with a warning so older configs are visible during
+migration.
+
+`ALLOW_NONROOT` and `NO_SLEEP` are environment-only test harness controls, not
+supported config-file keys.
 
 ## Requirements
 

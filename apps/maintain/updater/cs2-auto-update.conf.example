@@ -3,6 +3,8 @@
 # or pass a custom path: update_cs2.sh --config=/etc/cs2-auto-update.conf
 # Format: one KEY=value per line. Lines starting with # are comments.
 # All settings below are shown with their defaults. Uncomment to override.
+# Unknown or duplicate keys fail fast. Legacy removed keys produce a warning.
+# Leave a setting commented to use its default; do not set critical keys empty.
 
 # Paths
 # LOCKDIR=/tmp/update_cs2.lock
@@ -22,7 +24,5 @@
 # Optional: log level (quiet | normal)
 # LOG_LEVEL=normal
 
-# Testing / overrides
-# ALLOW_NONROOT=0
-# NO_SLEEP=0
+# Safe overrides
 # DRY_RUN=0

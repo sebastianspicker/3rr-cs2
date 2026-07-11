@@ -150,12 +150,14 @@ ALLOW_NONROOT="${ALLOW_NONROOT:-0}"
 NO_SLEEP="${NO_SLEEP:-0}"
 # quiet = only ERROR/WARNING; normal = all
 LOG_LEVEL="${LOG_LEVEL:-normal}"
-# Single source of truth: config-file whitelist and trim loop use this list.
-CONFIG_AND_TRIM_VARS="LOCKDIR LOGFILE CS2_DIR SERVICE_NAME STEAMCMD CS2_APP_ID REQUIRED_SPACE MAX_ATTEMPTS SLEEP_SECS ALLOW_NONROOT NO_SLEEP LOG_LEVEL DRY_RUN"
+# Single source of truth for operator config-file keys and trimming.
+CONFIG_AND_TRIM_VARS="LOCKDIR LOGFILE CS2_DIR SERVICE_NAME STEAMCMD CS2_APP_ID REQUIRED_SPACE MAX_ATTEMPTS SLEEP_SECS LOG_LEVEL DRY_RUN"
+CRITICAL_CONFIG_VARS="LOCKDIR LOGFILE CS2_DIR SERVICE_NAME STEAMCMD CS2_APP_ID REQUIRED_SPACE MAX_ATTEMPTS SLEEP_SECS"
 # Keep old keys visible to operators after feature removal. Warning is safer
 # than silently ignoring a config file copied from an older deployment.
 REMOVED_CONFIG_VARS="NOTIFY_WEBHOOK_URL NOTIFY_PLAYERS_MESSAGE RCON_CLI RCON_HOST RCON_PORT RCON_PASSWORD"
 REMOVED_CONFIG_KEYS=""
+CONFIG_FILE_KEYS=""
 
 trim_whitespace() {
     local value
@@ -225,7 +227,7 @@ detect_removed_env_config_keys() {
 }
 
 load_config_file() {
-    local path line key val allowed removed matched
+    local path line key val allowed removed matched critical existing duplicate
     path="$1"
     while IFS= read -r line || [ -n "$line" ]; do
         line="$(trim_whitespace "$(strip_unquoted_comment "$line")")"
@@ -238,6 +240,24 @@ load_config_file() {
             matched=0
             for allowed in $CONFIG_AND_TRIM_VARS; do
                 if [ "$key" = "$allowed" ]; then
+                    duplicate=0
+                    for existing in $CONFIG_FILE_KEYS; do
+                        if [ "$key" = "$existing" ]; then
+                            duplicate=1
+                            break
+                        fi
+                    done
+                    if [ "$duplicate" = "1" ]; then
+                        echo "ERROR: Duplicate config key: $key" >&2
+                        exit 1
+                    fi
+                    CONFIG_FILE_KEYS="${CONFIG_FILE_KEYS}${CONFIG_FILE_KEYS:+ }${key}"
+                    for critical in $CRITICAL_CONFIG_VARS; do
+                        if [ "$key" = "$critical" ] && [ -z "$val" ]; then
+                            echo "ERROR: Config key $key must not be empty. Leave it commented to use the default." >&2
+                            exit 1
+                        fi
+                    done
                     printf -v "$key" '%s' "$val"
                     matched=1
                     break
@@ -247,9 +267,14 @@ load_config_file() {
                 for removed in $REMOVED_CONFIG_VARS; do
                     if [ "$key" = "$removed" ]; then
                         remember_removed_config_key "$key"
+                        matched=1
                         break
                     fi
                 done
+                if [ "$matched" = "0" ]; then
+                    echo "ERROR: Unknown config key: $key" >&2
+                    exit 1
+                fi
             fi
         fi
     done < "$path"
@@ -735,6 +760,23 @@ retry_systemctl() {
     return 1
 }
 
+wait_for_service_active() {
+    local attempt
+    require_cmd systemctl
+
+    for ((attempt = 1; attempt <= MAX_ATTEMPTS; attempt++)); do
+        if systemctl is-active --quiet "$SERVICE_NAME"; then
+            return 0
+        fi
+        if [ "$attempt" -lt "$MAX_ATTEMPTS" ]; then
+            log "Attempt ${attempt}/${MAX_ATTEMPTS}: $SERVICE_NAME is not active after start, retrying in ${SLEEP_SECS}s..."
+            sleep_s "$SLEEP_SECS"
+        fi
+    done
+
+    return 1
+}
+
 #### Step 3: Stop Service ####
 stop_service() {
     log "Stopping $SERVICE_NAME..."
@@ -758,7 +800,15 @@ run_update() {
     TMP_UPDATE_OUTPUT=""
     if [ "$update_ret" -ne 0 ]; then
         log "Attempting to start $SERVICE_NAME after failed update..."
-        retry_systemctl start || log "WARNING: Service restart after failed update also failed."
+        if retry_systemctl start; then
+            if wait_for_service_active; then
+                log "$SERVICE_NAME restart after failed update confirmed active."
+            else
+                log "WARNING: Service restart after failed update did not become active."
+            fi
+        else
+            log "WARNING: Service restart after failed update also failed."
+        fi
         exit_with_error "SteamCMD update failed."
     fi
 }
@@ -864,7 +914,8 @@ determine_post_update_state() {
 start_service() {
     log "Starting $SERVICE_NAME..."
     retry_systemctl start || exit_with_error "Failed to start $SERVICE_NAME after $MAX_ATTEMPTS attempts."
-    log "$SERVICE_NAME started."
+    wait_for_service_active || exit_with_error "$SERVICE_NAME start command succeeded but service is not active after $MAX_ATTEMPTS checks."
+    log "$SERVICE_NAME started and active."
 }
 
 #### Step 6: Ensure Service Running ####

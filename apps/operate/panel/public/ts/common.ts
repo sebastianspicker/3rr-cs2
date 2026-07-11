@@ -1,34 +1,71 @@
 export interface ApiResponse {
   message: string;
   output?: string;
+  command_sent?: boolean;
+  history_recorded?: boolean;
+  partial?: boolean;
 }
 
-export function escapeHtml(str: unknown): string {
-  if (str == null) return '';
-  const s = String(str);
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
+type JsonMethod = 'GET' | 'POST' | 'PATCH' | 'DELETE';
+
+interface JsonRequestOptions {
+  method?: JsonMethod;
+  data?: Record<string, unknown>;
 }
 
-export async function sendPostRequest(
-  endpoint: string,
-  data: Record<string, unknown> = {},
-): Promise<ApiResponse> {
+function csrfHeaders(): Record<string, string> {
   const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (csrfToken) headers['X-CSRF-Token'] = csrfToken;
-  const resp = await fetch(endpoint, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(data),
+  return csrfToken ? { 'X-CSRF-Token': csrfToken } : {};
+}
+
+function requestSameOrigin(endpoint: string, init: RequestInit): Promise<Response> {
+  const url = new URL(endpoint, window.location.origin);
+  if (url.origin !== window.location.origin) {
+    throw new TypeError('API requests must remain on the panel origin');
+  }
+
+  return new Promise<Response>((resolve, reject) => {
+    const request = new XMLHttpRequest();
+    request.open(init.method ?? 'GET', `${url.pathname}${url.search}`);
+    new Headers(init.headers).forEach((value, name) => {
+      request.setRequestHeader(name, value);
+    });
+    request.responseType = 'text';
+    request.onload = () => {
+      resolve(
+        new Response(request.responseText, {
+          status: request.status,
+          statusText: request.statusText,
+        })
+      );
+    };
+    request.onerror = () => {
+      reject(new TypeError('Network request failed'));
+    };
+    request.send(typeof init.body === 'string' ? init.body : null);
   });
+}
+
+export async function fetchJson<T>(
+  endpoint: string,
+  options: JsonRequestOptions = {},
+): Promise<T> {
+  const method = options.method ?? 'GET';
+  const init: RequestInit = { method };
+  if (method !== 'GET') {
+    init.headers = {
+      'Content-Type': 'application/json',
+      ...csrfHeaders(),
+    };
+  }
+  if (options.data !== undefined) {
+    init.body = JSON.stringify(options.data);
+  }
+
+  const resp = await requestSameOrigin(endpoint, init);
   if (!resp.ok) {
     if (resp.status === 401) {
-      window.location.href = '/?expired=1';
+      window.location.assign('/?expired=1');
       throw new Error('Session expired — redirecting to login');
     }
     let errMsg = `Request failed (${resp.status})`;
@@ -39,7 +76,14 @@ export async function sendPostRequest(
     } catch { /* non-JSON body — keep default */ }
     throw new Error(errMsg);
   }
-  return resp.json() as Promise<ApiResponse>;
+  return resp.json() as Promise<T>;
+}
+
+export async function sendPostRequest(
+  endpoint: string,
+  data: Record<string, unknown> = {},
+): Promise<ApiResponse> {
+  return fetchJson<ApiResponse>(endpoint, { method: 'POST', data });
 }
 
 export function initToast(): void {
@@ -52,8 +96,10 @@ export function initToast(): void {
   }
 }
 
-export function toastError(fallback: string): (e: unknown) => void {
-  return (e) => showToast(e instanceof Error ? e.message : fallback, 'error');
+export function toastError(fallback: string) {
+  return (error: unknown): void => {
+    showToast(error instanceof Error ? error.message : fallback, 'error');
+  };
 }
 
 export function withLoading(btn: HTMLButtonElement | null, action: () => Promise<void>): void {
@@ -73,7 +119,9 @@ export function showToast(msg: string, type: 'success' | 'error' | 'info'): void
   requestAnimationFrame(() => { t.classList.add('cs-toast--visible'); });
   setTimeout(() => {
     t.classList.remove('cs-toast--visible');
-    setTimeout(() => t.remove(), 220);
+    setTimeout(() => {
+      t.remove();
+    }, 220);
   }, 3000);
 }
 
@@ -109,20 +157,20 @@ export function showConfirm(message: string): Promise<boolean> {
     overlay.setAttribute('aria-modal', 'true');
     overlay.setAttribute('aria-labelledby', 'cs-modal-msg');
     msgEl.id = 'cs-modal-msg';
-    const previouslyFocused = document.activeElement as HTMLElement | null;
+    const previouslyFocusedHTML = document.activeElement as HTMLElement | null;
     confirmBtn.focus();
 
-    const focusableEls: HTMLButtonElement[] = [cancelBtn, confirmBtn];
+    const focusableButtons: HTMLButtonElement[] = [cancelBtn, confirmBtn];
     const keyHandler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         cleanup(false);
       } else if (e.key === 'Tab') {
         e.preventDefault();
-        const idx = focusableEls.indexOf(document.activeElement as HTMLButtonElement);
+        const idx = document.activeElement === cancelBtn ? 0 : 1;
         const next = e.shiftKey
-          ? (idx - 1 + focusableEls.length) % focusableEls.length
-          : (idx + 1) % focusableEls.length;
-        focusableEls[next]?.focus();
+          ? (idx - 1 + focusableButtons.length) % focusableButtons.length
+          : (idx + 1) % focusableButtons.length;
+        focusableButtons.at(next)?.focus();
       }
     };
 
@@ -131,12 +179,16 @@ export function showConfirm(message: string): Promise<boolean> {
       confirmBtn.disabled = true;
       document.removeEventListener('keydown', keyHandler);
       overlay.remove();
-      previouslyFocused?.focus();
+      previouslyFocusedHTML?.focus();
       resolve(result);
     };
 
-    cancelBtn.addEventListener('click', () => cleanup(false));
-    confirmBtn.addEventListener('click', () => cleanup(true));
+    cancelBtn.addEventListener('click', () => {
+      cleanup(false);
+    });
+    confirmBtn.addEventListener('click', () => {
+      cleanup(true);
+    });
     overlay.addEventListener('click', (e) => {
       if (e.target === overlay) cleanup(false);
     });
