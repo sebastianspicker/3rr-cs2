@@ -1,4 +1,42 @@
 import assert from 'node:assert/strict';
+import { request as httpRequest } from 'node:http';
+
+export function loopbackFetch(urlValue: string, init: RequestInit = {}): Promise<Response> {
+  const url = new URL(urlValue);
+  if (url.protocol !== 'http:' || url.hostname !== '127.0.0.1' || !url.port) {
+    throw new TypeError('Test requests must target an explicit IPv4 loopback port');
+  }
+  if (init.body !== undefined && typeof init.body !== 'string') {
+    throw new TypeError('Test request bodies must be strings');
+  }
+
+  return new Promise<Response>((resolve, reject) => {
+    const request = httpRequest(
+      {
+        hostname: '127.0.0.1',
+        port: Number(url.port),
+        path: `${url.pathname}${url.search}`,
+        method: init.method ?? 'GET',
+        headers: Object.fromEntries(new Headers(init.headers).entries()),
+      },
+      (response) => {
+        const chunks: Buffer[] = [];
+        response.on('data', (chunk: Buffer) => chunks.push(chunk));
+        response.once('end', () => {
+          resolve(
+            new Response(Buffer.concat(chunks), {
+              status: response.statusCode,
+              headers: response.headers as Record<string, string>,
+            })
+          );
+        });
+      }
+    );
+    request.once('error', reject);
+    if (init.body !== undefined) request.write(init.body);
+    request.end();
+  });
+}
 
 export async function getPageCsrfToken(
   port: number,
@@ -19,11 +57,14 @@ export async function getLoginPageCsrfAndCookie(
   const res = await fetch(`http://127.0.0.1:${port}/`);
   const setCookie = res.headers.get('set-cookie');
   assert.ok(setCookie, 'Login page must set a session cookie');
-  const cookie = setCookie.split(';')[0]!;
+  const cookie = setCookie.split(';')[0];
+  assert.ok(cookie, 'Login page session cookie must not be empty');
   const text = await res.text();
   const m = text.match(/name="csrf-token"\s+content="([^"]+)"/);
   assert.ok(m, 'CSRF token not found in login page');
-  return { cookie, csrfToken: m[1]! };
+  const csrfToken = m[1];
+  assert.ok(csrfToken, 'CSRF token must not be empty');
+  return { cookie, csrfToken };
 }
 
 export async function loginAndGetSession(

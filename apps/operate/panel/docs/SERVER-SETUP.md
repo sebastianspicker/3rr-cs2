@@ -17,6 +17,8 @@ Important examples:
 - `deathmatch.cfg`
 - `deathrun.cfg`
 - `gungame.cfg`
+- `oitc.cfg`
+- `1v1arenas.cfg`
 - `scoutzknivez.cfg`
 - `surf.cfg`
 - `random_rounds_on.cfg`
@@ -24,11 +26,20 @@ Important examples:
 - `rtd_on.cfg`
 - `rtd_off.cfg`
 
+MatchZy live-match controls execute `live.cfg`. This repository stores a
+reference copy at `cfg/server-provided/live.cfg`; copy it to the game server's
+runtime config directory as `live.cfg`, or provide an equivalent server-local
+`live.cfg`.
+
 Keep provider-specific upload mechanics outside this repo. The requirement is only that the files exist in the runtime config directory.
 
 ## Plugins
 
 Some game modes depend on CounterStrikeSharp plugins. Install the required plugins in the server runtime before exposing those controls through the panel.
+
+CTF, deathrun, OITC, and 1v1 arenas are plugin-backed or map-script-backed
+modes on typical CS2 servers. Their CFG files set the base server rules, but
+the server must still provide the corresponding plugin or map behavior.
 
 Recommended checks:
 
@@ -36,6 +47,8 @@ Recommended checks:
 - CounterStrikeSharp is installed
 - each plugin required by the selected mode is installed
 - `css_plugins list` confirms the plugin loaded successfully
+- RCON `exec <cfg>` succeeds for each enabled mode, including `exec live.cfg`
+  when MatchZy live controls are enabled
 
 ## Operational Rule
 

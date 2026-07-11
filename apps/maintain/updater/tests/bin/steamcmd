@@ -13,11 +13,18 @@ calls_file="${STEAMCMD_CALLS_FILE:-}"
 
 args="$*"
 
+record_event() {
+    if [ -n "${UPDATER_EVENTS_FILE:-}" ]; then
+        printf 'steamcmd %s\n' "$1" >> "$UPDATER_EVENTS_FILE"
+    fi
+}
+
 if [ -n "$calls_file" ]; then
     printf '%s\n' "$args" >> "$calls_file"
 fi
 
 if grep -Fq "+app_info_print" <<< "$args"; then
+    record_event "app_info_print"
     if [ "$appinfo_exit" -ne 0 ]; then
         echo "ERROR! app_info_print simulated failure" >&2
         exit "$appinfo_exit"
@@ -38,6 +45,7 @@ EOF
 fi
 
 if grep -Fq "+app_update" <<< "$args"; then
+    record_event "app_update"
     if [ "$update_exit" -ne 0 ]; then
         echo "ERROR! SteamCMD simulated failure" >&2
         exit "$update_exit"

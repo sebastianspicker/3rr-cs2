@@ -1,6 +1,6 @@
 import { afterEach, describe, it, mock } from 'node:test';
 import assert from 'node:assert/strict';
-import dns from 'dns';
+import dns from 'node:dns';
 import {
   isBlockedIP,
   isValidServerHost,
@@ -56,8 +56,7 @@ describe('isValidServerHost', () => {
   it('rejects hostname with special chars', () =>
     assert.equal(isValidServerHost('invalid!.com'), false));
   it('rejects non-string input', () =>
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    assert.equal(isValidServerHost(42 as any), false));
+    assert.equal(isValidServerHost(42 as unknown as string), false));
 });
 
 describe('isValidServerHostResolved', () => {

@@ -36,7 +36,8 @@ services or import each other's implementation code.
 - Deployment topology: [docs/reference/topology.md](docs/reference/topology.md)
 - Module boundaries and import rationale: [docs/architecture.md](docs/architecture.md)
 
-Historical import notes are archived under [docs/archive/migration/](docs/archive/migration/).
+Historical import notes and completed remediation packets are indexed in
+[docs/archive/README.md](docs/archive/README.md).
 
 ## Requirements
 
@@ -71,6 +72,9 @@ make ci
 The verifier runs the panel lint/type/unit suite, Playwright E2E tests against the built
 panel, Docker validation, the panel health smoke probe, updater checks, and provision
 bootstrap smokes.
+
+`./scripts/validate.sh` is retained only as a compatibility alias for
+`./scripts/verify.sh`; use `./scripts/verify.sh` for new workflows.
 
 ## Design Rules
 

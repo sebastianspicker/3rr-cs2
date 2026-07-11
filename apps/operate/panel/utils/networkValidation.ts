@@ -1,5 +1,5 @@
-import dns from 'dns';
-import net from 'net';
+import dns from 'node:dns';
+import net from 'node:net';
 
 // Blocked IP ranges: loopback, link-local/cloud-metadata, unspecified.
 // Private LAN ranges (10/8, 172.16/12, 192.168/16) are intentionally allowed
@@ -19,23 +19,23 @@ const BLOCKED_IPV6 = ['::1', '::'];
 
 // Normalize an IPv6 address to canonical form using the WHATWG URL API.
 // This catches non-canonical forms like 0:0:0:0:0:0:0:1 and hex IPv4-mapped addresses.
-function normalizeIPv6(ip: string): string {
+const normalizeIPv6 = (ip: string): string => {
   try {
     return new URL(`http://[${ip}]/`).hostname.replace(/^\[|\]$/g, '');
   } catch {
     return ip;
   }
-}
+};
 
-function isIPv6LinkLocal(ip: string): boolean {
+const isIPv6LinkLocal = (ip: string): boolean => {
   if (net.isIP(ip) !== 6) return false;
   const firstGroup = normalizeIPv6(ip).split(':', 1)[0];
   if (!firstGroup) return false;
   const value = Number.parseInt(firstGroup, 16);
   return Number.isInteger(value) && value >= 0xfe80 && value <= 0xfebf;
-}
+};
 
-export function isBlockedIP(ip: string): boolean {
+const isBlockedIP = (ip: string): boolean => {
   let check = ip;
   if (net.isIP(ip) === 6) {
     check = normalizeIPv6(ip);
@@ -45,24 +45,16 @@ export function isBlockedIP(ip: string): boolean {
   if (BLOCKED_IPV6.includes(lower)) return true;
   if (isIPv6LinkLocal(lower)) return true;
   return BLOCKED_IP_PREFIXES.some((prefix) => lower.startsWith(prefix));
-}
+};
 
-function isBlockedResolvedIP(ip: string): boolean {
+const isBlockedResolvedIP = (ip: string): boolean => {
   if (isBlockedIP(ip)) return true;
 
   const normalized = net.isIP(ip) === 6 ? normalizeIPv6(ip).toLowerCase() : ip.toLowerCase();
   return /^f[cd][0-9a-f]{2}:/.test(normalized);
-}
+};
 
-export function isValidServerHost(host: string): boolean {
-  if (typeof host !== 'string') return false;
-  const value = host.trim();
-  if (!value || value.length > 253) return false;
-  if (net.isIP(value) !== 0) {
-    if (isBlockedIP(value)) return false;
-    return true;
-  }
-  // Reject hostnames that resolve to obvious loopback names
+const isValidHostname = (value: string): boolean => {
   if (value === 'localhost') return false;
   const labels = value.split('.');
   return labels.every(
@@ -73,7 +65,14 @@ export function isValidServerHost(host: string): boolean {
       !label.startsWith('-') &&
       !label.endsWith('-')
   );
-}
+};
+
+const isValidServerHost = (host: string): boolean => {
+  if (typeof host !== 'string') return false;
+  const value = host.trim();
+  if (!value || value.length > 253) return false;
+  return net.isIP(value) !== 0 ? !isBlockedIP(value) : isValidHostname(value);
+};
 
 /**
  * Async version that additionally resolves hostnames via DNS and checks
@@ -81,7 +80,7 @@ export function isValidServerHost(host: string): boolean {
  * SSRF via DNS rebinding where an attacker's hostname initially passes
  * validation but later resolves to an internal IP.
  */
-export async function isValidServerHostResolved(host: string): Promise<boolean> {
+const isValidServerHostResolved = async (host: string): Promise<boolean> => {
   if (!isValidServerHost(host)) return false;
 
   // If the host is already a literal IP, check it directly.
@@ -102,4 +101,6 @@ export async function isValidServerHostResolved(host: string): Promise<boolean> 
   }
 
   return true;
-}
+};
+
+export { isBlockedIP, isValidServerHost, isValidServerHostResolved };

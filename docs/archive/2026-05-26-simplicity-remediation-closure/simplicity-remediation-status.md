@@ -1,0 +1,202 @@
+# Simplicity Remediation Status
+
+Source plan: `docs/simplicity-remediation-plan.md`
+Ledger: `docs/simplicity-remediation-ledger.md`
+
+- Overall state: BLOCKED
+- Current slice: None - all planned slices complete
+- Last slice: SRP-039 - Rename and split utility tests around intent
+- Completion note: all 39 planned slices are `COMPLETE`; final root verification
+  is blocked only by unavailable Docker daemon access.
+- Counts by status:
+  - NOT_STARTED: 0
+  - IN_PROGRESS: 0
+  - BLOCKED: 0
+  - DEFERRED: 0
+  - IMPLEMENTED: 0
+  - VERIFIED: 0
+  - COMPLETE: 39
+- Highest remaining severity: None
+- Last commands/result:
+  - `git status --short`: dirty worktree confirmed before remediation edits.
+  - `sed -n '1,160p' docs/simplicity-remediation-plan.md`: SRP-001 confirmed as first slice.
+  - `npm run typecheck` in `apps/operate/panel`: passed.
+  - `npx -y -p node@22 -p npm@10 npm test` in `apps/operate/panel`: passed, 278 tests.
+  - `npx -y -p node@22 -p npm@10 npm run test:e2e` in `apps/operate/panel`: passed, 10 tests.
+  - `npx -y -p node@22 -p npm@10 npm test -- --test-name-pattern servers` in `apps/operate/panel`: passed, 281 tests; the script ran the full suite rather than only matching names.
+  - `npx -y -p node@22 -p npm@10 npm run test:e2e` in `apps/operate/panel`: passed, 10 tests after SRP-002.
+  - `npm run build:client` in `apps/operate/panel`: passed.
+  - `npx -y -p node@22 -p npm@10 npm run test:e2e` in `apps/operate/panel`: passed, 12 tests after SRP-003.
+  - `npx -y -p node@22 -p npm@10 npm test` in `apps/operate/panel`: passed, 281 tests after SRP-003.
+  - `npx -y -p node@22 -p npm@10 npm run lint` in `apps/operate/panel`: passed.
+  - `npx -y -p node@22 -p npm@10 npm test -- --test-name-pattern add-server` in `apps/operate/panel`: passed, 283 tests; the script ran the full suite rather than only matching names.
+  - `npx -y -p node@22 -p npm@10 npm run lint` in `apps/operate/panel`: passed after SRP-004.
+  - `npx -y -p node@22 -p npm@10 npm test -- --test-name-pattern delete-server` in `apps/operate/panel`: passed, 287 tests; the script ran the full suite rather than only matching names.
+  - `npx -y -p node@22 -p npm@10 npm run lint` in `apps/operate/panel`: passed after SRP-005.
+  - `npx -y -p node@22 -p npm@10 npm test -- --test-name-pattern setup-game` in `apps/operate/panel`: first run failed, 287 passed and 2 failed due expanded game-route tests exceeding the auth login rate limit.
+  - `npx -y -p node@22 node --experimental-test-module-mocks --test --test-force-exit --test-timeout 120000 dist/test/game-routes.test.js` in `apps/operate/panel`: reproduced the 2 auth-rate-limit failures in `game-routes.test.js`.
+  - `npx -y -p node@22 -p npm@10 npm test -- --test-name-pattern setup-game` in `apps/operate/panel`: passed, 289 tests; the script ran the full suite rather than only matching names.
+  - `npx -y -p node@22 -p npm@10 npm run lint` in `apps/operate/panel`: passed after SRP-006.
+  - `rg -n "message: .*(!|enabled|disabled|started|restored|kicked|muted|unmuted|restarted|paused|unpaused|assigned|Loading|Gave|set to|Created)" apps/operate/panel/routes/game`: only query-backed `No latest backup found!` remained.
+  - `npx -y -p node@22 -p npm@10 npm test` in `apps/operate/panel`: passed, 290 tests.
+  - `npx -y -p node@22 -p npm@10 npm run lint` in `apps/operate/panel`: passed after SRP-007.
+  - `npx -y -p node@22 -p npm@10 npm run test:e2e` in `apps/operate/panel`: passed, 12 tests.
+  - `npx -y -p node@22 -p npm@10 npm test` in `apps/operate/panel`: passed, 291 tests.
+  - `npx -y -p node@22 -p npm@10 npm run lint` in `apps/operate/panel`: passed after SRP-008.
+  - `npx -y -p node@22 -p npm@10 npm run test:e2e` in `apps/operate/panel`: passed, 12 tests.
+  - `rg -n "Deploy Match|Setup Game failed|lastGameType|lastGameMode|lastMap|data-last-map|Game Created|setup_state|requested_setup|Requested Setup|Send Setup Commands" ...`: found only the new requested-state terms and compatibility DB column references in tests/routes.
+  - `npx -y -p node@22 -p npm@10 npm test -- --test-name-pattern backup` in `apps/operate/panel`: passed, 291 tests; the script ran the full suite rather than only matching names.
+  - `npx -y -p node@22 -p npm@10 npm run lint` in `apps/operate/panel`: passed after SRP-009.
+  - `npx -y -p node@22 -p npm@10 npm test -- --test-name-pattern rcon` in `apps/operate/panel`: passed, 293 tests; the script compiled the project and ran the full suite.
+  - `npx -y -p node@22 -p npm@10 npm run lint` in `apps/operate/panel`: passed after SRP-010.
+  - `npx -y -p node@22 -p npm@10 npm run test:e2e` in `apps/operate/panel`: passed, 12 tests after SRP-010.
+  - `npx -y -p node@22 -p npm@10 npm test -- --test-name-pattern history` in `apps/operate/panel`: passed, 293 tests; the script compiled the project and ran the full suite.
+  - `npx -y -p node@22 -p npm@10 npm run lint` in `apps/operate/panel`: passed after SRP-011.
+  - `npx -y -p node@22 -p npm@10 npm run test:e2e` in `apps/operate/panel`: passed, 13 tests after SRP-011.
+  - `npx -y -p node@22 -p npm@10 npm test -- --test-name-pattern rcon-secret` in `apps/operate/panel`: passed, 298 tests; the script compiled the project and ran the full suite.
+  - `npx -y -p node@22 -p npm@10 npm test` in `apps/operate/panel`: passed, 298 tests.
+  - `npx -y -p node@22 -p npm@10 npm run lint` in `apps/operate/panel`: passed after SRP-012.
+  - `npx -y -p node@22 -p npm@10 npm test -- --test-name-pattern RconManager` in `apps/operate/panel`: passed, 302 tests; the script compiled the project and ran the full suite including the protocol fixture.
+  - `npx -y -p node@22 -p npm@10 npm run lint` in `apps/operate/panel`: passed after SRP-013.
+  - `npx -y -p node@22 node --experimental-test-module-mocks --test --test-force-exit --test-timeout 120000 dist/test/rcon-manager.test.js` in `apps/operate/panel`: failed once while diagnosing SRP-014 because the new in-flight remove test observed the rejection too late for Node's unhandled-rejection check.
+  - `npx -y -p node@22 -p npm@10 npm test -- --test-name-pattern RconManager` in `apps/operate/panel`: passed, 306 tests; the script compiled the project and ran the full suite including the protocol fixture.
+  - `npx -y -p node@22 -p npm@10 npm run lint` in `apps/operate/panel`: passed after SRP-014.
+  - `npx -y -p node@22 -p npm@10 npm test` in `apps/operate/panel`: passed, 306 tests.
+  - `make test` in `apps/maintain/updater`: passed, 49 tests after SRP-015.
+  - `make lint` in `apps/maintain/updater`: passed after SRP-015.
+  - `make test` in `apps/maintain/updater`: passed, 50 tests after SRP-016.
+  - `make ci` in `apps/maintain/updater`: passed lint, tests, and security after SRP-016.
+  - `rg -n "REMOVED_CONFIG_KEYS|BOGUS_KEY|SERVICE_NAME" apps/maintain/updater`: confirmed SRP-017 policy and test references.
+  - `make test` in `apps/maintain/updater`: passed, 54 tests after SRP-017.
+  - `make ci` in `apps/maintain/updater`: passed lint, tests, and security after SRP-017.
+  - `rg -n "ALLOW_NONROOT|NO_SLEEP" apps/maintain/updater`: confirmed SRP-018 active references are script/test/README and historical changelog entries.
+  - `make test` in `apps/maintain/updater`: passed, 55 tests after SRP-018.
+  - `make ci` in `apps/maintain/updater`: passed lint, tests, and security after SRP-018.
+  - `npx -y -p node@22 -p npm@10 npm test -- --test-name-pattern favorite` in `apps/operate/panel`: passed, 308 tests after SRP-019; the script compiled the project and ran the full suite.
+  - `npx -y -p node@22 -p npm@10 npm run lint` in `apps/operate/panel`: passed after SRP-019.
+  - `npx -y -p node@22 -p npm@10 npm test -- --test-name-pattern CSRF` in `apps/operate/panel`: passed, 310 tests after SRP-020; the script compiled the project and ran the full suite.
+  - `npx -y -p node@22 -p npm@10 npm run lint` in `apps/operate/panel`: passed after SRP-020.
+  - `npx -y -p node@22 -p npm@10 npm test -- --test-name-pattern migration` in `apps/operate/panel`: passed, 312 tests after SRP-021; the script compiled the project and ran the full suite.
+  - `npx -y -p node@22 -p npm@10 npm run lint` in `apps/operate/panel`: passed after SRP-021.
+  - `rg -n "user_version|migration|schema" apps/operate/panel docs`: found the SRP-022 runbook support-window section and migration fixtures.
+  - `npx -y -p node@22 -p npm@10 npm test -- --test-name-pattern migration` in `apps/operate/panel`: passed, 315 tests after SRP-022; the script compiled the project and ran the full suite.
+  - `npx -y -p node@22 -p npm@10 npm run lint` in `apps/operate/panel`: passed after SRP-022.
+  - `node -v` in `apps/operate/panel`: v26.0.0, outside the package's declared `>=22 <23` engine.
+  - `npx -y -p node@22 node --experimental-test-module-mocks --test --test-timeout 120000 dist/test/*.test.js` in `apps/operate/panel`: passed, 315 tests before removing `--test-force-exit`, proving the compiled suite exited cleanly without it.
+  - `npx -y -p node@22 -p npm@10 npm test` in `apps/operate/panel`: passed, 316 tests after SRP-023 with no `--test-force-exit`.
+  - `npx -y -p node@22 -p npm@10 npm run lint` in `apps/operate/panel`: passed after SRP-023.
+  - `rg -n "readFileSync|RateLimitRedisStore|makeRateLimitStore|innerHTML|docs reflect|server route keeps|gitignore" apps/operate/panel/test/scripts.test.ts`: no matches after SRP-024.
+  - `npx -y -p node@22 -p npm@10 npm test` in `apps/operate/panel`: passed, 313 tests after SRP-024.
+  - `npx -y -p node@22 -p npm@10 npm run lint` in `apps/operate/panel`: passed after SRP-024.
+  - `npx -y -p node@22 -p npm@10 npm run test:e2e` in `apps/operate/panel`: passed, 13 tests after SRP-024.
+  - `npx -y -p node@22 -p npm@10 npm run test:e2e` in `apps/operate/panel`: first SRP-025 run failed because a new payload assertion expected numeric `server_id` while browser code sends the page context string ID.
+  - `npx -y -p node@22 -p npm@10 npm run test:e2e` in `apps/operate/panel`: passed, 18 tests after aligning the assertion to the real payload shape.
+  - `npx -y -p node@22 -p npm@10 npm run lint` in `apps/operate/panel`: passed after SRP-025.
+  - `rg -n "autocomplete|rcon_command_history|workshop_favorites|rcon/history|workshop-favorites" .`: found current code/test/docs references for autocomplete, sent-command history, and workshop favorites.
+  - `git log --oneline --decorate --all -- apps/operate/panel/routes/operator.ts apps/operate/panel/public/ts/manage.ts apps/operate/panel/views/manage.ejs apps/operate/panel/db.ts apps/operate/panel/docs apps/operate/panel/test`: found panel import/admin/hardening history but no direct operator-demand narrative for the optional feature set.
+  - `gh pr list --state all --limit 20`: listed PRs 1-7; PR bodies reviewed for 6 and 7 did not establish autocomplete/history/favorites demand.
+  - `gh issue list --state all --limit 20`: returned no issues.
+  - `git log -S "rcon_command_history"`, `git log -S "workshop_favorites"`, and `git log -S "rcon/autocomplete"` under `apps/operate/panel`: found no committed history for those current feature markers.
+  - `rg -n "DEFAULT_PORT|process\\.env\\.PORT|PORT" apps/operate/panel README.md docs configs scripts .github apps/provision apps/maintain`: found active docs/examples using `PORT` and no active `DEFAULT_PORT` deployment contract outside audit/remediation records.
+  - `git log -S "DEFAULT_PORT" --oneline --decorate --all -- .`: found only initial/grafted panel-import history, not a separate compatibility decision.
+  - `npx -y -p node@22 -p npm@10 npm test -- --test-name-pattern entrypoint` in `apps/operate/panel`: passed, 315 tests; the script compiled the project and ran the full unit suite.
+  - `npx -y -p node@22 -p npm@10 npm run typecheck` in `apps/operate/panel`: passed after SRP-027.
+  - `npx -y -p node@22 -p npm@10 npm run lint` in `apps/operate/panel`: passed after SRP-027.
+  - `rg -n "DEFAULT_PORT" .`: after SRP-027, remaining matches are audit/remediation docs plus the new entrypoint tests that prove the alias is ignored.
+  - `rg -n "REDIS_HOST|REDIS_PORT|REDIS_URL" .`: before SRP-028, active config favored `REDIS_URL` but `.env.example` and runtime also exposed host/port aliases.
+  - `git log -S "REDIS_HOST"`, `git log -S "REDIS_PORT"`, and `git log -S "REDIS_URL"`: found import/admin-history commits but no separate host/port compatibility decision.
+  - `npx -y -p node@22 -p npm@10 npm test -- --test-name-pattern Redis` in `apps/operate/panel`: passed, 316 tests; the script compiled the project and ran the full unit suite.
+  - `npx -y -p node@22 -p npm@10 npm run typecheck` in `apps/operate/panel`: passed after SRP-028.
+  - `npx -y -p node@22 -p npm@10 npm run lint` in `apps/operate/panel`: passed after SRP-028.
+  - `rg -n "REDIS_HOST|REDIS_PORT|REDIS_URL" .`: after SRP-028, live runtime/docs/examples use `REDIS_URL`; `REDIS_HOST`/`REDIS_PORT` remain only in audits/remediation/archive docs and the negative entrypoint regression.
+  - `rg -n "CONTENT_SECURITY_POLICY|content security|Content-Security|CSP|script-src|style-src|nonce|csp" .`: before SRP-029, the only live custom-CSP exposure was app runtime plus `.env.example`; no deployment docs/history proved a custom-CSP need.
+  - `git log -S "CONTENT_SECURITY_POLICY" --oneline --decorate --all -- .`: found only initial/grafted panel-import history, not a separate compatibility decision.
+  - `npx -y -p node@22 -p npm@10 npm test -- --test-name-pattern CSP` in `apps/operate/panel`: passed, 317 tests; the script compiled the project and ran the full unit suite.
+  - `npx -y -p node@22 -p npm@10 npm run typecheck` in `apps/operate/panel`: passed after SRP-029.
+  - `npx -y -p node@22 -p npm@10 npm run lint` in `apps/operate/panel`: passed after SRP-029.
+  - `rg -n "CONTENT_SECURITY_POLICY" .`: after SRP-029, remaining matches are audit/remediation docs plus the new entrypoint test that proves the env var is ignored.
+  - `npx -y -p node@22 -p npm@10 npm run test:e2e` in `apps/operate/panel`: passed, 18 tests after SRP-029.
+  - `rg -n "RCON_AUTH_TIMEOUT_MS" .`: before SRP-030, found audit/remediation records plus live runtime/test references; active docs/env examples did not define it as an operator contract.
+  - `git log -S "RCON_AUTH_TIMEOUT_MS" --oneline --decorate --all -- .`: found initial/grafted panel import history, not a separate compatibility decision.
+  - `npx -y -p node@22 -p npm@10 npm test -- --test-name-pattern RconManager` in `apps/operate/panel`: passed, 317 tests after SRP-030; the script compiled the project and ran the full unit suite.
+  - `npx -y -p node@22 -p npm@10 npm run typecheck` in `apps/operate/panel`: passed after SRP-030.
+  - `npx -y -p node@22 -p npm@10 npm run lint` in `apps/operate/panel`: passed after SRP-030.
+  - `rg -n "RCON_AUTH_TIMEOUT_MS" .`: after SRP-030, remaining matches are audit/remediation/archive docs only.
+  - `rg -n "scripts/validate.sh|validate.sh --require-docker|./scripts/validate.sh" .`: after SRP-031, found canonical README verifier docs plus the new compatibility-alias note; root `scripts/validate.sh`; panel `scripts/validate.sh` references; and audit/archive records.
+  - `git log --all --oneline --decorate --follow -- scripts/validate.sh`: found shared verification workflow and graft history for the root wrapper.
+  - `git log --all --oneline --decorate --follow -- apps/operate/panel/scripts/validate.sh`: found panel module history, confirming panel validation is a separate active script.
+  - `timeout 180 ./scripts/verify.sh`: did not run because `timeout` is not installed in this macOS environment.
+  - `./scripts/verify.sh`: passed shared shell/config checks, then failed at the operate-module Docker Node 22 fallback because the Docker daemon is unavailable.
+  - `rg -n "ci-install-tools|ci-tools-versions" .`: after SRP-032, found the updater helper, version manifest, shell-files lint list, changelog/audit/archive references, and the CONTRIBUTING manual setup note.
+  - `make lint` in `apps/maintain/updater`: passed after SRP-032.
+  - `make security` in `apps/maintain/updater`: passed after SRP-032.
+  - `rg -n "Node 26|>=26|process\\.versions\\.node|mock\\.module|ignoreDeprecations|Current decision|CommonJS" apps/operate/panel/package.json apps/operate/panel/tsconfig.json apps/operate/panel/test`: after SRP-033, found the explicit CommonJS decision, the Node 22 runtime test, and no Node 26 compatibility branch.
+  - `npx -y -p node@22 node -v` in `apps/operate/panel`: v22.22.3.
+  - `npx -y -p node@22 -p npm@10 npm run build` in `apps/operate/panel`: passed after SRP-033.
+  - `npx -y -p node@22 -p npm@10 npm test` in `apps/operate/panel`: passed, 317 tests after SRP-033.
+  - `npx -y -p node@22 -p npm@10 npm run test:e2e` in `apps/operate/panel`: passed, 18 tests after SRP-033.
+  - `npx -y -p node@22 -p npm@10 npm run lint` in `apps/operate/panel`: passed after SRP-033.
+  - `rg -n "new RconManager|PasswordProvider|passwordProvider|fetchPasswordFromDb|better_sqlite_client|require\\('../db'\\)|modules/rcon" apps/operate/panel`: before SRP-034, found no production alternate password provider and found the lazy DB require in `modules/rcon.ts`.
+  - `npx -y -p node@22 -p npm@10 npm test -- --test-name-pattern RconManager` in `apps/operate/panel`: passed, 317 tests after SRP-034; the script compiled the project and ran the full unit suite.
+  - `npx -y -p node@22 -p npm@10 npm run typecheck` in `apps/operate/panel`: passed after SRP-034.
+  - `npx -y -p node@22 -p npm@10 npm run lint` in `apps/operate/panel`: passed after SRP-034.
+  - `npx -y -p node@22 -p npm@10 npm run build` in `apps/operate/panel`: passed after SRP-034.
+  - `npx -y -p node@22 -p npm@10 npm run test:e2e` in `apps/operate/panel`: passed, 18 tests after SRP-034.
+  - `rg -n "require\\('../db'\\)|fetchPasswordFromDb|new RconManager\\(\\)" apps/operate/panel/modules/rcon.ts apps/operate/panel/test`: no matches after SRP-034.
+  - `rg -n "parseServerId|requireServerId|requireAuthorizedServerId|requireAuthorizedServerIdParam|server_id" apps/operate/panel/routes apps/operate/panel/test`: before SRP-035, confirmed parser/access helper call sites and representative route coverage.
+  - `npx -y -p node@22 -p npm@10 npm run typecheck` in `apps/operate/panel`: passed after SRP-035.
+  - `npx -y -p node@22 -p npm@10 npm run lint` in `apps/operate/panel`: passed after SRP-035.
+  - `npx -y -p node@22 -p npm@10 npm test` in `apps/operate/panel`: passed, 317 tests after SRP-035.
+  - `npx -y -p node@22 -p npm@10 npm run test:e2e` in `apps/operate/panel`: passed, 18 tests after SRP-035.
+  - `rg -n "requireServerId|requireAuthorizedServerId|requireAuthorizedServerIdParam|Request|Response|better_sqlite_client|require\\('../db'\\)" apps/operate/panel/utils/parseServerId.ts apps/operate/panel/utils/serverAccess.ts`: after SRP-035, response/SQLite access helpers are only in `serverAccess.ts`.
+  - `rg -n "makeMultiPresetRoute|set-startmoney|set-roundtime|startmoney|roundtime" apps/operate/panel/routes apps/operate/panel/test apps/operate/panel/public apps/operate/panel/views apps/operate/panel/docs`: before SRP-036, found two `makeMultiPresetRoute` call sites and existing route/UI/test coverage for startmoney and roundtime.
+  - `rg -n "makeMultiPresetRoute" apps/operate/panel`: after SRP-036, no matches.
+  - `npx -y -p node@22 -p npm@10 npm test -- --test-name-pattern set-startmoney` in `apps/operate/panel`: passed, 317 tests after SRP-036; the script compiled the project and ran the full unit suite.
+  - `npx -y -p node@22 -p npm@10 npm test -- --test-name-pattern set-roundtime` in `apps/operate/panel`: passed, 317 tests after SRP-036; the script compiled the project and ran the full unit suite.
+  - `npx -y -p node@22 -p npm@10 npm run typecheck` in `apps/operate/panel`: passed after SRP-036.
+  - `npx -y -p node@22 -p npm@10 npm run lint` in `apps/operate/panel`: passed after SRP-036.
+  - `rg -n "SRP-037|browser server ID|server ID context|getServerId|setServerId" docs/simplicity-remediation-plan.md docs/simplicity-test-certainty-audit.md docs/minimum-code-audit.md docs/overengineering-index.md apps/operate/panel/public/ts apps/operate/panel/test/e2e`: before SRP-037, found the mutable context module, one `setServerId` call, and existing manage-page server-scoped E2E payload assertions.
+  - `npx -y -p node@22 -p npm@10 npm run build:client` in `apps/operate/panel`: passed after SRP-037.
+  - `npx -y -p node@22 -p npm@10 npm run typecheck` in `apps/operate/panel`: passed after SRP-037.
+  - `npx -y -p node@22 -p npm@10 npm run lint` in `apps/operate/panel`: passed after SRP-037.
+  - `npx -y -p node@22 -p npm@10 npm run test:e2e` in `apps/operate/panel`: passed, 18 tests after SRP-037.
+  - `rg -n "context|setServerId|getServerId|from './context'" apps/operate/panel/public/ts apps/operate/panel/views apps/operate/panel/test`: after SRP-037, no matches.
+  - `rg --files apps/operate/panel/public/ts | rg "context\\.ts"`: after SRP-037, no matches.
+  - `rg -n "function fetchJson|function sendJson|function csrfHeaders|fetch\\(|resp\\.json\\(|Request failed|Session expired|X-CSRF-Token|sendPostRequest|fetchJson" apps/operate/panel/public/ts/common.ts apps/operate/panel/public/ts/manage.ts apps/operate/panel/public/ts/servers.ts`: after SRP-038, only `common.ts` defines `csrfHeaders`/`fetchJson` and raw `fetch`/JSON parsing; manage/server modules import the shared helper.
+  - `npx -y -p node@22 -p npm@10 npm run build:client` in `apps/operate/panel`: passed after SRP-038.
+  - `npx -y -p node@22 -p npm@10 npm run typecheck` in `apps/operate/panel`: passed after SRP-038.
+  - `npx -y -p node@22 -p npm@10 npm run lint` in `apps/operate/panel`: passed after SRP-038.
+  - `npx -y -p node@22 -p npm@10 npm test` in `apps/operate/panel`: passed, 317 tests after SRP-038.
+  - `npx -y -p node@22 -p npm@10 npm run test:e2e` in `apps/operate/panel`: passed, 18 tests after SRP-038.
+  - `rg -n "returns 0 for|returns string for|returns fallback|exercises command-boundary|succeeds with valid payload" apps/operate/panel/test/game-helpers.test.ts apps/operate/panel/test/parse-server-id.test.ts apps/operate/panel/test/rcon-response.test.ts apps/operate/panel/test/game-routes.test.ts`: after SRP-039, no cited weak names or bundled command-boundary route test remain.
+  - `npx -y -p node@22 -p npm@10 npm test` in `apps/operate/panel`: passed, 284 tests after SRP-039.
+  - `npx -y -p node@22 -p npm@10 npm run lint` in `apps/operate/panel`: passed after SRP-039.
+  - `npx -y -p node@22 -p npm@10 npm run test:e2e` in `apps/operate/panel`: final browser verification passed, 18 tests.
+  - `make ci` in `apps/maintain/updater`: final updater verification passed lint, 55 tests, and security.
+  - `./scripts/verify.sh`: final root verification passed shared shell/config checks, then failed at the operate-module Docker step because the Docker daemon was unavailable at `unix:///Users/sebastian/.docker/run/docker.sock`.
+  - `git status --short`: dirty worktree remains with remediation changes and pre-existing/untracked audit artifacts.
+- Current uncertainty:
+  - The worktree already contains many modified and untracked files unrelated to this remediation run.
+  - Local default Node cannot run the native SQLite-backed tests because the installed module ABI matches Node 22, not the default runtime.
+  - Updater config-file empty critical values now fail, but empty environment variables still retain the prior defaulting behavior for compatibility.
+  - Invalid `ALLOW_NONROOT` environment validation is not directly testable in the local non-root harness because root gating runs first.
+  - SQLite migration support-window coverage uses fixture databases only; no real operator backup database was available.
+  - README/repo-map wording removed from unit assertions is not runtime behavior and is no longer checked by this slice.
+  - SRP-026 kept RCON autocomplete, sent-command history, and workshop favorites as limited current features because usage evidence is inconclusive, not because external operator demand was proven. Autocomplete and workshop favorite active usage remain UNCLEAR.
+  - SRP-027 removed `DEFAULT_PORT`; hidden deployments using only that alias would now bind to the default `3000`.
+  - SRP-028 removed `REDIS_HOST`/`REDIS_PORT`; hidden deployments using only those aliases must migrate to `REDIS_URL`.
+  - SRP-029 removed `CONTENT_SECURITY_POLICY`; hidden deployments needing custom CSP must use an external proxy or request a constrained extension.
+  - SRP-030 removed `RCON_AUTH_TIMEOUT_MS`; hidden deployments needing a longer auth timeout no longer have a deployable env knob.
+  - SRP-031 retained root `scripts/validate.sh` as a documented compatibility alias; external usage remains unproven, so deletion remains unjustified.
+  - Root `./scripts/verify.sh` remains Docker-blocked in this environment after shared shell/config checks.
+  - SRP-032 retained the updater pinned shell-tool downloader as a manual-only helper; active contributor usage is unproven, but current docs/lint lists still intentionally include it.
+  - SRP-033 kept CommonJS intentionally for the Node 22 contract; no Docker image/startup smoke was available beyond local Playwright startup because Docker daemon access remains unavailable.
+  - SRP-034 made the RCON SQLite dependency explicit and retained the provider seam only for current tests; no live CS2/RCON smoke was available.
+  - SRP-035 split server ID parsing from route authorization side effects without changing route behavior.
+  - SRP-036 inlined the two `makeMultiPresetRoute` call sites without changing mocked route behavior; no live CS2/RCON smoke was available.
+  - SRP-037 removed the mutable browser server ID context; a missing manage-page `data-server-id` would still produce an empty server ID as before.
+  - SRP-038 centralized browser JSON request handling without adding an exhaustive route-intercept matrix for every browser request.
+  - SRP-039 grouped utility one-liners into policy-named tests, so total unit test count changed even though edge examples were preserved.
+  - Final root `./scripts/verify.sh` remains Docker-blocked in this environment after shared shell/config checks; panel and updater module-level verification passed outside the root Docker wrapper.
+- Next slice: None
+- Last updated: 2026-05-26
