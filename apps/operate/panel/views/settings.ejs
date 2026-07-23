@@ -1,40 +1,63 @@
+<%# Authenticated account settings: password + browser appearance preference. %>
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <meta name="color-scheme" content="dark">
+  <%- include('partials/theme-boot') %>
+  <meta name="color-scheme" content="dark light">
   <meta name="csrf-token" content="<%= csrfToken %>">
-  <title>CS2 Panel — Settings</title>
+  <title>3RR - Settings</title>
+  <link rel="icon" href="/3rr-mark.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/css/panel.css">
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to main content</a>
   <%- include('partials/navbar') %>
-  <main class="container" id="main">
-    <div class="page-header">
-      <h1>Settings</h1>
+  <main class="container route-shell route-shell--form" id="main">
+    <div class="page-header route-header">
+      <div>
+        <p class="route-kicker">Operator</p>
+        <h1>Settings</h1>
+        <p>Account password and appearance for this browser</p>
+      </div>
     </div>
-    <section class="card" aria-labelledby="change-password-heading">
-      <h2 id="change-password-heading">Change Password</h2>
-      <form id="change-password-form" novalidate>
-        <div class="form-group">
-          <label for="current-password">Current password</label>
-          <input type="password" id="current-password" name="currentPassword" required autocomplete="current-password">
+    <div class="route-workspace route-workspace--split">
+      <div class="panel route-main" aria-labelledby="change-password-heading">
+        <div class="panel-header">
+          <h2 id="change-password-heading">Change Password</h2>
         </div>
-        <div class="form-group">
-          <label for="new-password">New password <span class="hint">(min 12 characters)</span></label>
-          <input type="password" id="new-password" name="newPassword" required minlength="12" autocomplete="new-password">
+        <form id="change-password-form">
+          <div class="mb-3">
+            <label for="current-password" class="form-label">Current password</label>
+            <input type="password" id="current-password" name="currentPassword" class="form-control" required autocomplete="current-password">
+          </div>
+          <div class="mb-3">
+            <label for="new-password" class="form-label">New password <span class="text-muted">(min 12 characters)</span></label>
+            <input type="password" id="new-password" name="newPassword" class="form-control" required minlength="12" autocomplete="new-password">
+          </div>
+          <div class="mb-3">
+            <label for="confirm-password" class="form-label">Confirm new password</label>
+            <input type="password" id="confirm-password" name="confirmPassword" class="form-control" required autocomplete="new-password">
+          </div>
+          <div id="change-password-status" class="alert mb-3" role="status" aria-live="polite" hidden></div>
+          <button id="change-password-submit" type="submit" class="btn btn-primary">Update password</button>
+        </form>
+      </div>
+      <section class="panel route-aside" aria-labelledby="appearance-heading">
+        <div class="panel-header">
+          <h2 id="appearance-heading">Appearance</h2>
         </div>
-        <div class="form-group">
-          <label for="confirm-password">Confirm new password</label>
-          <input type="password" id="confirm-password" name="confirmPassword" required autocomplete="new-password">
+        <p class="text-muted mb-3">Night Desk is the default for evening ops. Choice is stored only in this browser.</p>
+        <div class="btn-pair" role="radiogroup" aria-label="Theme" id="theme-radiogroup">
+          <button type="button" class="btn btn-secondary" role="radio" data-theme-value="dark" id="theme-dark" aria-checked="true">Night Desk</button>
+          <button type="button" class="btn btn-secondary" role="radio" data-theme-value="light" id="theme-light" aria-checked="false">Daylight</button>
         </div>
-        <div id="change-password-status" role="status" aria-live="polite"></div>
-        <button type="submit" class="btn btn-primary">Update password</button>
-      </form>
-    </section>
+        <div id="theme-status" class="alert alert-success mt-sm" role="status" aria-live="polite" hidden></div>
+      </section>
+    </div>
   </main>
+  <%- include('partials/footer') %>
   <script nonce="<%= cspNonce %>">
     (function () {
       var csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
@@ -44,17 +67,22 @@
         var currentPassword = document.getElementById('current-password').value;
         var newPassword = document.getElementById('new-password').value;
         var confirmPassword = document.getElementById('confirm-password').value;
+        var submitButton = document.getElementById('change-password-submit');
 
-        status.textContent = '';
-        status.className = '';
+        function setStatus(message, tone) {
+          status.textContent = message;
+          status.className = 'alert mb-3 alert-' + tone;
+          status.hidden = false;
+        }
 
         if (newPassword !== confirmPassword) {
-          status.textContent = 'New passwords do not match.';
-          status.className = 'form-error';
+          setStatus('New passwords do not match.', 'danger');
           return;
         }
 
         try {
+          submitButton.disabled = true;
+          submitButton.textContent = 'Updating…';
           var res = await fetch('/api/users/change-password', {
             method: 'POST',
             headers: { 'content-type': 'application/json', 'x-csrf-token': csrfToken },
@@ -62,17 +90,55 @@
           });
           var data = await res.json();
           if (res.ok) {
-            status.textContent = 'Password updated successfully.';
-            status.className = 'form-success';
+            setStatus('Password updated successfully.', 'success');
             e.target.reset();
           } else {
-            status.textContent = data.error || 'Failed to update password.';
-            status.className = 'form-error';
+            setStatus(data.error || 'Failed to update password.', 'danger');
           }
         } catch (err) {
-          status.textContent = 'Network error. Please try again.';
-          status.className = 'form-error';
+          setStatus('Network error. Please try again.', 'danger');
+        } finally {
+          submitButton.disabled = false;
+          submitButton.textContent = 'Update password';
         }
+      });
+
+      // Appearance: client-only theme preference (localStorage key 3rr.theme)
+      var themeButtons = document.querySelectorAll('#theme-radiogroup [data-theme-value]');
+      var themeStatus = document.getElementById('theme-status');
+
+      function currentTheme() {
+        var attr = document.documentElement.getAttribute('data-theme');
+        if (attr === 'light' || attr === 'dark') return attr;
+        try {
+          var stored = localStorage.getItem('3rr.theme');
+          if (stored === 'light' || stored === 'dark') return stored;
+        } catch (e) { /* private mode */ }
+        return 'dark';
+      }
+
+      function applyThemeSelection(value, announce) {
+        document.documentElement.setAttribute('data-theme', value);
+        try {
+          localStorage.setItem('3rr.theme', value);
+        } catch (e) { /* private mode */ }
+        themeButtons.forEach(function (btn) {
+          var active = btn.getAttribute('data-theme-value') === value;
+          btn.setAttribute('aria-checked', active ? 'true' : 'false');
+          btn.classList.toggle('btn-active', active);
+        });
+        if (announce && themeStatus) {
+          themeStatus.textContent = 'Theme saved for this browser.';
+          themeStatus.hidden = false;
+        }
+      }
+
+      applyThemeSelection(currentTheme(), false);
+
+      themeButtons.forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          applyThemeSelection(btn.getAttribute('data-theme-value'), true);
+        });
       });
     })();
   </script>

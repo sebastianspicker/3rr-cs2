@@ -1,3 +1,4 @@
+/** Authenticated game-control routes that validate command parameters before RCON. */
 import express from 'express';
 import isAuthenticated from '../../modules/middleware';
 import { requireAuthorizedServerId } from '../../utils/serverAccess';

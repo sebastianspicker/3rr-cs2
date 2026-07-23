@@ -1,3 +1,4 @@
+/** RCON command validation and partial-success handling for operator requests. */
 import rcon from '../../modules/rcon';
 import { recordRconCommand } from '../../utils/rconHistory';
 import logger from '../../utils/logger';

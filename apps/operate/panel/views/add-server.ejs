@@ -1,24 +1,32 @@
+<%# Authenticated form for registering a validated RCON server endpoint. %>
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <meta name="color-scheme" content="dark">
+  <%- include('partials/theme-boot') %>
+  <meta name="color-scheme" content="dark light">
   <meta name="csrf-token" content="<%= csrfToken %>">
-  <title>CS2 Panel — Add Server</title>
+  <title>3RR - Add Server</title>
+  <link rel="icon" href="/3rr-mark.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/css/panel.css">
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to main content</a>
   <%- include('partials/navbar') %>
-  <div class="auth-page" id="main">
-    <div class="auth-card">
-      <div class="panel">
-        <h1 class="auth-title">Add Server</h1>
-        <p class="auth-subtitle">Register a new CS2 server</p>
+  <main class="container form-page route-shell route-shell--form" id="main">
+    <div class="page-header route-header">
+      <div>
+        <p class="route-kicker">Fleet</p>
+        <h1>Add server</h1>
+        <p>Verify RCON access before saving the endpoint</p>
+      </div>
+    </div>
+    <div class="form-shell route-workspace route-workspace--split">
+      <div class="panel route-main">
         <form id="add-server-form">
           <div class="mb-3">
-            <label for="serverIP" class="form-label">Server IP</label>
+            <label for="serverIP" class="form-label">Server address</label>
             <input
               type="text"
               id="serverIP"
@@ -26,13 +34,13 @@
               class="form-control"
               inputmode="decimal"
               autocomplete="off"
-              placeholder="192.168.1.1"
+              placeholder="cs2.example.net"
               required
               maxlength="253"
             >
           </div>
           <div class="mb-3">
-            <label for="serverPort" class="form-label">Server Port</label>
+            <label for="serverPort" class="form-label">RCON port</label>
             <input
               type="number"
               id="serverPort"
@@ -48,7 +56,7 @@
             >
           </div>
           <div class="mb-3">
-            <label for="rconPassword" class="form-label">RCON Password</label>
+            <label for="rconPassword" class="form-label">RCON password</label>
             <input
               type="password"
               id="rconPassword"
@@ -60,13 +68,18 @@
             >
           </div>
           <div class="btn-container">
-            <button id="submitButton" type="submit" class="btn btn-primary">Add Server</button>
+            <button id="submitButton" type="submit" class="btn btn-primary">Add server</button>
             <button type="reset" class="btn btn-secondary">Clear</button>
           </div>
+          <div id="add-server-status" class="alert mt-sm" role="status" aria-live="polite" hidden></div>
         </form>
       </div>
+      <aside class="route-aside" aria-label="RCON verification">
+        <h2>Verification</h2>
+        <p>The endpoint is saved only after the panel verifies RCON access.</p>
+      </aside>
     </div>
-  </div>
+  </main>
 
   <script src="/js/toast-inline.js"></script>
   <script nonce="<%= cspNonce %>">
@@ -75,13 +88,20 @@
       var form = document.getElementById('add-server-form');
       form.addEventListener('submit', function (e) {
         e.preventDefault();
+        var submitButton = document.getElementById('submitButton');
+        var status = document.getElementById('add-server-status');
         var server_ip = document.getElementById('serverIP').value;
         var server_port = document.getElementById('serverPort').value;
         var rcon_password = document.getElementById('rconPassword').value;
         if (!server_ip || !server_port || !rcon_password) {
-          showToast('All fields are required.', 'error');
+          status.textContent = 'Enter the server address, RCON port, and RCON password.';
+          status.className = 'alert alert-danger mt-sm';
+          status.hidden = false;
           return;
         }
+        status.hidden = true;
+        submitButton.disabled = true;
+        submitButton.textContent = 'Verifying RCON…';
         fetch('/api/add-server', {
           method: 'POST',
           headers: {
@@ -96,11 +116,16 @@
                 throw new Error(body.error || body.message || 'An error occurred while adding the server.');
               });
             }
-            showToast('Server added successfully!', 'success');
-            form.reset();
+            window.location.assign('/servers');
           })
           .catch(function (err) {
-            showToast(err.message || 'An error occurred while adding the server.', 'error');
+            status.textContent = err.message || 'The server could not be added. Check the endpoint and try again.';
+            status.className = 'alert alert-danger mt-sm';
+            status.hidden = false;
+          })
+          .finally(function () {
+            submitButton.disabled = false;
+            submitButton.textContent = 'Add server';
           });
       });
     });

@@ -1,14 +1,16 @@
 # API Reference
 
-All endpoints except `/api/health` require authentication via session cookie.
-State-changing requests (POST/PUT/DELETE) require a CSRF token in the `X-CSRF-Token` header.
+The public endpoints are `GET /` for the login page, `POST /auth/login`, and
+`GET /api/health`. All other page and API endpoints require authentication via
+a session cookie. State-changing authenticated requests require a CSRF token in
+the `X-CSRF-Token` header.
 
 ## Authentication Flow
 
-1. `GET /` — renders login page, sets session cookie and CSRF token
-2. `POST /auth/login` — authenticate with username/password and the login page CSRF token
+1. `GET /` - renders login page, sets session cookie and CSRF token
+2. `POST /auth/login` - authenticate with username/password and the login page CSRF token
 3. Use session cookie + CSRF token for all subsequent requests
-4. `POST /auth/logout` — destroy session
+4. `POST /auth/logout` - destroy session
 
 Protected requests revalidate the session user against SQLite. Deleted users are
 rejected, and admin-only routes use the current stored admin flag rather than a
@@ -19,16 +21,16 @@ stale session copy.
 | Method | Path           | Auth | CSRF | Rate Limit |
 | ------ | -------------- | ---- | ---- | ---------- |
 | POST   | `/auth/login`  | No   | Yes  | 20/15min   |
-| POST   | `/auth/logout` | Yes  | Yes  | —          |
+| POST   | `/auth/logout` | Yes  | Yes  | -          |
 
 ## Server Management
 
 | Method | Path                    | Auth | CSRF | Description                              |
 | ------ | ----------------------- | ---- | ---- | ---------------------------------------- |
-| GET    | `/servers`              | Yes  | —    | Servers list page                        |
-| GET    | `/manage/:server_id`    | Yes  | —    | Server management page                   |
-| GET    | `/add-server`           | Yes  | —    | Add server form                          |
-| GET    | `/api/servers`          | Yes  | —    | JSON list of servers with RCON status    |
+| GET    | `/servers`              | Yes  | -    | Servers list page                        |
+| GET    | `/manage/:server_id`    | Yes  | -    | Server management page                   |
+| GET    | `/add-server`           | Yes  | -    | Add server form                          |
+| GET    | `/api/servers`          | Yes  | -    | JSON list of servers with RCON status    |
 | POST   | `/api/add-server`       | Yes  | Yes  | Add new server (ip, port, rcon_password) |
 | POST   | `/api/delete-server`    | Yes  | Yes  | Delete server by server_id               |
 | POST   | `/api/reconnect-server` | Yes  | Yes  | Reconnect RCON for server_id             |
@@ -61,8 +63,8 @@ but RCON cleanup fails, the response is non-2xx and includes
 | Method | Path                                          | Auth | CSRF | Description                               |
 | ------ | --------------------------------------------- | ---- | ---- | ----------------------------------------- |
 | POST   | `/api/setup-game`                             | Yes  | Yes  | Deploy match (map, teams, game type/mode) |
-| GET    | `/api/game-types/:type/game-modes`            | Yes  | —    | List game modes for type                  |
-| GET    | `/api/game-types/:type/game-modes/:mode/maps` | Yes  | —    | List maps for mode                        |
+| GET    | `/api/game-types/:type/game-modes`            | Yes  | -    | List game modes for type                  |
+| GET    | `/api/game-types/:type/game-modes/:mode/maps` | Yes  | -    | List maps for mode                        |
 
 `POST /api/setup-game` records the last requested setup selection for the manage
 page. It does not claim the live server map or mode was observed. Success
@@ -155,11 +157,11 @@ string integers only; malformed strings like `5abc` or `5.5` are rejected with
 
 | Method | Path                           | Auth | CSRF | Body field         | Description                                     |
 | ------ | ------------------------------ | ---- | ---- | ------------------ | ----------------------------------------------- |
-| POST   | `/api/matchzy-match`           | Yes  | Yes  | —                  | Load live.cfg and start MatchZy match           |
-| POST   | `/api/matchzy-practice`        | Yes  | Yes  | —                  | Enable MatchZy practice mode                    |
-| POST   | `/api/matchzy-exitprac`        | Yes  | Yes  | —                  | Exit practice mode, load warmup.cfg             |
-| POST   | `/api/matchzy-playout`         | Yes  | Yes  | —                  | Enable playout (finish remaining rounds)        |
-| POST   | `/api/matchzy-abort`           | Yes  | Yes  | —                  | Abort current match, load warmup.cfg            |
+| POST   | `/api/matchzy-match`           | Yes  | Yes  | -                  | Load live.cfg and start MatchZy match           |
+| POST   | `/api/matchzy-practice`        | Yes  | Yes  | -                  | Enable MatchZy practice mode                    |
+| POST   | `/api/matchzy-exitprac`        | Yes  | Yes  | -                  | Exit practice mode, load warmup.cfg             |
+| POST   | `/api/matchzy-playout`         | Yes  | Yes  | -                  | Enable playout (finish remaining rounds)        |
+| POST   | `/api/matchzy-abort`           | Yes  | Yes  | -                  | Abort current match, load warmup.cfg            |
 | POST   | `/api/matchzy-readyrequired`   | Yes  | Yes  | `value` (0–10)     | Set number of ready players required (0 = none) |
 | POST   | `/api/matchzy-coach`           | Yes  | Yes  | `side` (`ct`\|`t`) | Assign coach slot for the given side            |
 | POST   | `/api/matchzy-load-match-file` | Yes  | Yes  | `filename`         | Load match config from `.json` file on server   |
@@ -183,7 +185,7 @@ with `backup_state: "unknown"`, `"malformed_response"`, or
 | ------ | ------------------------------ | ---- | ---- | ---------------------------------- |
 | POST   | `/api/rcon`                    | Yes  | Yes  | Execute RCON command (allowlisted) |
 | POST   | `/api/say-admin`               | Yes  | Yes  | Broadcast message to server        |
-| GET    | `/api/rcon/history/:server_id` | Yes  | —    | List sent RCON commands            |
+| GET    | `/api/rcon/history/:server_id` | Yes  | -    | List sent RCON commands            |
 | DELETE | `/api/rcon/history/:server_id` | Yes  | Yes  | Clear sent RCON command history    |
 
 `/api/rcon` separates command dispatch from command-history persistence. A
@@ -195,12 +197,30 @@ RCON history is sent-command history, not proof that commands changed server
 state. History list failures return `history_state: "unavailable"` instead of
 being treated as an empty history.
 
+## Operator Data
+
+| Method | Path                                              | Auth | CSRF | Description                                  |
+| ------ | ------------------------------------------------- | ---- | ---- | -------------------------------------------- |
+| GET    | `/api/players/:server_id`                         | Yes  | -    | RCON player list and observed player counts  |
+| GET    | `/api/rcon/autocomplete/:server_id`               | Yes  | -    | Cached, allowlisted RCON command suggestions |
+| GET    | `/api/workshop-favorites/:server_id`              | Yes  | -    | List the caller's saved Workshop favorites   |
+| POST   | `/api/workshop-favorites/:server_id`              | Yes  | Yes  | Create or update a favorite by Workshop ID   |
+| PATCH  | `/api/workshop-favorites/:server_id/:favorite_id` | Yes  | Yes  | Update a saved favorite                      |
+| DELETE | `/api/workshop-favorites/:server_id/:favorite_id` | Yes  | Yes  | Delete a saved favorite                      |
+
+`/api/players/:server_id` can return partial observations. It includes null
+unknown counts and an `error` field when either `users` or `status` is
+unavailable. Autocomplete accepts optional `q`, `limit`, and `refresh` query
+parameters; results include `cached`, `observed_at`, and an `error` field when
+one of its RCON sources is unavailable. A duplicate Workshop ID on a favorite
+update returns `409`.
+
 ## Status & Health
 
 | Method | Path                     | Auth | CSRF | Rate Limit | Description                                                                                                                                                                                  |
 | ------ | ------------------------ | ---- | ---- | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| GET    | `/api/status/:server_id` | Yes  | —    | 60/min     | Live server status                                                                                                                                                                           |
-| GET    | `/api/health`            | No   | —    | —          | Health check for load balancers; minimal payload includes liveness `ok` and readiness `ready`; includes DB/Redis/RCON details when `HEALTHCHECK_VERBOSE=true` or the caller is authenticated |
+| GET    | `/api/status/:server_id` | Yes  | -    | 60/min     | Live server status                                                                                                                                                                           |
+| GET    | `/api/health`            | No   | -    | -          | Health check for load balancers; minimal payload includes liveness `ok` and readiness `ready`; includes DB/Redis/RCON details when `HEALTHCHECK_VERBOSE=true` or the caller is authenticated |
 
 `/api/status/:server_id` reports RCON connection/authentication separately from
 status data completeness. A response with some successful RCON observations and
@@ -212,18 +232,30 @@ counts remain `null`; clients must not coerce them to zero.
 
 | Method | Path                         | Auth | Admin | CSRF | Description                                         |
 | ------ | ---------------------------- | ---- | ----- | ---- | --------------------------------------------------- |
-| GET    | `/settings`                  | Yes  | No    | —    | Change-password page                                |
-| GET    | `/admin/users`               | Yes  | Yes   | —    | User management page                                |
-| GET    | `/api/users/list`            | Yes  | Yes   | —    | JSON list of all users (id, username, is_admin)     |
+| GET    | `/settings`                  | Yes  | No    | -    | Change-password page                                |
+| GET    | `/admin/users`               | Yes  | Yes   | -    | User management page                                |
+| GET    | `/api/users/list`            | Yes  | Yes   | -    | JSON list of all users (id, username, is_admin)     |
 | POST   | `/api/users/change-password` | Yes  | No    | Yes  | Change own password (currentPassword, newPassword)  |
 | POST   | `/api/users/add`             | Yes  | Yes   | Yes  | Create user (username, password, optional serverId) |
-| POST   | `/api/users/delete`          | Yes  | Yes   | Yes  | Delete user by id — cannot delete own account       |
+| POST   | `/api/users/delete`          | Yes  | Yes   | Yes  | Delete user by id - cannot delete own account       |
+
+`/api/users/delete` also removes servers that were accessible only to the
+deleted user; shared servers remain available to their other users. Successful
+responses include `user_deleted: true`, `deleted_server_ids`, and
+`rcon_cleanup: "completed" | "not_needed"`. If database deletion commits but
+RCON cleanup fails, the response is non-2xx and includes
+`rcon_cleanup: "failed"` and `failed_server_ids`.
 
 ## Common Response Formats
 
-**Success:** `{ "message": "..." }` with HTTP 200/201
+Success response: `{ "message": "..." }` with HTTP 200/201
 
-**Error:** `{ "error": "..." }` with HTTP 400/401/403/404/500/502
+Error response: `{ "error": "..." }` with HTTP 400/401/403/404/409/429/500/502/503
+
+Login attempts are limited to 20 per 15 minutes. API requests are limited to
+60 per minute, and RCON console requests have an additional 15-per-minute
+limit. Limited requests return `429`. `/api/health` returns `503` when SQLite
+or configured Redis is unhealthy.
 
 **Auth routes:** use the same `{ "message": "..." }` success shape as other success responses.
 
@@ -233,5 +265,5 @@ All POST requests accept JSON (`Content-Type: application/json`).
 
 Common fields:
 
-- `server_id` (string/number) — required for all game/server operations
-- `value` (number) — for toggle and preset routes (0/1 or allowlisted values)
+- `server_id` (string/number) - required for all game/server operations
+- `value` (number) - for toggle and preset routes (0/1 or allowlisted values)

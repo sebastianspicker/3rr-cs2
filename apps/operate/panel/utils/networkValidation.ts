@@ -1,3 +1,4 @@
+/** Rejects unsafe RCON endpoints and pins DNS results before connections are made. */
 import dns from 'node:dns';
 import net from 'node:net';
 
@@ -74,33 +75,39 @@ const isValidServerHost = (host: string): boolean => {
   return net.isIP(value) !== 0 ? !isBlockedIP(value) : isValidHostname(value);
 };
 
+const firstAllowedResolvedAddress = (
+  addresses: ReadonlyArray<{ address: string }>
+): string | null => {
+  if (addresses.length === 0) return null;
+  if (!addresses.every(({ address }) => !isBlockedResolvedIP(address))) return null;
+  return addresses[0]?.address ?? null;
+};
+
 /**
- * Async version that additionally resolves hostnames via DNS and checks
- * whether the resolved IP falls in a blocked local/control range. This prevents
- * SSRF via DNS rebinding where an attacker's hostname initially passes
- * validation but later resolves to an internal IP.
+ * Resolves a permitted server host once and returns the literal address that
+ * callers must use for their connection.  Passing the original hostname to a
+ * later network API would allow that API to perform a second lookup after the
+ * validation result, reopening the DNS-rebinding boundary.
  */
-const isValidServerHostResolved = async (host: string): Promise<boolean> => {
-  if (!isValidServerHost(host)) return false;
+const resolveValidServerHost = async (host: string): Promise<string | null> => {
+  if (!isValidServerHost(host)) return null;
 
   // If the host is already a literal IP, check it directly.
   if (net.isIP(host) !== 0) {
-    return !isBlockedResolvedIP(host);
+    return isBlockedResolvedIP(host) ? null : host;
   }
 
   // Resolve hostname and verify the resolved IP is not in a blocked range.
   try {
     const addresses = await dns.promises.lookup(host, { all: true, verbatim: true });
-    if (addresses.length === 0) return false;
-    for (const { address } of addresses) {
-      if (isBlockedResolvedIP(address)) return false;
-    }
+    return firstAllowedResolvedAddress(addresses);
   } catch {
-    // DNS resolution failed — reject for safety.
-    return false;
+    // DNS resolution failed - reject for safety.
+    return null;
   }
-
-  return true;
 };
 
-export { isBlockedIP, isValidServerHost, isValidServerHostResolved };
+const isValidServerHostResolved = async (host: string): Promise<boolean> =>
+  (await resolveValidServerHost(host)) !== null;
+
+export { isBlockedIP, isValidServerHost, isValidServerHostResolved, resolveValidServerHost };

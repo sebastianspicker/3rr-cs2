@@ -1,64 +1,45 @@
+/** Server CRUD routes with ownership checks and endpoint safety validation. */
 import express from 'express';
-import rateLimit from 'express-rate-limit';
-import { z } from 'zod';
 import { better_sqlite_client } from '../db';
 import logger from '../utils/logger';
-import { makeRateLimitStore } from '../utils/redis';
 import { parseServerId } from '../utils/parseServerId';
-import { renderManageResponse, requireServerId } from '../utils/serverAccess';
+import {
+  authenticatedUserId,
+  renderManageResponse,
+  requireServerId,
+  selectAccessibleServerSql,
+  selectAccessibleServersSql,
+} from '../utils/serverAccess';
 import { getMapsForMode, mapsConfig } from '../utils/mapsConfig';
 import { parseHostnameResponse } from '../utils/rconResponse';
-import { encryptRconSecret, RconSecretDecryptError } from '../utils/rconSecret';
+import { RconSecretDecryptError } from '../utils/rconSecret';
 import rcon from '../modules/rcon';
 import isAuthenticated from '../modules/middleware';
-import { isValidServerHost, isValidServerHostResolved } from '../utils/networkValidation';
+import { isValidServerHostResolved } from '../utils/networkValidation';
+import serverAddRouter from './serverAdd';
 
 const router = express.Router();
 
 // Pre-prepared statements for performance (avoid re-preparing per request)
-const selectManageStmt = better_sqlite_client.prepare(`
-  SELECT s.id,
-         s.serverIP,
-         s.serverPort,
-         s.last_game_type AS requested_game_type,
-         s.last_game_mode AS requested_game_mode,
-         s.last_map AS requested_map
-    FROM servers s
-    JOIN server_access sa ON sa.server_id = s.id
-   WHERE s.id = ? AND sa.user_id = ?
-`);
-const insertServerStmt = better_sqlite_client.prepare(`
-  INSERT OR IGNORE INTO servers (serverIP, serverPort, rconPassword, owner_id) VALUES (?, ?, ?, ?)
-`);
-const insertServerAccessStmt = better_sqlite_client.prepare(`
-  INSERT OR IGNORE INTO server_access (user_id, server_id) VALUES (?, ?)
-`);
-const updateServerPasswordStmt = better_sqlite_client.prepare(
-  `UPDATE servers SET rconPassword = ? WHERE id = ?`
+const selectManageStmt = better_sqlite_client.prepare(
+  selectAccessibleServerSql(`s.id,
+    s.serverIP,
+    s.serverPort,
+    s.last_game_type AS requested_game_type,
+    s.last_game_mode AS requested_game_mode,
+    s.last_map AS requested_map`)
 );
-const selectServerByIpPortStmt = better_sqlite_client.prepare(
-  `SELECT id, rconPassword FROM servers WHERE serverIP = ? AND serverPort = ?`
+const selectAllServersStmt = better_sqlite_client.prepare(
+  selectAccessibleServersSql('s.id, s.serverIP, s.serverPort')
 );
-const selectAllServersStmt = better_sqlite_client.prepare(`
-  SELECT s.id, s.serverIP, s.serverPort
-    FROM servers s
-    JOIN server_access sa ON sa.server_id = s.id
-   WHERE sa.user_id = ?
-`);
-const selectServerByIdStmt = better_sqlite_client.prepare(`
-  SELECT s.id, s.serverIP, s.serverPort, s.rconPassword
-    FROM servers s
-    JOIN server_access sa ON sa.server_id = s.id
-   WHERE s.id = ? AND sa.user_id = ?
-`);
+const selectServerByIdStmt = better_sqlite_client.prepare(
+  selectAccessibleServerSql('s.id, s.serverIP, s.serverPort, s.rconPassword')
+);
 const deleteServerAccessStmt = better_sqlite_client.prepare(
   `DELETE FROM server_access WHERE server_id = ? AND user_id = ?`
 );
 const deleteOrphanServerStmt = better_sqlite_client.prepare(
   `DELETE FROM servers WHERE id = ? AND NOT EXISTS (SELECT 1 FROM server_access WHERE server_id = ?)`
-);
-const countServersByOwnerStmt = better_sqlite_client.prepare(
-  `SELECT COUNT(*) AS count FROM server_access WHERE user_id = ?`
 );
 
 interface ServerRow {
@@ -94,31 +75,6 @@ interface ServerFullRow extends ServerRow {
   rconPassword: string;
 }
 
-const AddServerBodySchema = z.object({
-  server_ip: z.string().min(1),
-  server_port: z
-    .union([z.number(), z.string().regex(/^\d+$/).transform(Number)])
-    .pipe(
-      z
-        .number()
-        .int('server_port must be an integer between 1 and 65535')
-        .min(1, 'server_port must be an integer between 1 and 65535')
-        .max(65535, 'server_port must be an integer between 1 and 65535')
-    ),
-  rcon_password: z.string().min(1).max(512),
-});
-
-const addServerLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000, // 1 hour
-  max: 20,
-  message: { error: 'Too many servers added; try again later.' },
-  standardHeaders: true,
-  legacyHeaders: false,
-  store: makeRateLimitStore(),
-});
-
-const RCON_CONNECT_FAILED_ERROR =
-  'Server saved, but the panel could not establish an authenticated RCON connection';
 const RCON_CREDENTIAL_STORAGE_ERROR =
   'Stored RCON credential could not be decrypted; check RCON_SECRET_KEY or saved credential';
 
@@ -303,83 +259,7 @@ async function manageView(serverId: string, ownerId: number | undefined): Promis
   };
 }
 
-type AddServerData = z.infer<typeof AddServerBodySchema>;
-
-async function validatedServerInput(
-  body: unknown,
-  response: express.Response
-): Promise<AddServerData | null> {
-  const parsed = AddServerBodySchema.safeParse(body);
-  if (!parsed.success) {
-    response.status(400).json({ error: parsed.error.issues[0]?.message ?? 'Invalid input' });
-    return null;
-  }
-  if (!isValidServerHost(parsed.data.server_ip)) {
-    response.status(400).json({ error: 'server_ip must be a valid IPv4/IPv6 address or hostname' });
-    return null;
-  }
-  if (!(await isValidServerHostResolved(parsed.data.server_ip))) {
-    response.status(400).json({
-      error: 'server_ip must not resolve to a blocked local/control IP address',
-    });
-    return null;
-  }
-  return parsed.data;
-}
-
-function canAuthenticateServer(
-  input: AddServerData,
-  existingId: number | undefined
-): Promise<boolean> {
-  return rcon
-    .probeServer({
-      id: existingId ?? 0,
-      serverIP: input.server_ip,
-      serverPort: input.server_port,
-      rconPassword: input.rcon_password,
-    })
-    .then(
-      () => true,
-      () => false
-    );
-}
-
-function saveServerRecord(
-  input: AddServerData,
-  encryptedPassword: string,
-  ownerId: number | undefined,
-  existingId: number | undefined
-): number | null {
-  if (existingId !== undefined) {
-    updateServerPasswordStmt.run(encryptedPassword, existingId);
-    return existingId;
-  }
-  insertServerStmt.run(input.server_ip, input.server_port, encryptedPassword, ownerId);
-  const inserted = selectServerByIpPortStmt.get(input.server_ip, input.server_port) as
-    | { id: number }
-    | undefined;
-  return inserted?.id ?? null;
-}
-
-async function connectSavedServer(
-  input: AddServerData,
-  encryptedPassword: string,
-  ownerId: number | undefined,
-  serverId: number
-): Promise<boolean> {
-  insertServerAccessStmt.run(ownerId, serverId);
-  return rcon.connectServer({
-    id: serverId,
-    serverIP: input.server_ip,
-    serverPort: input.server_port,
-    rconPassword: encryptedPassword,
-  });
-}
-
-// Render "Add Server" form
-router.get('/add-server', isAuthenticated, (_req, res) => {
-  res.render('add-server');
-});
+router.use(serverAddRouter);
 
 // Render "My Servers" overview page
 router.get('/servers', isAuthenticated, (_req, res) => {
@@ -401,39 +281,29 @@ router.get('/manage/:server_id', isAuthenticated, async (req, res) => {
   }
 });
 
-// API: Add a new CS2 server to the database
-router.post('/api/add-server', isAuthenticated, addServerLimiter, async (req, res) => {
-  const input = await validatedServerInput(req.body, res);
-  if (!input) return;
-  try {
-    const ownerId = req.session.user?.id;
-    const { count: serverCount } = countServersByOwnerStmt.get(ownerId) as { count: number };
-    if (serverCount >= 50) return res.status(400).json({ error: 'Maximum server limit reached' });
-    const existing = selectServerByIpPortStmt.get(input.server_ip, input.server_port) as
-      | { id: number; rconPassword: string }
-      | undefined;
-    if (!(await canAuthenticateServer(input, existing?.id))) {
-      return res.status(400).json({
-        error: 'Unable to authenticate to the server with the provided RCON credentials',
-      });
-    }
-    const encryptedPassword = encryptRconSecret(input.rcon_password);
-    const serverId = saveServerRecord(input, encryptedPassword, ownerId, existing?.id);
-    if (serverId === null) return res.status(500).json({ error: 'Failed to add the server' });
-    const connected = await connectSavedServer(input, encryptedPassword, ownerId, serverId);
-    if (!connected) return res.status(502).json({ error: RCON_CONNECT_FAILED_ERROR });
-    return res.status(201).json({ message: 'Server added successfully' });
-  } catch (err) {
-    logger.error({ err }, '[server] add-server error');
-    if (err instanceof RconSecretDecryptError) {
-      return res.status(500).json({
-        error: RCON_CREDENTIAL_STORAGE_ERROR,
-        credential_error: err.kind,
-      });
-    }
-    return res.status(500).json({ error: 'Internal server error' });
+const deleteServerAndAccess = better_sqlite_client.transaction(
+  (serverId: string, ownerId: number): { found: boolean; serverDeleted: boolean } => {
+    const accessResult = deleteServerAccessStmt.run(serverId, ownerId);
+    if (accessResult.changes === 0) return { found: false, serverDeleted: false };
+    const orphanResult = deleteOrphanServerStmt.run(serverId, serverId);
+    return { found: true, serverDeleted: orphanResult.changes > 0 };
   }
-});
+);
+
+/** Removes a deleted server's manager so heartbeat closures cannot revive it. */
+async function cleanupDeletedServerRcon(
+  serverId: string,
+  serverDeleted: boolean
+): Promise<boolean> {
+  if (!serverDeleted) return true;
+  try {
+    await rcon.removeServer(serverId);
+    return true;
+  } catch (err) {
+    logger.error({ err, server_id: serverId }, '[server] delete-server RCON cleanup failed');
+    return false;
+  }
+}
 
 // API: List all servers with connection & hostname status
 router.get('/api/servers', isAuthenticated, async (req, res) => {
@@ -496,27 +366,24 @@ router.post('/api/delete-server', isAuthenticated, async (req, res) => {
   try {
     const server_id = requireServerId(req, res);
     if (!server_id) return;
-    const ownerId = req.session.user?.id;
+    const ownerId = authenticatedUserId(req);
+    if (ownerId === null) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
 
-    // Remove this user's access. If no other user has access, delete the server row too.
-    const accessResult = deleteServerAccessStmt.run(server_id, ownerId);
-    if (accessResult.changes === 0) {
+    // Commit both database mutations before cleaning up the in-memory RCON state.
+    const deleted = deleteServerAndAccess(server_id, ownerId);
+    if (!deleted.found) {
       return res.status(404).json({ error: 'Server not found' });
     }
-    const orphanResult = deleteOrphanServerStmt.run(server_id, server_id);
-    if (orphanResult.changes > 0) {
-      try {
-        await rcon.removeServer(server_id);
-      } catch (err) {
-        logger.error({ err, server_id }, '[server] delete-server RCON cleanup failed');
-        return res.status(500).json({
-          error: 'Server deleted, but RCON cleanup failed',
-          server_deleted: true,
-          rcon_cleanup: 'failed',
-        });
-      }
+    if (!(await cleanupDeletedServerRcon(server_id, deleted.serverDeleted))) {
+      return res.status(500).json({
+        error: 'Server deleted, but RCON cleanup failed',
+        server_deleted: true,
+        rcon_cleanup: 'failed',
+      });
     }
-    const serverDeleted = orphanResult.changes > 0;
+    const serverDeleted = deleted.serverDeleted;
     return res.status(200).json({
       message: serverDeleted ? 'Server deleted successfully' : 'Server access removed successfully',
       server_deleted: serverDeleted,

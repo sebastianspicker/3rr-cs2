@@ -1,3 +1,4 @@
+/** Encrypts stored RCON passwords and fails closed when key material is invalid. */
 import crypto from 'node:crypto';
 
 const ENC_PREFIX = 'enc:v1:';
@@ -132,7 +133,7 @@ const decryptRconSecret = (storedValue: string | null | undefined): string => {
   }
 };
 
-/** Reset the cached key — for testing only. */
+/** Reset the cached key - for testing only. */
 const _resetCachedKey = (): void => {
   cachedKey = undefined;
 };

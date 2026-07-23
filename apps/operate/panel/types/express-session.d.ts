@@ -1,3 +1,4 @@
+/** Extends session state with the authenticated user and per-session CSRF token. */
 import 'express-session';
 
 declare module 'express-session' {

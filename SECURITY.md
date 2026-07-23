@@ -1,10 +1,14 @@
 # Security Policy
 
-Security fixes are shipped from the `main` branch.
+3RR is preparing its first public alpha. There is no supported stable release.
+Security fixes are developed on the `main` branch and included in subsequent
+alpha candidates.
 
 ## Reporting
 
-Open a private security advisory or contact the maintainer directly before disclosing a high-impact issue publicly.
+Open a private [GitHub security advisory](https://github.com/sebastianspicker/cs2-server-ops/security/advisories/new)
+before disclosing a vulnerability publicly. Include reproduction steps, affected versions,
+impact, and any known mitigation. Do not place secrets or live RCON credentials in the report.
 
 ## Priority Areas
 

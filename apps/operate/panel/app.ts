@@ -1,5 +1,7 @@
+/** Panel application composition: middleware, persistence, and operator routes. */
 import crypto from 'node:crypto';
 import path from 'node:path';
+import type { Server as HttpServer } from 'node:http';
 import express from 'express';
 import logger from './utils/logger';
 import rateLimit from 'express-rate-limit';
@@ -143,10 +145,10 @@ const sessionMaxAgeMs = (() => {
   const n = parseInt(raw, 10);
   return Number.isFinite(n) && n > 0 ? n : DEFAULT_SESSION_MAX_AGE_MS;
 })();
-const sessionCookieNameRaw = process.env.SESSION_COOKIE_NAME ?? 'cspanel.sid';
+const sessionCookieNameRaw = process.env.SESSION_COOKIE_NAME ?? '3rr.sid';
 const sessionCookieName = /^[A-Za-z0-9_.-]{1,128}$/.test(sessionCookieNameRaw)
   ? sessionCookieNameRaw
-  : 'cspanel.sid';
+  : '3rr.sid';
 const sessionCookieConfig = {
   httpOnly: true,
   sameSite: cookieSameSite,
@@ -157,18 +159,6 @@ const sessionCookieConfig = {
 
 app.set('sessionCookieName', sessionCookieName);
 app.set('sessionCookieConfig', sessionCookieConfig);
-
-app.use(
-  session({
-    name: sessionCookieName,
-    secret: sessionSecret,
-    resave: false,
-    saveUninitialized: false,
-    rolling: true, // Reset maxAge on every request — acts as an idle timeout
-    store: sessionStore,
-    cookie: sessionCookieConfig,
-  })
-);
 
 function securityHeadersMiddleware(_req: Request, res: Response, next: NextFunction): void {
   const nonce = crypto.randomBytes(16).toString('base64');
@@ -200,6 +190,31 @@ function securityHeadersMiddleware(_req: Request, res: Response, next: NextFunct
   next();
 }
 app.use(securityHeadersMiddleware);
+
+const panelRoot = path.basename(__dirname) === 'dist' ? path.dirname(__dirname) : __dirname;
+const staticDir = path.join(panelRoot, 'public');
+
+// Serve static assets before session middleware so CSS/JS/font requests do not
+// load or refresh sessions. Asset filenames are stable, so require revalidation
+// rather than caching them as immutable across deployments.
+app.use(
+  express.static(staticDir, {
+    maxAge: 0,
+    immutable: false,
+  })
+);
+
+app.use(
+  session({
+    name: sessionCookieName,
+    secret: sessionSecret,
+    resave: false,
+    saveUninitialized: false,
+    rolling: true, // Reset maxAge on every request - acts as an idle timeout
+    store: sessionStore,
+    cookie: sessionCookieConfig,
+  })
+);
 
 const csrfTokensEqual = (expected: unknown, supplied: unknown): boolean => {
   if (typeof expected !== 'string' || typeof supplied !== 'string') return false;
@@ -296,18 +311,6 @@ const rconConsoleLimiter = rateLimit({
 });
 app.post('/api/rcon', rconConsoleLimiter);
 
-const panelRoot = path.basename(__dirname) === 'dist' ? path.dirname(__dirname) : __dirname;
-const staticDir = path.join(panelRoot, 'public');
-
-// Serve static assets before session middleware so CSS/JS/font requests
-// don't create sessions and get aggressive cache headers.
-app.use(
-  express.static(staticDir, {
-    maxAge: '7d',
-    immutable: true,
-  })
-);
-
 // Avoid caching authenticated/dynamic content (applied after static middleware)
 app.use((_req, res, next) => {
   res.setHeader('Cache-Control', 'no-store');
@@ -362,7 +365,7 @@ app.get('/', (req, res) => {
   if (req.session.user) {
     res.redirect('/servers');
   } else {
-    res.render('login');
+    res.render('login', { sessionExpired: req.query.expired === '1' });
   }
 });
 
@@ -371,7 +374,7 @@ app.use((_req, res) => {
   res.status(404).json({ error: 'Not found' });
 });
 
-// Global error handler — Express 5 forwards async errors here automatically.
+// Global error handler - Express 5 forwards async errors here automatically.
 app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
   void _next;
   logger.error({ err }, '[app] unhandled route error');
@@ -379,6 +382,39 @@ app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
     res.status(500).json({ error: 'Internal server error' });
   }
 });
+
+async function runShutdownTask(
+  component: string,
+  task: () => void | Promise<void>
+): Promise<boolean> {
+  try {
+    await task();
+    return true;
+  } catch (err) {
+    logger.error({ err, component }, '[process] shutdown task failed');
+    return false;
+  }
+}
+
+function closeHttpServer(server: HttpServer): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    server.close((error) => {
+      if (error) reject(error);
+      else resolve();
+    });
+  });
+}
+
+async function closeRconConnections(): Promise<void> {
+  const summary = await rcon.shutdownAll();
+  if (summary.failed > 0) {
+    throw new Error(`RCON shutdown left ${summary.failed} of ${summary.total} sockets unconfirmed`);
+  }
+}
+
+async function closeRedisConnection(): Promise<void> {
+  if (redisClient) await redisClient.quit();
+}
 
 if (require.main === module) {
   (async function start() {
@@ -397,27 +433,37 @@ if (require.main === module) {
     });
 
     // Graceful shutdown: clean up connections before exit
+    const shutdownTimeoutMs = 15_000;
+    let shutdownStarted = false;
     const shutdown = async (signal: string) => {
+      if (shutdownStarted) {
+        logger.error({ signal }, '[process] second shutdown signal received; forcing exit');
+        server.closeAllConnections();
+        process.exit(1);
+      }
+      shutdownStarted = true;
       logger.info({ signal }, '[process] received, shutting down...');
-      await new Promise<void>((resolve) =>
-        server.close(() => {
-          resolve();
-        })
-      );
-      await rcon.shutdownAll();
-      if (redisClient) {
-        try {
-          await redisClient.quit();
-        } catch {
-          // ignore cleanup errors
-        }
-      }
-      try {
+      const shutdownDeadline = setTimeout(() => {
+        logger.error(
+          { timeout_ms: shutdownTimeoutMs },
+          '[process] graceful shutdown timed out; forcing exit'
+        );
+        server.closeAllConnections();
+        process.exit(1);
+      }, shutdownTimeoutMs);
+      // Start RCON teardown immediately while the HTTP server drains. A hung
+      // request must not postpone socket cleanup until the hard deadline.
+      const [httpClosed, rconClosed] = await Promise.all([
+        runShutdownTask('http', () => closeHttpServer(server)),
+        runShutdownTask('rcon', closeRconConnections),
+      ]);
+      const redisClosed = await runShutdownTask('redis', closeRedisConnection);
+      const databaseClosed = await runShutdownTask('database', () => {
         better_sqlite_client.close();
-      } catch {
-        // ignore cleanup errors
-      }
-      process.exit(0);
+      });
+      clearTimeout(shutdownDeadline);
+      const clean = httpClosed && rconClosed && redisClosed && databaseClosed;
+      process.exit(clean ? 0 : 1);
     };
     process.on('SIGTERM', () => void shutdown('SIGTERM'));
     process.on('SIGINT', () => void shutdown('SIGINT'));

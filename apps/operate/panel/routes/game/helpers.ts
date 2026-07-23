@@ -1,3 +1,4 @@
+/** Shared command validation and error translation for authenticated game routes. */
 import type { NextFunction, RequestHandler, Response } from 'express';
 import rcon from '../../modules/rcon';
 import { requireAuthorizedServerId } from '../../utils/serverAccess';
@@ -51,7 +52,7 @@ export const RCON_BLOCKED_COMMANDS = [
 // Reject any non-ASCII characters to prevent Unicode-to-ASCII truncation attacks.
 // The rcon-srcds library encodes commands as ASCII, silently truncating high bytes.
 // A char like U+013B ('\u013B') passes JavaScript-level ';' checks but becomes
-// 0x3B (semicolon) after encoding — enabling command separator injection.
+// 0x3B (semicolon) after encoding - enabling command separator injection.
 const NON_ASCII_RE = /[^\x20-\x7e]/;
 const NON_ASCII_GLOBAL_RE = /[^\x20-\x7e]/g;
 const UNSAFE_NAME_CHARACTERS = new Set(['"', "'", '`', '\\', ';', '|', '{', '}', '%', '$']);
@@ -154,7 +155,7 @@ export function sendGameRouteError(res: Response, err: unknown, tag = 'game'): v
   }
   const message =
     err instanceof Error && /connection|rcon|timed out|unreachable/i.test(err.message)
-      ? 'Server unreachable — RCON connection failed'
+      ? 'Server unreachable - RCON connection failed'
       : 'Internal server error';
   res.status(500).json({ error: message });
 }

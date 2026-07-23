@@ -1,68 +1,144 @@
+<%# Administrator view for panel-user lifecycle operations. %>
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <meta name="color-scheme" content="dark">
+  <%- include('partials/theme-boot') %>
+  <meta name="color-scheme" content="dark light">
   <meta name="csrf-token" content="<%= csrfToken %>">
-  <title>CS2 Panel — User Management</title>
+  <title>3RR - User Management</title>
+  <link rel="icon" href="/3rr-mark.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/css/panel.css">
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to main content</a>
   <%- include('partials/navbar') %>
-  <main class="container" id="main">
-    <div class="page-header">
-      <h1>User Management</h1>
+  <main class="container route-shell route-shell--admin" id="main">
+    <div class="page-header route-header">
+      <div>
+        <p class="route-kicker">Access</p>
+        <h1>Users</h1>
+        <p>Operator accounts and initial server access</p>
+      </div>
     </div>
-
-    <section class="card" aria-labelledby="user-list-heading">
-      <h2 id="user-list-heading">Users</h2>
-      <div id="user-list-status" role="status" aria-live="polite"></div>
-      <table class="data-table" id="user-table">
-        <thead>
-          <tr>
-            <th scope="col">ID</th>
-            <th scope="col">Username</th>
-            <th scope="col">Role</th>
-            <th scope="col">Actions</th>
-          </tr>
-        </thead>
-        <tbody id="user-table-body"></tbody>
-      </table>
-    </section>
-
-    <section class="card" aria-labelledby="add-user-heading">
-      <h2 id="add-user-heading">Add User</h2>
-      <form id="add-user-form" novalidate>
-        <div class="form-group">
-          <label for="new-username">Username</label>
-          <input type="text" id="new-username" name="username" required maxlength="255" autocomplete="off">
+    <div class="route-workspace route-workspace--split">
+      <section class="panel route-main" aria-labelledby="user-list-heading">
+        <div class="panel-header">
+          <h2 id="user-list-heading">Users</h2>
         </div>
-        <div class="form-group">
-          <label for="new-user-password">Password <span class="hint">(min 12 characters)</span></label>
-          <input type="password" id="new-user-password" name="password" required minlength="12" autocomplete="new-password">
+        <div id="user-list-status" class="alert mb-3" role="status" aria-live="polite" hidden></div>
+        <div class="table-scroll">
+          <table class="data-table" id="user-table">
+            <thead>
+              <tr>
+                <th scope="col">ID</th>
+                <th scope="col">Username</th>
+                <th scope="col">Role</th>
+                <th scope="col">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="user-table-body"><tr><td colspan="4">Loading users…</td></tr></tbody>
+          </table>
         </div>
-        <% if (servers.length > 0) { %>
-          <div class="form-group">
-            <label for="new-user-server">Initial server access</label>
-            <select id="new-user-server" name="serverId">
-              <option value="">No initial access</option>
-              <% servers.forEach(function (server) { %>
-                <option value="<%= server.id %>"><%= server.serverIP %>:<%= server.serverPort %></option>
-              <% }) %>
-            </select>
+      </section>
+
+      <section class="panel route-aside" aria-labelledby="add-user-heading">
+        <div class="panel-header">
+          <h2 id="add-user-heading">Add User</h2>
+        </div>
+        <form id="add-user-form">
+          <div class="mb-3">
+            <label for="new-username" class="form-label">Username</label>
+            <input type="text" id="new-username" name="username" class="form-control" required maxlength="255" autocomplete="off">
           </div>
-        <% } %>
-        <div id="add-user-status" role="status" aria-live="polite"></div>
-        <button type="submit" class="btn btn-primary">Add user</button>
-      </form>
-    </section>
+          <div class="mb-3">
+            <label for="new-user-password" class="form-label">Password <span class="text-muted">(min 12 characters)</span></label>
+            <input type="password" id="new-user-password" name="password" class="form-control" required minlength="12" autocomplete="new-password">
+          </div>
+          <% if (servers.length > 0) { %>
+            <div class="mb-3">
+              <label for="new-user-server" class="form-label">Initial server access</label>
+              <select id="new-user-server" name="serverId" class="form-select">
+                <option value="">No initial access</option>
+                <% servers.forEach(function (server) { %>
+                  <option value="<%= server.id %>"><%= server.serverIP %>:<%= server.serverPort %></option>
+                <% }) %>
+              </select>
+            </div>
+          <% } %>
+          <div id="add-user-status" class="alert mb-3" role="status" aria-live="polite" hidden></div>
+          <button id="add-user-submit" type="submit" class="btn btn-primary">Add user</button>
+        </form>
+      </section>
+    </div>
   </main>
+  <%- include('partials/footer') %>
   <script nonce="<%= cspNonce %>">
     (function () {
       var csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
       var currentUserId = <%= currentUserId %>;
+
+      function setStatus(el, message, tone) {
+        el.textContent = message;
+        el.className = 'alert mb-3 alert-' + tone;
+        el.hidden = false;
+      }
+
+      // Accessible confirm dialog matching the .cs-modal component used elsewhere in the panel,
+      // since this page loads a standalone inline script rather than the bundled console.js.
+      function showConfirm(message) {
+        return new Promise(function (resolve) {
+          var overlay = document.createElement('div');
+          overlay.className = 'cs-modal-overlay';
+          var modal = document.createElement('div');
+          modal.className = 'cs-modal';
+          var msgEl = document.createElement('p');
+          msgEl.className = 'cs-modal-message';
+          msgEl.textContent = message;
+          var actions = document.createElement('div');
+          actions.className = 'cs-modal-actions';
+          var cancelBtn = document.createElement('button');
+          cancelBtn.className = 'btn btn-secondary cs-modal-cancel';
+          cancelBtn.textContent = 'Cancel';
+          var confirmBtn = document.createElement('button');
+          confirmBtn.className = 'btn btn-danger cs-modal-confirm';
+          confirmBtn.textContent = 'Delete user';
+          actions.append(cancelBtn, confirmBtn);
+          modal.append(msgEl, actions);
+          overlay.appendChild(modal);
+          document.body.appendChild(overlay);
+          overlay.setAttribute('role', 'dialog');
+          overlay.setAttribute('aria-modal', 'true');
+          overlay.setAttribute('aria-labelledby', 'cs-modal-msg');
+          msgEl.id = 'cs-modal-msg';
+          var previouslyFocused = document.activeElement;
+          cancelBtn.focus();
+          var focusable = [cancelBtn, confirmBtn];
+          function keyHandler(e) {
+            if (e.key === 'Escape') {
+              cleanup(false);
+            } else if (e.key === 'Tab') {
+              e.preventDefault();
+              var idx = document.activeElement === cancelBtn ? 0 : 1;
+              var next = e.shiftKey ? (idx - 1 + focusable.length) % focusable.length : (idx + 1) % focusable.length;
+              focusable[next].focus();
+            }
+          }
+          function cleanup(result) {
+            cancelBtn.disabled = true;
+            confirmBtn.disabled = true;
+            document.removeEventListener('keydown', keyHandler);
+            overlay.remove();
+            if (previouslyFocused && previouslyFocused.focus) previouslyFocused.focus();
+            resolve(result);
+          }
+          cancelBtn.addEventListener('click', function () { cleanup(false); });
+          confirmBtn.addEventListener('click', function () { cleanup(true); });
+          overlay.addEventListener('click', function (e) { if (e.target === overlay) cleanup(false); });
+          document.addEventListener('keydown', keyHandler);
+        });
+      }
 
       async function loadUsers() {
         try {
@@ -91,7 +167,7 @@
             var actionCell = document.createElement('td');
             if (user.id === currentUserId) {
               var currentMarker = document.createElement('span');
-              currentMarker.className = 'hint';
+              currentMarker.className = 'text-muted small';
               currentMarker.textContent = '(you)';
               actionCell.appendChild(currentMarker);
             } else {
@@ -100,6 +176,7 @@
               deleteBtn.dataset.userid = user.id;
               deleteBtn.dataset.username = user.username;
               deleteBtn.textContent = 'Delete';
+              deleteBtn.setAttribute('aria-label', 'Delete user ' + user.username);
               actionCell.appendChild(deleteBtn);
             }
             tr.appendChild(actionCell);
@@ -109,8 +186,10 @@
             btn.addEventListener('click', async function () {
               var userId = parseInt(btn.getAttribute('data-userid'), 10);
               var username = btn.getAttribute('data-username');
-              if (!confirm('Delete user "' + username + '"? This cannot be undone.')) return;
+              var confirmed = await showConfirm('Delete user "' + username + '"? This cannot be undone.');
+              if (!confirmed) return;
               var status = document.getElementById('user-list-status');
+              btn.disabled = true;
               try {
                 var r = await fetch('/api/users/delete', {
                   method: 'POST',
@@ -119,21 +198,20 @@
                 });
                 var d = await r.json();
                 if (r.ok) {
-                  status.textContent = 'User deleted.';
-                  status.className = 'form-success';
+                  setStatus(status, 'User deleted.', 'success');
                   loadUsers();
                 } else {
-                  status.textContent = d.error || 'Failed to delete user.';
-                  status.className = 'form-error';
+                  setStatus(status, d.error || 'Failed to delete user.', 'danger');
                 }
               } catch (err) {
-                status.textContent = 'Network error.';
-                status.className = 'form-error';
+                setStatus(status, 'Network error.', 'danger');
+              } finally {
+                btn.disabled = false;
               }
             });
           });
         } catch (err) {
-          document.getElementById('user-list-status').textContent = 'Failed to load users.';
+          setStatus(document.getElementById('user-list-status'), 'Failed to load users.', 'danger');
         }
       }
 
@@ -145,12 +223,14 @@
         var username = document.getElementById('new-username').value;
         var password = document.getElementById('new-user-password').value;
         var serverSelect = document.getElementById('new-user-server');
+        var submitButton = document.getElementById('add-user-submit');
         var payload = { username: username, password: password };
         if (serverSelect && serverSelect.value) {
           payload.serverId = parseInt(serverSelect.value, 10);
         }
-        status.textContent = '';
-        status.className = '';
+        status.hidden = true;
+        submitButton.disabled = true;
+        submitButton.textContent = 'Adding…';
         try {
           var res = await fetch('/api/users/add', {
             method: 'POST',
@@ -159,17 +239,17 @@
           });
           var data = await res.json();
           if (res.ok) {
-            status.textContent = 'User created.';
-            status.className = 'form-success';
+            setStatus(status, 'User created.', 'success');
             e.target.reset();
             loadUsers();
           } else {
-            status.textContent = data.error || 'Failed to create user.';
-            status.className = 'form-error';
+            setStatus(status, data.error || 'Failed to create user.', 'danger');
           }
         } catch (err) {
-          status.textContent = 'Network error.';
-          status.className = 'form-error';
+          setStatus(status, 'Network error.', 'danger');
+        } finally {
+          submitButton.disabled = false;
+          submitButton.textContent = 'Add user';
         }
       });
     })();

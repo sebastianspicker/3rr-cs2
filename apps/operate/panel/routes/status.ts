@@ -1,3 +1,4 @@
+/** Authenticated status routes that expose bounded live RCON observations. */
 import express from 'express';
 import { better_sqlite_client } from '../db';
 import rcon from '../modules/rcon';
@@ -6,15 +7,11 @@ import { parseServerId } from '../utils/parseServerId';
 import logger from '../utils/logger';
 import { parseStatusResponse, parseVisibleMaxPlayers } from '../utils/rconParsers';
 import { parseHostnameResponse } from '../utils/rconResponse';
+import { selectAccessibleServerSql } from '../utils/serverAccess';
 
 const router = express.Router();
 
-const selectStatusStmt = better_sqlite_client.prepare(`
-  SELECT s.id
-    FROM servers s
-    JOIN server_access sa ON sa.server_id = s.id
-   WHERE s.id = ? AND sa.user_id = ?
-`);
+const selectStatusStmt = better_sqlite_client.prepare(selectAccessibleServerSql('s.id'));
 
 interface StatusObservation {
   hostname: string | null;

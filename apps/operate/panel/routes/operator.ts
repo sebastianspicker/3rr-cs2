@@ -1,6 +1,7 @@
+/** Authenticated operator workflows for direct server management actions. */
 import express from 'express';
 import { z } from 'zod';
-import { better_sqlite_client } from '../db';
+import { better_sqlite_client, SQLITE_UTC_NOW } from '../db';
 import rcon from '../modules/rcon';
 import isAuthenticated from '../modules/middleware';
 import logger from '../utils/logger';
@@ -41,27 +42,25 @@ interface WorkshopFavoriteRow {
   updated_at: string;
 }
 
-const listFavoritesStmt = better_sqlite_client.prepare(`
+const selectFavoritesSql = `
   SELECT id, workshop_id, name, created_at, updated_at
     FROM workshop_favorites
    WHERE user_id = ?
-     AND server_id = ?
+     AND server_id = ?`;
+
+const listFavoritesStmt = better_sqlite_client.prepare(`${selectFavoritesSql}
    ORDER BY updated_at DESC, id DESC
 `);
 
 const upsertFavoriteStmt = better_sqlite_client.prepare(`
   INSERT INTO workshop_favorites (user_id, server_id, workshop_id, name, created_at, updated_at)
-  VALUES (?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+  VALUES (?, ?, ?, ?, ${SQLITE_UTC_NOW}, ${SQLITE_UTC_NOW})
   ON CONFLICT(user_id, server_id, workshop_id) DO UPDATE SET
     name = excluded.name,
-    updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+    updated_at = ${SQLITE_UTC_NOW}
 `);
 
-const selectFavoriteStmt = better_sqlite_client.prepare(`
-  SELECT id, workshop_id, name, created_at, updated_at
-    FROM workshop_favorites
-   WHERE user_id = ?
-     AND server_id = ?
+const selectFavoriteStmt = better_sqlite_client.prepare(`${selectFavoritesSql}
      AND workshop_id = ?
 `);
 
@@ -77,7 +76,7 @@ const updateFavoriteStmt = better_sqlite_client.prepare(`
   UPDATE workshop_favorites
      SET workshop_id = ?,
          name = ?,
-         updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+         updated_at = ${SQLITE_UTC_NOW}
    WHERE id = ?
      AND user_id = ?
      AND server_id = ?

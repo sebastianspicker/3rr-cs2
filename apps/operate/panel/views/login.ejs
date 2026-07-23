@@ -1,20 +1,32 @@
+<%# Session login view; authentication and CSRF decisions remain server-side. %>
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <meta name="color-scheme" content="dark">
+  <%- include('partials/theme-boot') %>
+  <meta name="color-scheme" content="dark light">
   <meta name="csrf-token" content="<%= csrfToken %>">
-  <title>CS2 Panel — Login</title>
+  <title>3RR - Login</title>
+  <link rel="icon" href="/3rr-mark.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/css/panel.css">
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to main content</a>
-  <div class="auth-page" id="main">
-    <div class="auth-card">
+  <main class="auth-page auth-page--login route-shell route-shell--auth" id="main">
+    <section class="auth-brand route-intro" aria-labelledby="brand-title">
+      <h1 class="brand-lockup" id="brand-title" aria-label="3RR">
+        <span class="brand-name">3RR</span><span class="brand-slashes" aria-hidden="true">///</span><span class="nav-product">Operate</span>
+      </h1>
+      <p class="brand-descriptor">Self-hosted Counter-Strike 2 server operations</p>
+    </section>
+    <div class="auth-card route-workspace">
       <div class="panel">
-        <h1 class="auth-title">CS2 Panel</h1>
-        <p class="auth-subtitle">Server Control Console</p>
+        <h2 class="auth-title">Operator login</h2>
+        <div class="auth-rule" aria-hidden="true"><span>///</span></div>
+        <% if (locals.sessionExpired) { %>
+        <div class="alert alert-warning" role="status">Your session expired. Sign in again to continue.</div>
+        <% } %>
         <div id="error-msg" class="alert alert-danger" role="alert" hidden></div>
         <form id="login-form">
           <div class="mb-3">
@@ -43,13 +55,13 @@
             >
           </div>
           <div class="btn-container">
-            <button id="login_btn" type="submit" class="btn btn-primary">Authenticate</button>
+            <button id="login_btn" type="submit" class="btn btn-primary">Sign in</button>
             <button type="reset" class="btn btn-secondary">Clear</button>
           </div>
         </form>
       </div>
     </div>
-  </div>
+  </main>
 
   <%- include('partials/footer') %>
   <script src="/js/toast-inline.js"></script>
@@ -59,6 +71,7 @@
       var form = document.getElementById('login-form');
       form.addEventListener('submit', function (e) {
         e.preventDefault();
+        var submitButton = document.getElementById('login_btn');
         var username = document.getElementById('username').value;
         var password = document.getElementById('password').value;
         var errorEl = document.getElementById('error-msg');
@@ -67,9 +80,14 @@
           errorEl.textContent = '';
         }
         if (!username || !password) {
-          showToast('All fields are required.', 'error');
+          if (errorEl) {
+            errorEl.textContent = 'Enter your username and password.';
+            errorEl.removeAttribute('hidden');
+          }
           return;
         }
+        submitButton.disabled = true;
+        submitButton.textContent = 'Signing in…';
         fetch('/auth/login', {
           method: 'POST',
           headers: {
@@ -94,6 +112,10 @@
               errorEl.textContent = err.message || 'Login failed';
               errorEl.removeAttribute('hidden');
             }
+          })
+          .finally(function () {
+            submitButton.disabled = false;
+            submitButton.textContent = 'Sign in';
           });
       });
     });

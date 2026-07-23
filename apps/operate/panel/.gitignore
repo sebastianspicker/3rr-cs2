@@ -45,10 +45,10 @@ out/
 tmp/
 tmp-cs2-*
 tmp-cs2-*/
-tmp-cs2-panel-*
-tmp-cs2-panel-*/
-tmp-entry-cs2-panel-*
-tmp-entry-cs2-panel-*/
+tmp-3rr-*
+tmp-3rr-*/
+tmp-entry-3rr-*
+tmp-entry-3rr-*/
 *.tmp
 *.pid
 reports/

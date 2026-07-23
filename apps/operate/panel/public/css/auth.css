@@ -1,0 +1,81 @@
+/* Authentication — softened dark surfaces */
+
+.auth-page {
+  background: var(--canvas);
+  display: grid;
+  grid-template-columns: minmax(320px, 0.86fr) minmax(420px, 1.14fr);
+  min-height: 100vh;
+}
+
+.auth-brand {
+  background: var(--shell);
+  color: var(--text);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 100vh;
+  padding: clamp(var(--space-8), 7vw, 6rem);
+}
+
+.brand-lockup {
+  color: var(--ink);
+  font-size: clamp(3rem, 7vw, 6rem);
+  letter-spacing: -0.07em;
+}
+
+.restart-rule {
+  border-top: 1px solid var(--line-strong);
+  color: var(--observed);
+  margin-top: auto;
+  padding-top: var(--space-4);
+}
+
+.brand-descriptor {
+  font-size: 0.86rem;
+  margin: var(--space-5) 0 0;
+  max-width: 28rem;
+}
+
+.auth-card {
+  align-items: center;
+  display: flex;
+  justify-content: center;
+  padding: clamp(var(--space-6), 7vw, 6rem);
+}
+
+.auth-card .panel {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  max-width: 440px;
+  padding: var(--space-6);
+  width: 100%;
+}
+
+.auth-title {
+  font-size: clamp(1.55rem, 3vw, 2.15rem);
+  margin-bottom: var(--space-3);
+}
+
+.auth-rule {
+  border-top: 1px solid var(--line-strong);
+  color: var(--action);
+  margin-bottom: var(--space-8);
+}
+
+.auth-rule span {
+  background: var(--surface);
+  padding-right: var(--space-3);
+  position: relative;
+  top: -0.75em;
+}
+
+.btn-container {
+  display: flex;
+  gap: var(--space-2);
+  margin-top: var(--space-5);
+}
+
+.btn-container .btn-primary {
+  flex: 1 1 auto;
+}

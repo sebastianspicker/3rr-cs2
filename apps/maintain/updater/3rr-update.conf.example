@@ -1,14 +1,14 @@
-# CS2 Auto-Update configuration.
-# Place this file next to update_cs2.sh as cs2-auto-update.conf,
-# or pass a custom path: update_cs2.sh --config=/etc/cs2-auto-update.conf
+# 3RR updater configuration.
+# Place this file next to 3rr-update.sh as 3rr-update.conf,
+# or pass a custom path: 3rr-update.sh --config=/etc/3rr-update.conf
 # Format: one KEY=value per line. Lines starting with # are comments.
 # All settings below are shown with their defaults. Uncomment to override.
 # Unknown or duplicate keys fail fast. Legacy removed keys produce a warning.
 # Leave a setting commented to use its default; do not set critical keys empty.
 
 # Paths
-# LOCKDIR=/tmp/update_cs2.lock
-# LOGFILE=/home/steam/update_cs2.log
+# LOCKDIR=/tmp/3rr-update.lock
+# LOGFILE=/var/log/3rr/update.log
 # CS2_DIR=/home/steam/cs2
 
 # Service and Steam
@@ -20,6 +20,7 @@
 # REQUIRED_SPACE=5000000
 # MAX_ATTEMPTS=5
 # SLEEP_SECS=5
+# STEAMCMD_TIMEOUT_SECS=1800
 
 # Optional: log level (quiet | normal)
 # LOG_LEVEL=normal

@@ -1,36 +1,87 @@
+/** Administrator-only user lifecycle routes that protect the final administrator. */
 import express from 'express';
 import { z } from 'zod';
 import bcrypt from 'bcrypt';
 import { better_sqlite_client } from '../db';
 import logger from '../utils/logger';
 import isAuthenticated, { requireAdmin } from '../modules/middleware';
+import rcon from '../modules/rcon';
+import { selectAccessibleServerSql, selectAccessibleServersSql } from '../utils/serverAccess';
 
 const router = express.Router();
 
-const selectAccessibleServersStmt = better_sqlite_client.prepare(`
-  SELECT s.id, s.serverIP, s.serverPort
-    FROM servers s
-    JOIN server_access sa ON sa.server_id = s.id
-   WHERE sa.user_id = ?
-   ORDER BY s.id
-`);
-const selectAccessibleServerStmt = better_sqlite_client.prepare(`
-  SELECT s.id
-    FROM servers s
-    JOIN server_access sa ON sa.server_id = s.id
-   WHERE s.id = ? AND sa.user_id = ?
-`);
+const selectAccessibleServersStmt = better_sqlite_client.prepare(
+  selectAccessibleServersSql('s.id, s.serverIP, s.serverPort', true)
+);
+const selectAccessibleServerStmt = better_sqlite_client.prepare(selectAccessibleServerSql('s.id'));
 const insertUserStmt = better_sqlite_client.prepare(
   `INSERT INTO users (username, password, is_admin) VALUES (?, ?, 0)`
 );
 const insertServerAccessStmt = better_sqlite_client.prepare(
   `INSERT OR IGNORE INTO server_access (user_id, server_id) VALUES (?, ?)`
 );
+const selectExclusivelyAccessibleServerIdsStmt = better_sqlite_client.prepare(`
+  SELECT sa.server_id AS id
+    FROM server_access sa
+   WHERE sa.user_id = ?
+     AND NOT EXISTS (
+       SELECT 1
+         FROM server_access other
+        WHERE other.server_id = sa.server_id
+          AND other.user_id <> sa.user_id
+     )
+   ORDER BY sa.server_id
+`);
+const deleteUserStmt = better_sqlite_client.prepare(`DELETE FROM users WHERE id = ?`);
+const deleteOrphanServerStmt = better_sqlite_client.prepare(`
+  DELETE FROM servers
+   WHERE id = ?
+     AND NOT EXISTS (SELECT 1 FROM server_access WHERE server_id = ?)
+`);
 
 interface AccessibleServer {
   id: number;
   serverIP: string;
   serverPort: number;
+}
+
+interface UserDeletionResult {
+  userDeleted: boolean;
+  deletedServerIds: number[];
+}
+
+const deleteUserAndExclusiveServers = better_sqlite_client.transaction(
+  (userId: number): UserDeletionResult => {
+    const exclusiveServers = selectExclusivelyAccessibleServerIdsStmt.all(userId) as Array<{
+      id: number;
+    }>;
+    const userResult = deleteUserStmt.run(userId);
+    if (userResult.changes === 0) {
+      return { userDeleted: false, deletedServerIds: [] };
+    }
+
+    const deletedServerIds: number[] = [];
+    for (const { id } of exclusiveServers) {
+      const serverResult = deleteOrphanServerStmt.run(id, id);
+      if (serverResult.changes > 0) deletedServerIds.push(id);
+    }
+    return { userDeleted: true, deletedServerIds };
+  }
+);
+
+/** Attempts every orphaned-server cleanup and returns only IDs whose RCON teardown failed. */
+async function cleanupDeletedUserServers(serverIds: number[]): Promise<number[]> {
+  const cleanupResults = await Promise.allSettled(
+    serverIds.map((serverId) => rcon.removeServer(String(serverId)))
+  );
+  return cleanupResults.flatMap((result, index) => {
+    const serverId = serverIds[index];
+    return result.status === 'rejected' && serverId !== undefined ? [serverId] : [];
+  });
+}
+
+function logUserDeletion(userId: number, deletedServerIds: number[], byUserId?: number): void {
+  logger.info({ deletedUserId: userId, deletedServerIds, byUserId }, '[users] user deleted');
 }
 
 const ChangePasswordSchema = z.object({
@@ -69,14 +120,14 @@ function sendPasswordMatchError(res: express.Response, matches: boolean | null):
 }
 
 // ---------------------------------------------------------------------------
-// GET /settings — change-password page
+// GET /settings - change-password page
 // ---------------------------------------------------------------------------
 router.get('/settings', isAuthenticated, (_req, res) => {
   res.render('settings');
 });
 
 // ---------------------------------------------------------------------------
-// GET /admin/users — admin user management page
+// GET /admin/users - admin user management page
 // ---------------------------------------------------------------------------
 router.get('/admin/users', isAuthenticated, requireAdmin, (req, res) => {
   const currentUserId = req.session.user?.id;
@@ -187,7 +238,7 @@ router.post('/api/users/add', isAuthenticated, requireAdmin, async (req, res) =>
 // Delete a user by id. Cannot delete yourself.
 // Body: { userId: number }
 // ---------------------------------------------------------------------------
-router.post('/api/users/delete', isAuthenticated, requireAdmin, (req, res) => {
+router.post('/api/users/delete', isAuthenticated, requireAdmin, async (req, res) => {
   const schema = z.object({
     userId: z.number().int().positive(),
   });
@@ -203,19 +254,46 @@ router.post('/api/users/delete', isAuthenticated, requireAdmin, (req, res) => {
     return res.status(400).json({ error: 'Cannot delete your own account' });
   }
 
-  const info = better_sqlite_client.prepare(`DELETE FROM users WHERE id = ?`).run(userId);
+  let deletion: UserDeletionResult;
+  try {
+    deletion = deleteUserAndExclusiveServers(userId);
+  } catch (err) {
+    logger.error({ err, userId }, '[users] user deletion transaction failed');
+    return res.status(500).json({ error: 'Failed to delete user' });
+  }
 
-  if (info.changes === 0) {
+  if (!deletion.userDeleted) {
     return res.status(404).json({ error: 'User not found' });
   }
 
-  logger.info({ deletedUserId: userId, byUserId: req.session.user?.id }, '[users] user deleted');
-  return res.status(200).json({ message: 'User deleted' });
+  logUserDeletion(userId, deletion.deletedServerIds, req.session.user?.id);
+
+  const failedServerIds = await cleanupDeletedUserServers(deletion.deletedServerIds);
+  if (failedServerIds.length > 0) {
+    logger.error(
+      { deletedUserId: userId, failedServerIds },
+      '[users] deleted orphan servers but RCON cleanup failed'
+    );
+    return res.status(500).json({
+      error: 'User deleted, but RCON cleanup failed',
+      user_deleted: true,
+      deleted_server_ids: deletion.deletedServerIds,
+      rcon_cleanup: 'failed',
+      failed_server_ids: failedServerIds,
+    });
+  }
+
+  return res.status(200).json({
+    message: 'User deleted',
+    user_deleted: true,
+    deleted_server_ids: deletion.deletedServerIds,
+    rcon_cleanup: deletion.deletedServerIds.length > 0 ? 'completed' : 'not_needed',
+  });
 });
 
 // ---------------------------------------------------------------------------
 // GET /api/users/list  (admin only)
-// List all users (id, username, is_admin — no passwords).
+// List all users (id, username, is_admin - no passwords).
 // ---------------------------------------------------------------------------
 router.get('/api/users/list', isAuthenticated, requireAdmin, (_req, res) => {
   const rows = better_sqlite_client

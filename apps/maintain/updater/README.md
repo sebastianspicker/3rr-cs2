@@ -1,6 +1,9 @@
-# Maintain: Updater
+# 3RR - Maintain
 
-This module is the `maintain` surface of `cs2-server-ops`.
+This module is the `maintain` surface of `3rr`.
+
+When upgrading from the pre-3RR updater, disable `cs2-auto-update.timer` before
+installing and enabling `3rr-update.timer`; both timers must never run together.
 
 It keeps a Counter-Strike 2 dedicated server updated by comparing local and remote build IDs and
 only stopping the service when a real update is available.
@@ -12,9 +15,11 @@ If the remote build status cannot be determined, the updater exits non-zero and 
 - safe update detection via SteamCMD build IDs
 - unknown-remote detection that preserves availability instead of forcing a stop/update/start cycle
 - stop/update/start lifecycle with retries
+- bounded SteamCMD calls and automatic service restoration on failure or interruption
 - post-start active checks before reporting update success
-- stale-lock recovery
+- dead-PID stale-lock recovery with fail-closed handling for unverifiable live locks
 - disk-space checks
+- root-owned file logging under `/var/log/3rr` plus stdout for journald/cron
 
 ## Update Decision Flow
 
@@ -33,6 +38,19 @@ duplicate active keys, and explicit empty critical values fail fast; removed
 legacy keys are ignored with a warning so older configs are visible during
 migration.
 
+Malformed non-comment lines and unterminated quoted values also fail fast. Each
+SteamCMD invocation is bounded by `STEAMCMD_TIMEOUT_SECS` (default: 1800).
+
+The example systemd unit caps the complete updater run at 65 minutes, covering
+both default SteamCMD budgets plus normal lifecycle overhead. That unit deadline
+takes precedence: if you raise `STEAMCMD_TIMEOUT_SECS`, also raise
+`TimeoutStartSec` above twice that value plus the configured stop/start retry
+budget.
+
+When run as root, the configured log directory and existing log file must be
+root-owned and must not be group- or world-writable. Keep `LOGFILE` outside the
+`steam` account's writable home directory.
+
 `ALLOW_NONROOT` and `NO_SLEEP` are environment-only test harness controls, not
 supported config-file keys.
 
@@ -41,17 +59,22 @@ supported config-file keys.
 - Linux host with systemd
 - CS2 installed under a service account such as `steam`
 - SteamCMD available on the host
+- GNU coreutils `timeout`
 
 ## Quick Start
 
 ```bash
-sudo install -d /opt/cs2-server-ops/apps/maintain/updater
-sudo install -m 0755 update_cs2.sh /opt/cs2-server-ops/apps/maintain/updater/update_cs2.sh
-sudo install -m 0644 cs2-auto-update.conf.example /opt/cs2-server-ops/apps/maintain/updater/cs2-auto-update.conf
-sudo nano /opt/cs2-server-ops/apps/maintain/updater/cs2-auto-update.conf
+sudo install -d /opt/3rr/apps/maintain/updater
+sudo install -m 0755 3rr-update.sh /opt/3rr/apps/maintain/updater/3rr-update.sh
+sudo install -m 0644 3rr-update.conf.example /opt/3rr/apps/maintain/updater/3rr-update.conf
+sudo nano /opt/3rr/apps/maintain/updater/3rr-update.conf
+sudo install -m 0644 ../../../configs/examples/systemd/3rr-update.service /etc/systemd/system/
+sudo install -m 0644 ../../../configs/examples/systemd/3rr-update.timer /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now 3rr-update.timer
 ```
 
-The shared systemd unit examples in `../../../configs/examples/systemd/` assume that same `/opt/cs2-server-ops/apps/maintain/updater/` layout.
+The shared systemd unit examples in `../../../configs/examples/systemd/` assume that same `/opt/3rr/apps/maintain/updater/` layout.
 
 ## Validation
 

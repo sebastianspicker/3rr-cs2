@@ -1,3 +1,4 @@
+/** Validated advanced match operations, kept separate from ordinary setup routes. */
 import express from 'express';
 import { parseGameBody } from './matchRouteValidation';
 import isAuthenticated from '../../modules/middleware';

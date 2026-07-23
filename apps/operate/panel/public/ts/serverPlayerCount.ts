@@ -1,3 +1,4 @@
+/** Formats optional player counts without collapsing unavailable data into zero. */
 import type { StatusResponse } from './serverCards';
 
 export function renderPlayerCount(element: HTMLElement, status: StatusResponse): void {
@@ -5,14 +6,14 @@ export function renderPlayerCount(element: HTMLElement, status: StatusResponse):
   const maximum = status.max_players;
   const state = Number(typeof humans === 'number') * 2 + Number(typeof maximum === 'number');
   if (status.error && state === 0) {
-    element.textContent = ' status unavailable';
+    element.textContent = 'Unavailable';
     return;
   }
   element.textContent = state === 1
-    ? ` –/${maximum}`
+    ? `–/${maximum}`
     : state === 2
-      ? ` ${humans}`
+      ? `${humans}`
       : state === 3
-        ? ` ${humans}/${maximum}`
-        : ' –/–';
+        ? `${humans}/${maximum}`
+        : '–/–';
 }

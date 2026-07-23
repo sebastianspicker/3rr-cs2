@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// Copies locally installed font assets so the panel does not depend on a CDN at runtime.
 const fs = process.getBuiltinModule('fs');
 const path = process.getBuiltinModule('path');
 

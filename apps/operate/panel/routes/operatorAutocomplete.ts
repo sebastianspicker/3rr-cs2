@@ -1,3 +1,4 @@
+/** Bounded RCON autocomplete cache for authenticated operator input. */
 import rcon from '../modules/rcon';
 import logger from '../utils/logger';
 import { parseAutocompleteOutput } from '../utils/rconParsers';

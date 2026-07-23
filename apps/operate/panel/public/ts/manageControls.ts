@@ -1,9 +1,11 @@
-import { sendPostRequest, showToast, toastError, showConfirm } from './common';
+/** Wires runtime controls and reports rejected or failed operations to operators. */
+import { sendPostRequest, showToast, toastError, showConfirm, withLoading } from './common';
 import { el, on } from './manageShared';
 
 function setToggleActive(groupKey: string, val: number): void {
   document.querySelectorAll<HTMLElement>(`[data-toggle-group="${groupKey}"]`).forEach(btn => {
     const btnVal = parseInt(btn.dataset.toggleVal ?? '', 10);
+    btn.setAttribute('aria-pressed', String(btnVal === val));
     if (btnVal === val) {
       btn.classList.remove('btn-outline-info');
       btn.classList.add('btn-info');
@@ -20,16 +22,25 @@ function setPresetActive(containerSel: string, activeId: string): void {
   el(activeId)?.classList.add('btn-active');
 }
 
+function withInitiatorLoading(event: Event, action: () => Promise<void>): void {
+  const button = event.currentTarget instanceof HTMLButtonElement ? event.currentTarget : null;
+  withLoading(button, action);
+}
+
 function bindToggle(serverId: string, key: string, endpoint: string, label: string): void {
-  on(`#${key}_on`, 'click', () => {
-    void sendPostRequest(`/api/${endpoint}`, { server_id: serverId, value: 1 })
-      .then(d => { showToast(d.message, 'success'); setToggleActive(key, 1); })
-      .catch(toastError(`${label} On failed.`));
+  on(`#${key}_on`, 'click', event => {
+    withInitiatorLoading(event, () =>
+      sendPostRequest(`/api/${endpoint}`, { server_id: serverId, value: 1 })
+        .then(d => { showToast(d.message, 'success'); setToggleActive(key, 1); })
+        .catch(toastError(`${label} On failed.`))
+    );
   });
-  on(`#${key}_off`, 'click', () => {
-    void sendPostRequest(`/api/${endpoint}`, { server_id: serverId, value: 0 })
-      .then(d => { showToast(d.message, 'success'); setToggleActive(key, 0); })
-      .catch(toastError(`${label} Off failed.`));
+  on(`#${key}_off`, 'click', event => {
+    withInitiatorLoading(event, () =>
+      sendPostRequest(`/api/${endpoint}`, { server_id: serverId, value: 0 })
+        .then(d => { showToast(d.message, 'success'); setToggleActive(key, 0); })
+        .catch(toastError(`${label} Off failed.`))
+    );
   });
 }
 
@@ -43,13 +54,15 @@ interface PresetBinding {
 
 function bindPreset(serverId: string, binding: PresetBinding): void {
   binding.values.forEach(value => {
-    on(`#${binding.idPrefix}${value}`, 'click', () => {
-      void sendPostRequest(`/api/${binding.endpoint}`, { server_id: serverId, value })
-        .then(data => {
-          showToast(data.message, 'success');
-          setPresetActive(binding.container, `#${binding.idPrefix}${value}`);
-        })
-        .catch(toastError(`${binding.label} failed.`));
+    on(`#${binding.idPrefix}${value}`, 'click', event => {
+      withInitiatorLoading(event, () =>
+        sendPostRequest(`/api/${binding.endpoint}`, { server_id: serverId, value })
+          .then(data => {
+            showToast(data.message, 'success');
+            setPresetActive(binding.container, `#${binding.idPrefix}${value}`);
+          })
+          .catch(toastError(`${binding.label} failed.`))
+      );
     });
   });
 }
@@ -62,12 +75,14 @@ export function initQuickCommands(serverId: string): void {
     { selector: '#kill_bots',      endpoint: '/api/kill-bots' },
   ];
   quickCommands.forEach(cmd => {
-    on(cmd.selector, 'click', () => {
-      void sendPostRequest(cmd.endpoint, { server_id: serverId })
-        .then(d => {
-          showToast(d.message, 'success');
-        })
-        .catch(toastError('Quick command failed.'));
+    on(cmd.selector, 'click', event => {
+      withInitiatorLoading(event, () =>
+        sendPostRequest(cmd.endpoint, { server_id: serverId })
+          .then(d => {
+            showToast(d.message, 'success');
+          })
+          .catch(toastError('Quick command failed.'))
+      );
     });
   });
 }
@@ -197,14 +212,17 @@ export function initConfirmActions(serverId: string): void {
     { id: 'matchzy_abort', endpoint: '/api/matchzy-abort', prompt: 'Abort the current match?',   fallback: 'Abort failed.' },
   ];
   confirmActions.forEach(({ id, endpoint, prompt: msg, fallback }) => {
-    on(`#${id}`, 'click', () => {
+    on(`#${id}`, 'click', event => {
+      const button = event.currentTarget instanceof HTMLButtonElement ? event.currentTarget : null;
       void showConfirm(msg).then(confirmed => {
         if (!confirmed) return;
-        void sendPostRequest(endpoint, { server_id: serverId })
-          .then(d => {
-            showToast(d.message, 'success');
-          })
-          .catch(toastError(fallback));
+        withLoading(button, () =>
+          sendPostRequest(endpoint, { server_id: serverId })
+            .then(d => {
+              showToast(d.message, 'success');
+            })
+            .catch(toastError(fallback))
+        );
       });
     });
   });

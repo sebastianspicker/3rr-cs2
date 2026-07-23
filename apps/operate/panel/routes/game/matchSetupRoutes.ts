@@ -1,3 +1,4 @@
+/** Match setup endpoints that persist requested state only after input validation. */
 import express from 'express';
 import { parseGameBody } from './matchRouteValidation';
 import isAuthenticated from '../../modules/middleware';

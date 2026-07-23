@@ -1,3 +1,4 @@
+/** Mount point for authenticated game-control route families. */
 import express from 'express';
 import matchRouter from './match';
 import controlsRouter from './controls';

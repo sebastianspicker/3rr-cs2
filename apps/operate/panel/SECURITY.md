@@ -4,7 +4,8 @@
 
 Please do not open public issues for security reports.
 
-Please open a GitHub Security Advisory at your fork's `/security/advisories/new` page (e.g. `https://github.com/<owner>/<repo>/security/advisories/new`).
+Open a private
+[GitHub security advisory](https://github.com/sebastianspicker/cs2-server-ops/security/advisories/new).
 
 Include:
 
@@ -13,15 +14,16 @@ Include:
 - Potential impact
 - Any suggested mitigations
 
-We will acknowledge receipt within 7 days and provide a remediation plan or request more details.
-
 ## Supported Versions
 
-This module follows the umbrella repository release flow. The `main` branch is the supported branch for security fixes.
+This module follows the umbrella repository release flow. There is no supported
+stable release during the public-alpha phase. Security fixes target `main` and
+subsequent alpha candidates.
 
 ## Security Expectations
 
-- Use `SESSION_SECRET` in production.
+- Use a strong `SESSION_SECRET` in production.
+- Configure `RCON_SECRET_KEY` in production so stored RCON credentials are encrypted.
 - Enable `SESSION_COOKIE_SECURE=true` behind HTTPS.
 - Configure Redis sessions via `REDIS_URL` for production use.
 - Avoid default credentials unless explicitly allowed with `ALLOW_DEFAULT_CREDENTIALS=true`.

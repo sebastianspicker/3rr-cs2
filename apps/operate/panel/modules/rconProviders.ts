@@ -1,3 +1,4 @@
+/** Injectable RCON dependencies for persisted credentials and safe network targets. */
 import { better_sqlite_client } from '../db';
 import logger from '../utils/logger';
 import type { ServerInfo } from './rconTypes';
@@ -14,15 +15,17 @@ export function sqlitePasswordProvider(serverId: number): string | null {
   return row?.rconPassword ?? null;
 }
 
-export async function isResolvedHostAllowed(
+/** Resolves and pins an allowed literal address for one RCON connection attempt. */
+export async function resolveAllowedRconAddress(
   server_id: string,
   server: ServerInfo
-): Promise<boolean> {
-  const { isValidServerHostResolved } = await import('../utils/networkValidation');
-  if (await isValidServerHostResolved(server.serverIP)) return true;
+): Promise<string | null> {
+  const { resolveValidServerHost } = await import('../utils/networkValidation');
+  const address = await resolveValidServerHost(server.serverIP);
+  if (address) return address;
   logger.warn(
     { server_id, serverIP: server.serverIP },
     '[rcon] connect blocked: hostname resolves to a blocked local/control IP'
   );
-  return false;
+  return null;
 }

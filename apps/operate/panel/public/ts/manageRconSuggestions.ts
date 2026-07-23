@@ -1,3 +1,4 @@
+/** Renders server-provided suggestions as text-only selectable controls. */
 export function renderSuggestions(container: HTMLElement | null, suggestions: string[]): void {
   if (!container) return;
   container.replaceChildren();

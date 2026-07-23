@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Starts a CS2 runtime while keeping RCON and GSLT values out of process arguments.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
@@ -10,6 +11,7 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 : "${RCON_PASSWORD:?RCON_PASSWORD must be set}"
 
 cfg_quote() {
+  # Config values are written into a Source-engine file, not passed on argv.
   local value
   value="$1"
   value="${value//$'\r'/}"
@@ -33,7 +35,7 @@ require_integer_in_range() {
 }
 
 link_if_present() {
-  local source_path target_path
+  local source_path source_dir target_path
   source_path="$1"
   target_path="$2"
 
@@ -45,9 +47,27 @@ link_if_present() {
     exit 1
   fi
 
+  # Resolve relative paths before changing directory so the mount target stays stable.
+  if [[ "$source_path" != /* ]]; then
+    source_dir="$(cd -- "$(dirname -- "$source_path")" && pwd -P)"
+    source_path="${source_dir}/$(basename -- "$source_path")"
+  fi
+
   mkdir -p "$(dirname -- "$target_path")"
-  ln -sf "$source_path" "$target_path"
+  if [[ -d "$target_path" ]]; then
+    printf 'Link destination must not be a directory: %s\n' "$target_path" >&2
+    exit 1
+  fi
+  ln -sfn -- "$source_path" "$target_path"
 }
+
+SECRET_CFG_TMP=""
+cleanup_secret_cfg_tmp() {
+  if [[ -n "$SECRET_CFG_TMP" ]]; then
+    rm -f -- "$SECRET_CFG_TMP"
+  fi
+}
+trap cleanup_secret_cfg_tmp EXIT
 
 require_integer_in_range "$CS2_PORT" CS2_PORT 1 65535
 require_integer_in_range "$CS2_MAXPLAYERS" CS2_MAXPLAYERS 1 64
@@ -62,16 +82,24 @@ link_if_present "${CSS_ADMINS_FILE:-}" "${CS2_INSTALL_DIR}/game/csgo/addons/coun
 link_if_present "${CSS_GROUPS_FILE:-}" "${CS2_INSTALL_DIR}/game/csgo/addons/counterstrikesharp/configs/admin_groups.json"
 
 SECRET_CFG_DIR="${CS2_INSTALL_DIR}/game/csgo/cfg"
-SECRET_CFG_FILE="${SECRET_CFG_DIR}/cs2-server-ops-secrets.cfg"
+SECRET_CFG_FILE="${SECRET_CFG_DIR}/3rr-secrets.cfg"
 mkdir -p "$SECRET_CFG_DIR"
+if [[ -d "$SECRET_CFG_FILE" ]]; then
+  printf 'Secret config destination must not be a directory: %s\n' "$SECRET_CFG_FILE" >&2
+  exit 1
+fi
 umask 077
+# Write and rename the secret config atomically with owner-only permissions.
+SECRET_CFG_TMP="$(mktemp "${SECRET_CFG_DIR}/.3rr-secrets.cfg.XXXXXX")"
 {
   printf 'rcon_password %s\n' "$(cfg_quote "$RCON_PASSWORD")"
   if [[ -n "${CS2_GSLT:-}" ]]; then
     printf 'sv_setsteamaccount %s\n' "$(cfg_quote "$CS2_GSLT")"
   fi
-} >"$SECRET_CFG_FILE"
-chmod 0600 "$SECRET_CFG_FILE"
+} >"$SECRET_CFG_TMP"
+chmod 0600 "$SECRET_CFG_TMP"
+mv -f -- "$SECRET_CFG_TMP" "$SECRET_CFG_FILE"
+SECRET_CFG_TMP=""
 
 args=(
   -dedicated
@@ -88,4 +116,6 @@ if [[ -n "${CS2_HOSTNAME:-}" ]]; then
   args+=(+hostname "${CS2_HOSTNAME}")
 fi
 
+# Do not leave credentials available to the long-lived game process.
+unset RCON_PASSWORD CS2_GSLT
 exec "$CS2_BIN" "${args[@]}"

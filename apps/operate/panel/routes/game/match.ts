@@ -1,3 +1,4 @@
+/** Composes match setup, backup, advanced, and explicit-RCON route groups. */
 import express from 'express';
 import setupRoutes from './matchSetupRoutes';
 import backupRoutes from './matchBackupRoutes';

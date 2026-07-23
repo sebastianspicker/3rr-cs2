@@ -1,3 +1,4 @@
+/** Removes control and bidi characters so RCON output cannot mislead operators. */
 const UNSAFE_RCON_DISPLAY_CODE_POINTS = new Set([0x0b, 0x0c, 0x7f, 0x2060, 0xfeff]);
 const UNSAFE_RCON_DISPLAY_RANGES: ReadonlyArray<readonly [number, number]> = [
   [0x00, 0x08],
