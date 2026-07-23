@@ -1,3 +1,4 @@
+/** Extracts operator-safe command suggestions from noisy RCON console output. */
 function isAutocompleteDataLine(line: string): boolean {
   if (!line || /^[-=]+$/.test(line) || /^(cmdlist|cvarlist)$/i.test(line)) return false;
   return !/\b(total|commands?|cvars?)\b/i.test(line) && !/^\]/.test(line);

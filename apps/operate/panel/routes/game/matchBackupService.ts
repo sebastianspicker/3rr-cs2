@@ -1,3 +1,4 @@
+/** Backup service logic that reports partial RCON outcomes explicitly to callers. */
 import { runGameCmd } from './helpers';
 import type { LatestBackupState } from './matchContracts';
 

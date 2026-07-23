@@ -1,3 +1,4 @@
+/** Validates static game-mode configuration before routes expose it to operators. */
 import { z } from 'zod';
 import mapsConfigRaw from '../cfg/maps.json';
 

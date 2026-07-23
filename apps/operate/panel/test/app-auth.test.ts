@@ -1,10 +1,13 @@
+/** Exercises authentication pages and session transitions through the real Express stack. */
 import { test } from 'node:test';
 import {
   app,
   setRconInitSummary,
   loginAndGetSession,
+  postJson,
   assert,
   getLoginPageCsrfAndCookie,
+  withAppServer,
   type AddressInfo,
   type Server,
 } from './app-fixture';
@@ -21,6 +24,24 @@ test('GET / returns login page (not authenticated)', async () => {
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()));
   }
+});
+
+test('GET / explains an expired session recovery', async () => {
+  await withAppServer(async (baseUrl) => {
+    const res = await fetch(`${baseUrl}/?expired=1`);
+    assert.equal(res.status, 200);
+    assert.match(await res.text(), /Your session expired\. Sign in again to continue\./);
+  });
+});
+
+test('stable static asset URLs require cache revalidation', async () => {
+  await withAppServer(async (baseUrl) => {
+    const res = await fetch(`${baseUrl}/css/panel.css`);
+    assert.equal(res.status, 200);
+    const cacheControl = res.headers.get('cache-control') ?? '';
+    assert.match(cacheControl, /max-age=0/);
+    assert.doesNotMatch(cacheControl, /immutable/);
+  });
 });
 
 test('POST /auth/login rejects missing CSRF token', async () => {
@@ -42,20 +63,15 @@ test('POST /auth/login rejects missing CSRF token', async () => {
 });
 
 test('POST /auth/login sets hardened session cookie when CSRF is valid', async () => {
-  const server: Server = app.listen(0);
-  try {
-    const { port } = server.address() as AddressInfo;
+  await withAppServer(async (baseUrl, port) => {
     const { cookie, csrfToken } = await getLoginPageCsrfAndCookie(port);
 
-    const res = await fetch(`http://127.0.0.1:${port}/auth/login`, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        cookie,
-        'x-csrf-token': csrfToken,
-      },
-      body: JSON.stringify({ username: 'testuser', password: ['test', 'pass', '12345'].join('') }),
-    });
+    const res = await postJson(
+      baseUrl,
+      '/auth/login',
+      { username: 'testuser', password: ['test', 'pass', '12345'].join('') },
+      { cookie, 'x-csrf-token': csrfToken }
+    );
 
     assert.equal(res.status, 200);
 
@@ -64,9 +80,7 @@ test('POST /auth/login sets hardened session cookie when CSRF is valid', async (
     assert.ok(/HttpOnly/i.test(loginSetCookie));
     assert.ok(/SameSite=Strict/i.test(loginSetCookie));
     assert.notEqual(loginSetCookie.split(';')[0], cookie, 'session id should rotate on login');
-  } finally {
-    await new Promise<void>((resolve) => server.close(() => resolve()));
-  }
+  });
 });
 
 test('POST /auth/logout requires CSRF when authenticated', async () => {
@@ -97,27 +111,20 @@ test('POST /auth/logout requires CSRF when authenticated', async () => {
 });
 
 test('POST /auth/login returns 401 on invalid password', async () => {
-  const server: Server = app.listen(0);
-  try {
-    const { port } = server.address() as AddressInfo;
+  await withAppServer(async (baseUrl, port) => {
     const { cookie, csrfToken } = await getLoginPageCsrfAndCookie(port);
 
-    const res = await fetch(`http://127.0.0.1:${port}/auth/login`, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        cookie,
-        'x-csrf-token': csrfToken,
-      },
-      body: JSON.stringify({ username: 'testuser', password: 'wrongpassword1' }),
-    });
+    const res = await postJson(
+      baseUrl,
+      '/auth/login',
+      { username: 'testuser', password: 'wrongpassword1' },
+      { cookie, 'x-csrf-token': csrfToken }
+    );
 
     assert.equal(res.status, 401);
     const body = (await res.json()) as Record<string, unknown>;
     assert.equal(body.error, 'Invalid credentials');
-  } finally {
-    await new Promise<void>((resolve) => server.close(() => resolve()));
-  }
+  });
 });
 
 test('POST /api/restart returns unauthorized without session', async () => {
@@ -139,53 +146,41 @@ test('POST /api/restart returns unauthorized without session', async () => {
 });
 
 test('POST /api/restart returns 400 when server_id is missing (authenticated)', async () => {
-  const server: Server = app.listen(0);
-  try {
-    const { port } = server.address() as AddressInfo;
+  await withAppServer(async (baseUrl, port) => {
     const { sessionCookie, csrfToken } = await loginAndGetSession(port);
-
-    const res = await fetch(`http://127.0.0.1:${port}/api/restart`, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        accept: 'application/json',
+    const res = await postJson(
+      baseUrl,
+      '/api/restart',
+      {},
+      {
         cookie: sessionCookie,
         'x-csrf-token': csrfToken,
-      },
-      body: JSON.stringify({}),
-    });
+      }
+    );
 
     assert.equal(res.status, 400);
     const body = (await res.json()) as Record<string, unknown>;
     assert.equal(body.error, 'Missing or invalid server_id');
-  } finally {
-    await new Promise<void>((resolve) => server.close(() => resolve()));
-  }
+  });
 });
 
 test('POST /api/restart rejects malformed server_id (authenticated)', async () => {
-  const server: Server = app.listen(0);
-  try {
-    const { port } = server.address() as AddressInfo;
+  await withAppServer(async (baseUrl, port) => {
     const { sessionCookie, csrfToken } = await loginAndGetSession(port);
-
-    const res = await fetch(`http://127.0.0.1:${port}/api/restart`, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        accept: 'application/json',
+    const res = await postJson(
+      baseUrl,
+      '/api/restart',
+      { server_id: '1abc' },
+      {
         cookie: sessionCookie,
         'x-csrf-token': csrfToken,
-      },
-      body: JSON.stringify({ server_id: '1abc' }),
-    });
+      }
+    );
 
     assert.equal(res.status, 400);
     const body = (await res.json()) as Record<string, unknown>;
     assert.equal(body.error, 'Missing or invalid server_id');
-  } finally {
-    await new Promise<void>((resolve) => server.close(() => resolve()));
-  }
+  });
 });
 
 test('POST /api/rcon blocks command separators (authenticated)', async () => {
@@ -214,19 +209,15 @@ test('POST /api/rcon blocks command separators (authenticated)', async () => {
 });
 
 test('GET /api/health returns minimal payload when unauthenticated', async () => {
-  const server: Server = app.listen(0);
-  try {
-    const { port } = server.address() as AddressInfo;
-    const res = await fetch(`http://127.0.0.1:${port}/api/health`);
+  await withAppServer(async (baseUrl) => {
+    const res = await fetch(`${baseUrl}/api/health`);
     assert.equal(res.status, 200);
     assert.equal(res.headers.get('ratelimit-policy'), null);
     const body = (await res.json()) as Record<string, unknown>;
     assert.deepEqual(Object.keys(body).sort(), ['ok', 'ready']);
     assert.equal(body.ok, true);
     assert.equal(body.ready, true);
-  } finally {
-    await new Promise<void>((resolve) => server.close(() => resolve()));
-  }
+  });
 });
 
 test('GET /api/health/ bypasses rate limiting like /api/health', async () => {
@@ -243,24 +234,23 @@ test('GET /api/health/ bypasses rate limiting like /api/health', async () => {
 });
 
 test('GET /api/health returns verbose payload when HEALTHCHECK_VERBOSE=true', async () => {
-  const server: Server = app.listen(0);
   const previous = process.env.HEALTHCHECK_VERBOSE;
   process.env.HEALTHCHECK_VERBOSE = 'true';
   try {
-    const { port } = server.address() as AddressInfo;
-    const res = await fetch(`http://127.0.0.1:${port}/api/health`);
-    assert.equal(res.status, 200);
-    assert.equal(res.headers.get('ratelimit-policy'), null);
-    const body = (await res.json()) as Record<string, unknown>;
-    assert.deepEqual(Object.keys(body).sort(), ['db', 'ok', 'rcon', 'ready', 'redis']);
-    assert.equal(body.ready, true);
+    await withAppServer(async (baseUrl) => {
+      const res = await fetch(`${baseUrl}/api/health`);
+      assert.equal(res.status, 200);
+      assert.equal(res.headers.get('ratelimit-policy'), null);
+      const body = (await res.json()) as Record<string, unknown>;
+      assert.deepEqual(Object.keys(body).sort(), ['db', 'ok', 'rcon', 'ready', 'redis']);
+      assert.equal(body.ready, true);
+    });
   } finally {
     if (previous === undefined) {
       delete process.env.HEALTHCHECK_VERBOSE;
     } else {
       process.env.HEALTHCHECK_VERBOSE = previous;
     }
-    await new Promise<void>((resolve) => server.close(() => resolve()));
   }
 });
 

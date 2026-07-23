@@ -1,10 +1,11 @@
+/** Optional Redis integration for shared sessions and rate-limit storage. */
 import { createClient } from 'redis';
 import { RedisStore as RateLimitRedisStore } from 'rate-limit-redis';
 import logger from './logger';
 
 export const redisUrl = process.env.REDIS_URL ?? null;
 
-// Singleton Redis client — null when Redis is not configured.
+// Singleton Redis client - null when Redis is not configured.
 export const redisClient = redisUrl
   ? (() => {
       const client = createClient({ url: redisUrl });

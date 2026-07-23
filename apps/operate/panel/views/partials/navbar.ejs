@@ -1,19 +1,45 @@
-<nav class="panel-nav">
+<%# Shared navigation; administrator links remain conditional on server-rendered access state. %>
+<nav class="panel-nav shell-nav" aria-label="Primary navigation">
   <div class="nav-inner">
-    <a class="nav-brand" href="/servers">CS2 Panel</a>
-    <button class="nav-toggle" id="nav-toggle-btn" aria-label="Toggle navigation" aria-expanded="false">&#9776;</button>
+    <a class="nav-brand" href="/servers" aria-label="3RR Operate">
+        <span class="brand-name">3RR</span><span class="brand-slashes" aria-hidden="true">///</span>
+      <span class="nav-product">Operate</span>
+    </a>
+    <button class="nav-toggle" id="nav-toggle-btn" aria-label="Open navigation" aria-expanded="false" aria-controls="nav-links-list">
+      <span aria-hidden="true">&#9776;</span><span class="nav-toggle-label">Menu</span>
+    </button>
     <ul class="nav-links" id="nav-links-list">
-      <li><a href="/servers">Servers</a></li>
-      <li><a href="/add-server">Add Server</a></li>
+      <li><a href="/servers">Fleet</a></li>
+      <li><a href="/add-server">Add server</a></li>
       <li><a href="/settings">Settings</a></li>
       <% if (locals.isAdmin) { %>
       <li><a href="/admin/users">Users</a></li>
       <% } %>
     </ul>
+    <% if (typeof server_id !== 'undefined') { %>
+      <%
+        const navRconOnline = connected && authenticated;
+        const navRconUnknown = Boolean(hostname_error);
+        const navStatusDotClass = navRconOnline ? 'online' : navRconUnknown ? 'unknown' : 'offline';
+        const navStatusBadgeClass = navRconOnline ? 'badge-connected' : navRconUnknown ? 'badge-unknown' : 'badge-disconnected';
+        const navStatusLabel = navRconOnline ? 'Connected' : navRconUnknown ? 'Unknown' : 'Disconnected';
+      %>
+      <div class="nav-server-list" aria-label="Authorized servers">
+        <p class="nav-section-label">Authorized servers</p>
+        <a class="nav-server is-active" href="/manage/<%= server_id %>" aria-current="location">
+          <span class="status-dot <%= navStatusDotClass %>" aria-hidden="true"></span>
+          <span class="nav-server-copy">
+            <strong><%= hostname && hostname !== '–' ? hostname : 'Server ' + server_id %></strong>
+            <span class="badge <%= navStatusBadgeClass %>" data-live-status-badge><%= navStatusLabel %></span>
+          </span>
+        </a>
+      </div>
+    <% } %>
     <div class="nav-actions">
+      <span class="nav-operator"><span aria-hidden="true">●</span> <%= locals.isAdmin ? 'admin' : 'operator' %></span>
       <form action="/auth/logout" method="post">
         <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-        <button type="submit" class="btn btn-ghost btn-sm">Logout</button>
+        <button type="submit" class="btn btn-ghost btn-sm">Sign out</button>
       </form>
     </div>
   </div>
@@ -22,7 +48,10 @@
   (function () {
     var path = window.location.pathname;
     document.querySelectorAll('#nav-links-list a').forEach(function (a) {
-      if (a.getAttribute('href') === path) a.setAttribute('aria-current', 'page');
+      var href = a.getAttribute('href');
+      if (href === path || (href === '/servers' && path.indexOf('/manage/') === 0)) {
+        a.setAttribute('aria-current', 'page');
+      }
     });
     var btn = document.getElementById('nav-toggle-btn');
     var links = document.getElementById('nav-links-list');
@@ -30,6 +59,14 @@
       btn.addEventListener('click', function () {
         var open = links.classList.toggle('open');
         btn.setAttribute('aria-expanded', String(open));
+        btn.setAttribute('aria-label', open ? 'Close navigation' : 'Open navigation');
+      });
+      document.addEventListener('keydown', function (event) {
+        if (event.key !== 'Escape' || !links.classList.contains('open')) return;
+        links.classList.remove('open');
+        btn.setAttribute('aria-expanded', 'false');
+        btn.setAttribute('aria-label', 'Open navigation');
+        btn.focus();
       });
     }
   })();

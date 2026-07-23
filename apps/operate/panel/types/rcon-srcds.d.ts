@@ -1,3 +1,4 @@
+/** Describes the minimal rcon-srcds surface the manager owns and tests. */
 declare module 'rcon-srcds' {
   import type { Socket } from 'node:net';
 

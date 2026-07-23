@@ -1,0 +1,55 @@
+# Structured fields keep public bug reports reproducible and free of credentials.
+name: Bug report
+description: Report a reproducible defect in provision, maintain, or operate.
+title: "[Bug]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve 3rr. Do not include passwords,
+        tokens, private IP inventories, or live RCON credentials.
+  - type: dropdown
+    id: module
+    attributes:
+      label: Affected module
+      options:
+        - operate panel
+        - maintain updater
+        - provision bootstrap
+        - shared configuration or documentation
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+      description: Provide a tag or full commit SHA when possible.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction steps
+      description: Include the smallest deterministic sequence that demonstrates the problem.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected and observed behavior
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Sanitized logs or screenshots
+      description: Redact secrets, usernames, hostnames, and private network details.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Safety check
+      options:
+        - label: I removed credentials and sensitive infrastructure details.
+          required: true
+        - label: This is not a vulnerability report.
+          required: true

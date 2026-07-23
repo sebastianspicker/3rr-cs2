@@ -1,0 +1,34 @@
+        <div class="panel observed-panel" id="overview">
+          <div class="panel-header">
+            <h2 aria-label="RCON Observed Status"><span aria-hidden="true">Live match</span></h2>
+            <button id="refresh_status" class="btn btn-ghost btn-sm" aria-label="Refresh live status">&#8635; Refresh</button>
+          </div>
+          <p class="small text-muted mb-sm" id="live-status-updated" aria-live="polite">No RCON observation yet.</p>
+          <p class="small text-danger mb-sm" id="live-status-error" hidden></p>
+          <div class="data-grid">
+            <div class="data-item status-state-item">
+              <span class="data-label">RCON State</span>
+              <span class="data-value" id="live-status-state">--</span>
+            </div>
+            <div class="data-item status-hostname-item">
+              <span class="data-label">Hostname</span>
+              <span class="data-value" id="live-hostname">--</span>
+            </div>
+            <div class="data-item status-map-item">
+              <span class="data-label">Map</span>
+              <span class="data-value" id="live-map">--</span>
+            </div>
+            <div class="data-item status-players-item">
+              <span class="data-label">Players</span>
+              <span class="data-value" id="live-players">--</span>
+            </div>
+            <div class="data-item status-bots-item">
+              <span class="data-label">Bots</span>
+              <span class="data-value" id="live-bots">--</span>
+            </div>
+            <div class="data-item status-max-item">
+              <span class="data-label">Max Players</span>
+              <span class="data-value" id="live-max-players">--</span>
+            </div>
+          </div>
+        </div>

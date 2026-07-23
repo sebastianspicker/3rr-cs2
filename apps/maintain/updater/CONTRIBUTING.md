@@ -1,7 +1,5 @@
 # Contributing
 
-Thanks for considering a contribution.
-
 ## Local Setup
 
 Install the linting and formatting tools. GitHub Actions installs these via
@@ -34,7 +32,7 @@ Or install manually: [shellcheck](https://github.com/koalaman/shellcheck) 0.10.0
 - Describe the problem and the proposed solution.
 - Include verification steps and relevant logs (redact secrets).
 - Update documentation if behavior changes.
-- CODEOWNERS requires maintainer review for changes to `update_cs2.sh`, `Makefile`, `scripts/`, and `.github/`.
+- Root CODEOWNERS requires maintainer review for updater runtime, tooling, and workflow changes.
 
 ## Commit Messages
 
@@ -42,4 +40,5 @@ Use conventional commits: `fix:`, `feat:`, `docs:`, `test:`, `ci:`, `refactor:`,
 
 ## Security
 
-Please do not file public issues for security-sensitive reports. Use GitHub Security Advisories if available.
+Please do not file public issues for security-sensitive reports. Use a private
+[GitHub security advisory](https://github.com/sebastianspicker/cs2-server-ops/security/advisories/new).

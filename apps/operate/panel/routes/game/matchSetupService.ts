@@ -1,3 +1,4 @@
+/** Converts validated setup choices into an ordered, safe RCON command sequence. */
 import { getMapsForMode, mapsConfig } from '../../utils/mapsConfig';
 import { execCfg, runGameCmd, sanitizeCfgName, sanitizeString, MAX_TEAM_NAME_LEN } from './helpers';
 import type { z } from 'zod';

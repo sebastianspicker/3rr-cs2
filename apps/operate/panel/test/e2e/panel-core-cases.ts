@@ -1,3 +1,4 @@
+/** Covers the primary browser flows and trust-boundary error states. */
 import { login, seedManageServer, confirmModal, expect, test } from './panel-fixture';
 
 export function registerCoreCases(): void {
@@ -17,23 +18,23 @@ export function registerCoreCases(): void {
     await expect(page.locator('#serverList')).toContainText('No servers configured yet.');
     await expect(page.getByRole('link', { name: 'Users' })).toBeVisible();
 
-    await page.getByRole('button', { name: 'Logout' }).click();
+    await page.getByRole('button', { name: 'Sign out' }).click();
     await expect(page).toHaveURL('/');
-    await expect(page.getByRole('heading', { name: 'CS2 Panel' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: '3RR' })).toBeVisible();
   });
 
   test('operator sees a validation error when adding an invalid server address', async ({
     page,
   }) => {
     await login(page);
-    await page.getByRole('link', { name: 'Add Server' }).click();
+    await page.getByRole('link', { name: 'Add server' }).click();
 
-    await page.getByLabel('Server IP').fill('not a valid host');
-    await page.getByLabel('Server Port').fill('27015');
-    await page.getByLabel('RCON Password').fill('not-used-by-validation');
-    await page.getByLabel('RCON Password').press('Enter');
+    await page.getByLabel('Server address').fill('not a valid host');
+    await page.getByLabel('RCON port').fill('27015');
+    await page.getByLabel('RCON password').fill('not-used-by-validation');
+    await page.getByLabel('RCON password').press('Enter');
 
-    await expect(page.locator('#cs-toast-container')).toContainText(
+    await expect(page.locator('#add-server-status')).toContainText(
       'server_ip must be a valid IPv4/IPv6 address or hostname'
     );
   });
@@ -47,25 +48,29 @@ export function registerCoreCases(): void {
     await page.goto(`/manage/${serverId}`);
 
     await expect(page.getByText('Initial RCON status was not observed')).toBeVisible();
-    await expect(page.locator('.manage-header')).toContainText('Status not observed');
+    await expect(page.locator('.manage-header')).toContainText('RCON error');
     await expect(page.getByRole('heading', { name: 'RCON Observed Status' })).toBeVisible();
     await expect(page.locator('#live-status-state')).toContainText('RCON error');
     await expect(page.locator('#live-status-error')).toContainText('status unavailable');
     await expect(page.getByRole('heading', { name: 'RCON Players' })).toBeVisible();
     await expect(page.locator('#players-error')).toContainText('users unavailable');
 
+    await page.locator('details.setup-advanced > summary').click();
     await page.getByLabel('Workshop favorite name').fill('E2E Workshop');
     await page.getByLabel('Workshop favorite ID').fill('12345678901');
     await page.getByRole('button', { name: 'Save' }).click();
     await expect(page.locator('#workshopFavoritesList')).toContainText('E2E Workshop');
 
-    await page.locator('summary').filter({ hasText: 'RCON Console' }).click();
+    await expect(page.locator('#console')).toHaveAttribute('open', '');
     await expect(page.locator('#rconHistoryList')).toContainText('No sent RCON commands yet.');
     await expect(page.getByRole('button', { name: 'Suggest' })).toBeVisible();
 
-    await expect(page.getByRole('button', { name: 'Add Bot' })).toBeHidden();
-    await page.locator('summary').filter({ hasText: 'Quick Commands' }).click();
+    await expect(page.locator('details.match-panel')).toHaveAttribute('open', '');
+    await page.locator('#advanced-controls > summary').click();
     await expect(page.getByRole('button', { name: 'Add Bot' })).toBeVisible();
+    await expect(page.locator('#limitteams_on')).toHaveAttribute('aria-pressed', 'false');
+    await expect(page.locator('#limitteams_off')).toHaveAttribute('aria-pressed', 'false');
+    await expect(page.getByRole('group', { name: 'Team limit' })).toBeVisible();
 
     await expect(page.getByRole('button', { name: 'Practice Mode' })).toBeHidden();
     await page.locator('summary').filter({ hasText: 'Practice Controls' }).click();
@@ -89,8 +94,6 @@ export function registerCoreCases(): void {
     });
 
     await page.goto(`/manage/${serverId}`);
-    await page.locator('summary').filter({ hasText: 'RCON Console' }).click();
-
     await expect(page.locator('#rconHistoryList')).toContainText(
       'RCON sent-command history unavailable.'
     );
@@ -120,7 +123,6 @@ export function registerCoreCases(): void {
     });
 
     await page.goto(`/manage/${serverId}`);
-    await page.locator('summary').filter({ hasText: 'RCON Console' }).click();
     await page.locator('#rconInput').fill('sta');
     await page.getByRole('button', { name: 'Suggest' }).click();
 
@@ -171,7 +173,6 @@ export function registerCoreCases(): void {
     });
 
     await page.goto(`/manage/${serverId}`);
-    await page.locator('summary').filter({ hasText: 'RCON Console' }).click();
     await page.locator('#rconInput').fill('status');
 
     const sendButton = page.locator('#rconInputBtn');
@@ -186,7 +187,43 @@ export function registerCoreCases(): void {
 
     await expect(sendButton).toBeEnabled();
     await expect(page.locator('#rconResultText')).toContainText('hostname: E2E');
+    await expect(page.locator('#rcon-command-status')).toContainText('Command sent.');
     await expect(page.locator('#rconInput')).toHaveValue('');
+  });
+
+  test('confirmed match actions disable only their initiating control while pending', async ({
+    page,
+  }) => {
+    await login(page);
+    const serverId = seedManageServer();
+    let requestCount = 0;
+    const restartGate: { release?: () => void } = {};
+
+    await page.route('**/api/restart', async (route) => {
+      requestCount += 1;
+      await new Promise<void>((resolve) => {
+        restartGate.release = resolve;
+      });
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ message: 'Restart command sent.' }),
+      });
+    });
+
+    await page.goto(`/manage/${serverId}`);
+    const restartButton = page.locator('#restart_game');
+    await restartButton.click();
+    await confirmModal(page, 'Restart the game?');
+
+    await expect(restartButton).toBeDisabled();
+    await expect(page.locator('#pause_game')).toBeEnabled();
+    expect(requestCount).toBe(1);
+    const release = restartGate.release;
+    if (!release) throw new Error('Restart route was not called');
+    release();
+    await expect(restartButton).toBeEnabled();
+    expect(requestCount).toBe(1);
   });
 
   test('RCON history use and clear update the input and empty state', async ({ page }) => {
@@ -221,8 +258,6 @@ export function registerCoreCases(): void {
     });
 
     await page.goto(`/manage/${serverId}`);
-    await page.locator('summary').filter({ hasText: 'RCON Console' }).click();
-
     const historyList = page.locator('#rconHistoryList');
     await expect(historyList).toContainText('mp_maxrounds 30');
     await historyList.getByRole('button', { name: 'Use' }).click();

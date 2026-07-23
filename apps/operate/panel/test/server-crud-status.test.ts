@@ -1,9 +1,12 @@
+/** Covers server-list status provenance without collapsing unknown states into disconnected. */
 import { test } from 'node:test';
 import type { AddressInfo, Server, ServerListItem } from './server-crud-fixture';
 import {
   app,
   assert,
+  getAccessibleServers,
   loginAndGetSession,
+  postAddServer,
   probeCalls,
   connectCalls,
   connectedServerIds,
@@ -31,20 +34,15 @@ test('POST /api/add-server returns a generic auth failure for existing servers',
     const { port } = server.address() as AddressInfo;
     const { sessionCookie, csrfToken } = await loginAndGetSession(port);
 
-    const res = await fetch(`http://127.0.0.1:${port}/api/add-server`, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        accept: 'application/json',
-        cookie: sessionCookie,
-        'x-csrf-token': csrfToken,
-      },
-      body: JSON.stringify({
+    const res = await postAddServer(
+      port,
+      { sessionCookie, csrfToken },
+      {
         server_ip: '203.0.113.9',
         server_port: 27015,
         rcon_password: 'wrong-password',
-      }),
-    });
+      }
+    );
 
     assert.equal(res.status, 400);
     const body = (await res.json()) as Record<string, unknown>;
@@ -78,20 +76,15 @@ test('POST /api/add-server reports post-probe RCON connection failure', async ()
     const { port } = server.address() as AddressInfo;
     const { sessionCookie, csrfToken } = await loginAndGetSession(port);
 
-    const res = await fetch(`http://127.0.0.1:${port}/api/add-server`, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        accept: 'application/json',
-        cookie: sessionCookie,
-        'x-csrf-token': csrfToken,
-      },
-      body: JSON.stringify({
+    const res = await postAddServer(
+      port,
+      { sessionCookie, csrfToken },
+      {
         server_ip: '203.0.113.10',
         server_port: 27015,
         rcon_password: ['test', 'rcon', 'password'].join('-'),
-      }),
-    });
+      }
+    );
 
     assert.equal(res.status, 502);
     const body = (await res.json()) as Record<string, unknown>;
@@ -202,12 +195,7 @@ test('GET /api/servers returns only accessible servers and preserves unobserved 
     const { port } = server.address() as AddressInfo;
     const { sessionCookie } = await loginAndGetSession(port);
 
-    const res = await fetch(`http://127.0.0.1:${port}/api/servers`, {
-      headers: {
-        accept: 'application/json',
-        cookie: sessionCookie,
-      },
-    });
+    const res = await getAccessibleServers(port, sessionCookie);
 
     assert.equal(res.status, 200);
     const body = (await res.json()) as { servers: ServerListItem[] };
@@ -249,12 +237,7 @@ test('GET /api/servers reports observed connected RCON status from hostname prob
     const { port } = server.address() as AddressInfo;
     const { sessionCookie } = await loginAndGetSession(port);
 
-    const res = await fetch(`http://127.0.0.1:${port}/api/servers`, {
-      headers: {
-        accept: 'application/json',
-        cookie: sessionCookie,
-      },
-    });
+    const res = await getAccessibleServers(port, sessionCookie);
 
     assert.equal(res.status, 200);
     const body = (await res.json()) as { servers: ServerListItem[] };
@@ -290,12 +273,7 @@ test('GET /api/servers reports timed-out hostname probe without marking status d
     const { port } = server.address() as AddressInfo;
     const { sessionCookie } = await loginAndGetSession(port);
 
-    const res = await fetch(`http://127.0.0.1:${port}/api/servers`, {
-      headers: {
-        accept: 'application/json',
-        cookie: sessionCookie,
-      },
-    });
+    const res = await getAccessibleServers(port, sessionCookie);
 
     assert.equal(res.status, 200);
     const body = (await res.json()) as { servers: ServerListItem[] };
@@ -329,12 +307,7 @@ test('GET /api/servers reports failed hostname probe without marking status disc
     const { port } = server.address() as AddressInfo;
     const { sessionCookie } = await loginAndGetSession(port);
 
-    const res = await fetch(`http://127.0.0.1:${port}/api/servers`, {
-      headers: {
-        accept: 'application/json',
-        cookie: sessionCookie,
-      },
-    });
+    const res = await getAccessibleServers(port, sessionCookie);
 
     assert.equal(res.status, 200);
     const body = (await res.json()) as { servers: ServerListItem[] };

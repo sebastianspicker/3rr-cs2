@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Installs pinned shell-quality tools into a repository-local CI cache.
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -20,6 +21,7 @@ mkdir -p "$BIN_DIR"
 echo "Using CI tools dir: $CI_TOOLS_DIR"
 
 add_path() {
+    # Prefer GitHub's path file so later workflow steps see the cached tools.
     if [ -n "${GITHUB_PATH:-}" ]; then
         echo "$BIN_DIR" >> "$GITHUB_PATH"
     else
@@ -126,6 +128,7 @@ install_shellcheck() {
         exit 2
     fi
 
+    # Download to an isolated directory so a failed verification cannot replace a tool.
     tmpdir="$(mktemp -d)"
 
     echo "Downloading shellcheck $SHELLCHECK_VERSION..."
@@ -183,6 +186,7 @@ install_shfmt() {
         exit 2
     fi
 
+    # Download to an isolated directory so a failed verification cannot replace a tool.
     tmpdir="$(mktemp -d)"
 
     echo "Downloading shfmt $SHFMT_VERSION..."

@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { spawn, type ChildProcess } from 'node:child_process';
 import http from 'node:http';
 import { getLoginPageCsrfAndCookie, loopbackFetch } from './http-helpers';
-export { fs, path, assert, spawn, http };
+export { fs, path, assert };
 export type { ChildProcess };
 
 export let tmpDir: string;
@@ -116,18 +116,46 @@ export async function startEntrypoint(
   return { child, port, output };
 }
 
-export async function stopEntrypoint(child: ChildProcess): Promise<void> {
+export async function stopEntrypoint(child: ChildProcess): Promise<number | null> {
   child.kill('SIGINT');
-  await new Promise<void>((resolve) => {
+  return new Promise<number | null>((resolve) => {
     const forceKill = setTimeout(() => {
       child.kill('SIGKILL');
-      resolve();
+      resolve(null);
     }, EXIT_TIMEOUT_MS);
-    child.once('exit', () => {
+    child.once('exit', (code) => {
       clearTimeout(forceKill);
-      resolve();
+      resolve(code);
     });
   });
+}
+
+/** Runs a deliberately invalid production configuration until its fail-fast exit. */
+export async function runEntrypointToExit(
+  envOverrides: NodeJS.ProcessEnv
+): Promise<{ code: number | null; output: string }> {
+  const child = spawn(cmd, cmdArgs, {
+    env: { ...process.env, PORT: '0', ...envOverrides },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  let output = '';
+  const collectOutput = (chunk: Buffer) => {
+    output += chunk.toString();
+  };
+  child.stdout?.on('data', collectOutput);
+  child.stderr?.on('data', collectOutput);
+
+  const code = await new Promise<number | null>((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      child.kill('SIGKILL');
+      reject(new Error(`timeout waiting for process exit.\noutput:\n${output}`));
+    }, EXIT_TIMEOUT_MS);
+    child.once('exit', (exitCode) => {
+      clearTimeout(timeout);
+      resolve(exitCode);
+    });
+  });
+  return { code, output };
 }
 
 export async function postLogin(
@@ -149,8 +177,8 @@ export async function postLogin(
 }
 
 before(() => {
-  tmpDir = fs.mkdtempSync(path.join(process.cwd(), 'tmp-entry-cs2-panel-'));
-  dbPath = path.join(tmpDir, 'cspanel.db');
+  tmpDir = fs.mkdtempSync(path.join(process.cwd(), 'tmp-entry-3rr-'));
+  dbPath = path.join(tmpDir, '3rr.db');
 });
 
 after(() => {

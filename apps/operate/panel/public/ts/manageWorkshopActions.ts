@@ -1,3 +1,4 @@
+/** Sends workshop mutations only after confirmation and refreshes settled state. */
 import { fetchJson, sendPostRequest, showConfirm, showToast, toastError } from './common';
 import { el, type WorkshopFavoriteResponse } from './manageShared';
 import { workshopIdFromInput } from './manageWorkshopHelpers';

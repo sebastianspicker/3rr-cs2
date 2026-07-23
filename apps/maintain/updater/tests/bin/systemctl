@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Deterministic systemctl double for lifecycle ordering and recovery tests.
 set -euo pipefail
 
 calls_file="${SYSTEMCTL_CALLS_FILE:-/tmp/systemctl.calls}"
@@ -6,6 +7,8 @@ state_file="${SYSTEMCTL_STATE_FILE:-/tmp/systemctl.state}"
 stop_exit="${SYSTEMCTL_STOP_EXIT:-0}"
 start_exit="${SYSTEMCTL_START_EXIT:-0}"
 start_state="${SYSTEMCTL_START_STATE:-active}"
+stop_changes_state="${SYSTEMCTL_STOP_CHANGES_STATE:-0}"
+signal_during_stop="${SYSTEMCTL_SIGNAL_DURING_STOP:-}"
 
 action="${1:-}"
 shift || true
@@ -20,6 +23,14 @@ case "$action" in
     stop)
         record_event "stop"
         echo "stop" >> "$calls_file"
+        if [ "$stop_changes_state" = "1" ]; then
+            echo "inactive" > "$state_file"
+        fi
+        if [ -n "$signal_during_stop" ]; then
+            # Exercise trap-based restart recovery at the interruption boundary.
+            echo "inactive" > "$state_file"
+            kill -s "$signal_during_stop" "$PPID"
+        fi
         if [ "$stop_exit" -ne 0 ]; then
             exit "$stop_exit"
         fi

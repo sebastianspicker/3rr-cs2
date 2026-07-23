@@ -5,28 +5,21 @@ import {
   resetRconCommands,
   setFailingRconCommands,
   loginAndGetSession,
-  loginOrReuseSession,
   assert,
+  withAppServer,
+  postJson,
   type AddressInfo,
   type Server,
 } from './app-fixture';
+import { assertSetupGameMapCase, submitSetupGame } from './app-setup-game-helpers';
 
 test('POST /api/test/servers is not mounted when the legacy E2E route flag is present', async () => {
-  const server: Server = app.listen(0);
-  try {
-    const { port } = server.address() as AddressInfo;
-    const res = await fetch(`http://127.0.0.1:${port}/api/test/servers`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', accept: 'application/json' },
-      body: JSON.stringify({}),
-    });
-
+  await withAppServer(async (baseUrl) => {
+    const res = await postJson(baseUrl, '/api/test/servers', {});
     assert.equal(res.status, 404);
     const body = (await res.json()) as Record<string, unknown>;
     assert.equal(body.error, 'Not found');
-  } finally {
-    await new Promise<void>((resolve) => server.close(() => resolve()));
-  }
+  });
 });
 
 // ─── Quick-wins: auth guard for all 12 new routes ───────────────────────────
@@ -211,83 +204,35 @@ test('POST /api/set-buytime returns 400 for invalid preset value', async () => {
 });
 
 test('POST /api/setup-game: wingman rejects active-duty map (de_mirage not in mg_wingman)', async () => {
-  const server: Server = app.listen(0);
-  try {
-    const { port } = server.address() as AddressInfo;
-    const { sessionCookie, csrfToken } = await loginOrReuseSession(port);
-    const res = await fetch(`http://127.0.0.1:${port}/api/setup-game`, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        accept: 'application/json',
-        cookie: sessionCookie,
-        'x-csrf-token': csrfToken,
-      },
-      body: JSON.stringify({
-        server_id: 1,
-        game_type: 'competitive',
-        game_mode: 'wingman',
-        selectedMap: 'de_mirage',
-      }),
-    });
-    assert.equal(res.status, 400);
-    const body = (await res.json()) as { error: string };
-    assert.match(body.error, /selectedMap must be one of/);
-  } finally {
-    await new Promise<void>((resolve) => server.close(() => resolve()));
-  }
+  await assertSetupGameMapCase({
+    name: 'wingman rejects active-duty map',
+    gameType: 'competitive',
+    gameMode: 'wingman',
+    selectedMap: 'de_mirage',
+    expectedStatus: 400,
+  });
 });
 
 test('POST /api/setup-game: wingman accepts wingman map', async () => {
-  const server: Server = app.listen(0);
-  try {
-    const { port } = server.address() as AddressInfo;
-    const { sessionCookie, csrfToken } = await loginOrReuseSession(port);
-    const res = await fetch(`http://127.0.0.1:${port}/api/setup-game`, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        accept: 'application/json',
-        cookie: sessionCookie,
-        'x-csrf-token': csrfToken,
-      },
-      body: JSON.stringify({
-        server_id: 1,
-        game_type: 'competitive',
-        game_mode: 'wingman',
-        selectedMap: 'de_overpass',
-      }),
-    });
-    assert.equal(res.status, 200);
-  } finally {
-    await new Promise<void>((resolve) => server.close(() => resolve()));
-  }
+  await assertSetupGameMapCase({
+    name: 'wingman accepts wingman map',
+    gameType: 'competitive',
+    gameMode: 'wingman',
+    selectedMap: 'de_overpass',
+    expectedStatus: 200,
+  });
 });
 
 test('POST /api/setup-game does not change map when execCfg fails', async () => {
-  const server: Server = app.listen(0);
   try {
     resetRconCommands();
     setFailingRconCommands(['exec wingman.cfg']);
-    const { port } = server.address() as AddressInfo;
-    const { sessionCookie, csrfToken } = await loginOrReuseSession(port);
-
-    const res = await fetch(`http://127.0.0.1:${port}/api/setup-game`, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        accept: 'application/json',
-        cookie: sessionCookie,
-        'x-csrf-token': csrfToken,
-      },
-      body: JSON.stringify({
-        server_id: 1,
-        game_type: 'competitive',
-        game_mode: 'wingman',
-        selectedMap: 'de_overpass',
-        team1: 'Alpha',
-        team2: 'Bravo',
-      }),
+    const res = await submitSetupGame({
+      gameType: 'competitive',
+      gameMode: 'wingman',
+      selectedMap: 'de_overpass',
+      team1: 'Alpha',
+      team2: 'Bravo',
     });
 
     assert.equal(res.status, 500);
@@ -299,60 +244,25 @@ test('POST /api/setup-game does not change map when execCfg fails', async () => 
   } finally {
     setFailingRconCommands([]);
     resetRconCommands();
-    await new Promise<void>((resolve) => server.close(() => resolve()));
   }
 });
 
 test('POST /api/setup-game: ctf rejects non-ctf map', async () => {
-  const server: Server = app.listen(0);
-  try {
-    const { port } = server.address() as AddressInfo;
-    const { sessionCookie, csrfToken } = await loginOrReuseSession(port);
-    const res = await fetch(`http://127.0.0.1:${port}/api/setup-game`, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        accept: 'application/json',
-        cookie: sessionCookie,
-        'x-csrf-token': csrfToken,
-      },
-      body: JSON.stringify({
-        server_id: 1,
-        game_type: 'fun',
-        game_mode: 'ctf',
-        selectedMap: 'de_mirage',
-      }),
-    });
-    assert.equal(res.status, 400);
-    const body = (await res.json()) as { error: string };
-    assert.match(body.error, /selectedMap must be one of/);
-  } finally {
-    await new Promise<void>((resolve) => server.close(() => resolve()));
-  }
+  await assertSetupGameMapCase({
+    name: 'ctf rejects non-ctf map',
+    gameType: 'fun',
+    gameMode: 'ctf',
+    selectedMap: 'de_mirage',
+    expectedStatus: 400,
+  });
 });
 
 test('POST /api/setup-game: ctf accepts ctf map', async () => {
-  const server: Server = app.listen(0);
-  try {
-    const { port } = server.address() as AddressInfo;
-    const { sessionCookie, csrfToken } = await loginOrReuseSession(port);
-    const res = await fetch(`http://127.0.0.1:${port}/api/setup-game`, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        accept: 'application/json',
-        cookie: sessionCookie,
-        'x-csrf-token': csrfToken,
-      },
-      body: JSON.stringify({
-        server_id: 1,
-        game_type: 'fun',
-        game_mode: 'ctf',
-        selectedMap: 'workshop/3555531615/ctf_2fort',
-      }),
-    });
-    assert.equal(res.status, 200);
-  } finally {
-    await new Promise<void>((resolve) => server.close(() => resolve()));
-  }
+  await assertSetupGameMapCase({
+    name: 'ctf accepts ctf map',
+    gameType: 'fun',
+    gameMode: 'ctf',
+    selectedMap: 'workshop/3555531615/ctf_2fort',
+    expectedStatus: 200,
+  });
 });

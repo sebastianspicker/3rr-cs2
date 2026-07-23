@@ -1,3 +1,4 @@
+/** Locks route identifiers to canonical positive integers before authorization queries run. */
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { parseServerId } from '../utils/parseServerId';

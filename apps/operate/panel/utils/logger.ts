@@ -1,3 +1,4 @@
+/** Central structured logger so runtime diagnostics share one policy. */
 import pino from 'pino';
 
 const logger = pino({

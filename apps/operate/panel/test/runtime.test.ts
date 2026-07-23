@@ -1,3 +1,4 @@
+/** Fails early when tests run outside the package's supported Node 22 runtime. */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 

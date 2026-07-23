@@ -1,5 +1,26 @@
+/** Loopback-only HTTP helpers shared by route integration tests. */
 import assert from 'node:assert/strict';
 import { request as httpRequest } from 'node:http';
+
+interface PanelTestEnvironment {
+  username: string;
+  password: string;
+  sessionSecret: string;
+  enableLegacyE2ERouteFlag?: boolean;
+}
+
+/** Applies the common non-production environment contract used by panel integration fixtures. */
+export function configurePanelTestEnvironment(dbPath: string, options: PanelTestEnvironment): void {
+  process.env.NODE_ENV = 'test';
+  process.env.DB_PATH = dbPath;
+  process.env.DEFAULT_USERNAME = options.username;
+  process.env.DEFAULT_PASSWORD = options.password;
+  process.env.ALLOW_DEFAULT_CREDENTIALS = 'true';
+  process.env.SESSION_SECRET = options.sessionSecret;
+  if (options.enableLegacyE2ERouteFlag !== undefined) {
+    process.env.ENABLE_E2E_TEST_ROUTES = String(options.enableLegacyE2ERouteFlag);
+  }
+}
 
 export function loopbackFetch(urlValue: string, init: RequestInit = {}): Promise<Response> {
   const url = new URL(urlValue);
@@ -43,7 +64,7 @@ export async function getPageCsrfToken(
   cookie?: string | null,
   pagePath = '/servers'
 ): Promise<string | null> {
-  const res = await fetch(`http://127.0.0.1:${port}${pagePath}`, {
+  const res = await loopbackFetch(`http://127.0.0.1:${port}${pagePath}`, {
     headers: cookie ? { cookie } : {},
   });
   const text = await res.text();
@@ -54,7 +75,7 @@ export async function getPageCsrfToken(
 export async function getLoginPageCsrfAndCookie(
   port: number
 ): Promise<{ cookie: string; csrfToken: string }> {
-  const res = await fetch(`http://127.0.0.1:${port}/`);
+  const res = await loopbackFetch(`http://127.0.0.1:${port}/`);
   const setCookie = res.headers.get('set-cookie');
   assert.ok(setCookie, 'Login page must set a session cookie');
   const cookie = setCookie.split(';')[0];
@@ -73,7 +94,7 @@ export async function loginAndGetSession(
   password: string
 ): Promise<{ sessionCookie: string; csrfToken: string }> {
   const { cookie, csrfToken: initialCsrfToken } = await getLoginPageCsrfAndCookie(port);
-  const loginRes = await fetch(`http://127.0.0.1:${port}/auth/login`, {
+  const loginRes = await loopbackFetch(`http://127.0.0.1:${port}/auth/login`, {
     method: 'POST',
     headers: {
       'content-type': 'application/json',

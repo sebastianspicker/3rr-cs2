@@ -1,3 +1,4 @@
+/** Shared RCON manager state and dependency contracts. */
 import type Rcon from 'rcon-srcds';
 
 export interface ServerRecord {
@@ -24,6 +25,12 @@ export interface ServerDetails {
 
 export interface RconManagerOptions {
   authTimeoutMs?: number;
+  commandTimeoutMs?: number;
+  heartbeatIntervalMs?: number;
+  maxHeartbeatIntervalMs?: number;
+  heartbeatTimeoutMs?: number;
+  disconnectTimeoutMs?: number;
+  forceDisconnectTimeoutMs?: number;
 }
 
 export interface RconInitError {

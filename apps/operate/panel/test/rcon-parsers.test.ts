@@ -1,3 +1,4 @@
+/** Exercises the untrusted text parsers that turn RCON output into typed status data. */
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {

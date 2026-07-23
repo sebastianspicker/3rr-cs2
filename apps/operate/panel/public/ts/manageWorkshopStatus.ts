@@ -1,3 +1,4 @@
+/** Renders asynchronous workshop and backup status, including incomplete observations. */
 import { fetchJson, sendPostRequest, showToast, toastError, showConfirm } from './common';
 import { el, formatObserved, on, setMessage, setText, type LiveStatusResponse, type WorkshopFavorite, type WorkshopFavoritesResponse } from './manageShared';
 import { renderLiveStatus } from './manageLiveStatusView';
@@ -180,12 +181,16 @@ export function initWorkshopMap(serverId: string): void {
 
 export function initLiveStatus(serverId: string): void {
   let liveStatusInterval: ReturnType<typeof setInterval> | undefined;
+  let liveStatusGeneration = 0;
 
   async function fetchLiveStatus(): Promise<void> {
+    const generation = ++liveStatusGeneration;
     try {
       const data = await fetchJson<LiveStatusResponse>(`/api/status/${serverId}`);
+      if (generation !== liveStatusGeneration) return;
       renderLiveStatus(data);
     } catch (err) {
+      if (generation !== liveStatusGeneration) return;
       setText('live-status-state', 'RCON status stale');
       setText('live-status-updated', `RCON refresh failed at ${new Date().toLocaleTimeString()}`);
       setMessage('live-status-error', err instanceof Error ? err.message : 'Failed to refresh status.');

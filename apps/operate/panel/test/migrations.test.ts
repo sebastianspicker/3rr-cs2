@@ -1,3 +1,4 @@
+/** Exercises forward-only SQLite migrations against temporary pre-migration databases. */
 import fs from 'node:fs';
 import path from 'node:path';
 import { after, before, test } from 'node:test';
@@ -70,6 +71,49 @@ function openFixture(dbPath: string): Database.Database {
   return new Database(dbPath);
 }
 
+function buildFixture(dbPath: string, setup: (db: Database.Database) => void): void {
+  const db = openFixture(dbPath);
+  try {
+    setup(db);
+  } finally {
+    db.close();
+  }
+}
+
+async function verifyMigratedFixture(
+  dbPath: string,
+  verify: (db: Database.Database) => void
+): Promise<void> {
+  await expectImportSuccess(dbPath);
+  const db = openFixture(dbPath);
+  try {
+    verify(db);
+  } finally {
+    db.close();
+  }
+}
+
+function createLegacyVersion1Users(db: Database.Database, usernames: readonly string[]): void {
+  createVersion1Schema(
+    db,
+    'id INTEGER PRIMARY KEY, username TEXT NOT NULL UNIQUE, password TEXT NOT NULL'
+  );
+  const insert = db.prepare(`INSERT INTO users (id, username, password) VALUES (?, ?, 'hash')`);
+  usernames.forEach((username, index) => {
+    insert.run(index + 1, username);
+  });
+}
+
+function assertAdminUsernames(db: Database.Database, expected: readonly string[]): void {
+  const admins = db
+    .prepare(`SELECT username FROM users WHERE is_admin = 1 ORDER BY id`)
+    .all() as Array<{ username: string }>;
+  assert.deepEqual(
+    admins.map((row) => row.username),
+    expected
+  );
+}
+
 import {
   assertCurrentSchemaConstraintsIndexesAndCascades,
   tableColumns,
@@ -102,7 +146,8 @@ test('migrations upgrade the supported pre-versioned inline schema', async () =>
   const dbPath = dbPathFor('pre-versioned-inline-v0');
   const db = openFixture(dbPath);
   createPreVersionedInlineSchema(db);
-  db.prepare(`INSERT INTO users (id, username, password) VALUES (1, 'first', 'hash')`).run();
+  db.prepare(`INSERT INTO users (id, username, password) VALUES (9, 'later', 'hash')`).run();
+  db.prepare(`INSERT INTO users (id, username, password) VALUES (3, 'first', 'hash')`).run();
   db.prepare(
     `INSERT INTO servers (id, serverIP, serverPort, rconPassword) VALUES (1, '203.0.113.10', 27015, 'secret')`
   ).run();
@@ -119,11 +164,18 @@ test('migrations upgrade the supported pre-versioned inline schema', async () =>
     const server = migrated.prepare(`SELECT owner_id FROM servers WHERE id = 1`).get() as {
       owner_id: number;
     };
-    assert.equal(server.owner_id, 1);
+    assert.equal(server.owner_id, 3);
     const access = migrated
-      .prepare(`SELECT COUNT(1) AS count FROM server_access WHERE user_id = 1 AND server_id = 1`)
+      .prepare(`SELECT COUNT(1) AS count FROM server_access WHERE user_id = 3 AND server_id = 1`)
       .get() as { count: number };
     assert.equal(access.count, 1);
+    const admins = migrated
+      .prepare(`SELECT id FROM users WHERE is_admin = 1 ORDER BY id`)
+      .all() as Array<{ id: number }>;
+    assert.deepEqual(
+      admins.map((row) => row.id),
+      [3]
+    );
   } finally {
     migrated.close();
   }
@@ -145,50 +197,25 @@ test('migrations create current constraints, indexes, and cascades from an empty
 
 test('migrations upgrade a supported user_version 1 database and assign first admin', async () => {
   const dbPath = dbPathFor('supported-v1');
-  const db = openFixture(dbPath);
-  createVersion1Schema(
-    db,
-    'id INTEGER PRIMARY KEY, username TEXT NOT NULL UNIQUE, password TEXT NOT NULL'
-  );
-  db.prepare(`INSERT INTO users (id, username, password) VALUES (1, 'first', 'hash')`).run();
-  db.prepare(`INSERT INTO users (id, username, password) VALUES (2, 'second', 'hash')`).run();
-  db.close();
+  buildFixture(dbPath, (db) => {
+    createLegacyVersion1Users(db, ['first', 'second']);
+  });
 
-  await expectImportSuccess(dbPath);
-
-  const migrated = openFixture(dbPath);
-  try {
+  await verifyMigratedFixture(dbPath, (migrated) => {
     assert.equal(migrated.pragma('user_version', { simple: true }), 3);
-    const admins = migrated
-      .prepare(`SELECT username FROM users WHERE is_admin = 1 ORDER BY id`)
-      .all() as Array<{ username: string }>;
-    assert.deepEqual(
-      admins.map((row) => row.username),
-      ['first']
-    );
-  } finally {
-    migrated.close();
-  }
+    assertAdminUsernames(migrated, ['first']);
+  });
 });
 
 test('migrations preserve constraints, indexes, and cascades after a supported v1 upgrade', async () => {
   const dbPath = dbPathFor('supported-v1-constraints');
-  const db = openFixture(dbPath);
-  createVersion1Schema(
-    db,
-    'id INTEGER PRIMARY KEY, username TEXT NOT NULL UNIQUE, password TEXT NOT NULL'
-  );
-  db.prepare(`INSERT INTO users (id, username, password) VALUES (1, 'first', 'hash')`).run();
-  db.close();
+  buildFixture(dbPath, (db) => {
+    createLegacyVersion1Users(db, ['first']);
+  });
 
-  await expectImportSuccess(dbPath);
-
-  const migrated = openFixture(dbPath);
-  try {
+  await verifyMigratedFixture(dbPath, (migrated) => {
     assertCurrentSchemaConstraintsIndexesAndCascades(migrated);
-  } finally {
-    migrated.close();
-  }
+  });
 });
 
 test('migrations upgrade a supported user_version 2 database to operator state tables', async () => {
@@ -221,39 +248,28 @@ test('migrations upgrade a supported user_version 2 database to operator state t
 
 test('migrations accept user_version 1 databases that already have is_admin', async () => {
   const dbPath = dbPathFor('duplicate-is-admin-v1');
-  const db = openFixture(dbPath);
-  createVersion1Schema(
-    db,
-    [
-      'id INTEGER PRIMARY KEY',
-      'username TEXT NOT NULL UNIQUE',
-      'password TEXT NOT NULL',
-      'is_admin INTEGER NOT NULL DEFAULT 0',
-    ].join(', ')
-  );
-  db.prepare(
-    `INSERT INTO users (id, username, password, is_admin) VALUES (1, 'first', 'hash', 0)`
-  ).run();
-  db.prepare(
-    `INSERT INTO users (id, username, password, is_admin) VALUES (2, 'second', 'hash', 1)`
-  ).run();
-  db.close();
-
-  await expectImportSuccess(dbPath);
-
-  const migrated = openFixture(dbPath);
-  try {
-    assert.equal(migrated.pragma('user_version', { simple: true }), 3);
-    const admins = migrated
-      .prepare(`SELECT username FROM users WHERE is_admin = 1 ORDER BY id`)
-      .all() as Array<{ username: string }>;
-    assert.deepEqual(
-      admins.map((row) => row.username),
-      ['second']
+  buildFixture(dbPath, (db) => {
+    createVersion1Schema(
+      db,
+      [
+        'id INTEGER PRIMARY KEY',
+        'username TEXT NOT NULL UNIQUE',
+        'password TEXT NOT NULL',
+        'is_admin INTEGER NOT NULL DEFAULT 0',
+      ].join(', ')
     );
-  } finally {
-    migrated.close();
-  }
+    db.prepare(
+      `INSERT INTO users (id, username, password, is_admin) VALUES (1, 'first', 'hash', 0)`
+    ).run();
+    db.prepare(
+      `INSERT INTO users (id, username, password, is_admin) VALUES (2, 'second', 'hash', 1)`
+    ).run();
+  });
+
+  await verifyMigratedFixture(dbPath, (migrated) => {
+    assert.equal(migrated.pragma('user_version', { simple: true }), 3);
+    assertAdminUsernames(migrated, ['second']);
+  });
 });
 
 test('current user_version databases open without changing schema version', async () => {

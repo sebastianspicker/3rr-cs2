@@ -1,0 +1,25 @@
+    <div class="manage-header">
+      <div class="manage-identity">
+        <h1 id="manage-title"><%= hostname && hostname !== '–' ? hostname : 'Server ' + server_id %></h1>
+        <div class="server-addr">
+          <span class="manage-endpoint"><%= host %>:<%= port %></span>
+          <span id="manage-status-dot" class="status-dot <%= initialStatusDotClass %>" aria-hidden="true"></span>
+          <span id="manage-status-badge" class="badge <%= initialStatusBadgeClass %>" data-live-status-badge>
+            <%= initialStatusLabel %>
+          </span>
+          <span id="manage-observed-at" class="manage-observed-at">No observation yet</span>
+        </div>
+      </div>
+      <button type="button" class="btn btn-secondary manage-connection-link" id="manage-reconnect">Reconnect</button>
+    </div>
+    <% if (initialRconUnknown) { %>
+      <div class="alert alert-warning manage-initial-alert" id="manage-initial-alert" role="status">
+        Initial RCON status was not observed. Live status will refresh below.
+      </div>
+    <% } else if (!initialRconOnline) { %>
+      <div class="alert alert-disconnected manage-initial-alert" id="manage-initial-alert" role="alert">
+        RCON is not connected. Commands will fail until the server reconnects. Return to
+        <a href="/servers">Servers</a> to reconnect.
+      </div>
+    <% } %>
+

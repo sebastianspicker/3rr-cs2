@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Portable test double for GNU coreutils timeout. Normal test calls execute the
+# wrapped command directly; TIMEOUT_FORCE_APP_UPDATE=1 converts a completed
+# app_update invocation into timeout's conventional exit code 124.
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --foreground | --kill-after=*) shift ;;
+        --)
+            shift
+            break
+            ;;
+        *)
+            # First non-option is the duration.
+            shift
+            break
+            ;;
+    esac
+done
+
+args="$*"
+set +e
+"$@"
+rc=$?
+set -e
+
+if [[ "${TIMEOUT_FORCE_APP_UPDATE:-0}" == "1" && "$args" == *"+app_update"* ]]; then
+    exit 124
+fi
+exit "$rc"

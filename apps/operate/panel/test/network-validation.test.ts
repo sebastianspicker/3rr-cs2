@@ -1,3 +1,4 @@
+/** Tests DNS and IP trust-boundary validation with restored resolver mocks. */
 import { afterEach, describe, it, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import dns from 'node:dns';
@@ -5,6 +6,7 @@ import {
   isBlockedIP,
   isValidServerHost,
   isValidServerHostResolved,
+  resolveValidServerHost,
 } from '../utils/networkValidation';
 
 afterEach(() => {
@@ -93,6 +95,13 @@ describe('isValidServerHostResolved', () => {
       { address: '2001:db8::10', family: 6 },
     ]);
     assert.equal(await isValidServerHostResolved('example.com'), true);
+  });
+  it('returns the selected validated literal address for callers to pin', async () => {
+    mock.method(dns.promises, 'lookup', async () => [
+      { address: '203.0.113.10', family: 4 },
+      { address: '2001:db8::10', family: 6 },
+    ]);
+    assert.equal(await resolveValidServerHost('example.com'), '203.0.113.10');
   });
   it('rejects hostname when any resolved answer is IPv6 link-local', async () => {
     mock.method(dns.promises, 'lookup', async () => [

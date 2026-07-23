@@ -1,3 +1,4 @@
+/** Stable public parser surface for RCON responses used by routes and tests. */
 export { parseStatusResponse, type ParsedStatus } from './rconStatusParser';
 export { parseVisibleMaxPlayers } from './rconVisiblePlayersParser';
 export {
