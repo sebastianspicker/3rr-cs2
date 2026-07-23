@@ -1,3 +1,4 @@
+/** Displays RCON-observed players and gates actions on verified identifiers. */
 import { fetchJson, sendPostRequest, showToast, toastError, showConfirm } from './common';
 import { el, formatObserved, on, setMessage, setText, type PlayerRow, type PlayersResponse } from './manageShared';
 
@@ -24,19 +25,20 @@ function createPlayerAction(action: 'mute' | 'unmute', player: PlayerRow): HTMLB
 function createPlayerRow(player: PlayerRow): HTMLElement {
   const row = document.createElement('div');
   row.className = 'player-row';
-  const main = document.createElement('div');
-  main.className = 'player-main';
+  row.setAttribute('role', 'row');
   const name = document.createElement('div');
   name.className = 'player-name';
+  name.setAttribute('role', 'cell');
   name.textContent = `#${player.userid} ${player.name}`;
   const meta = document.createElement('div');
   meta.className = 'player-meta';
+  meta.setAttribute('role', 'cell');
   meta.textContent = player.steam_id64
-    ? `SteamID64 ${player.steam_id64}`
+    ? player.steam_id64
     : 'SteamID64 not observed by RCON';
-  main.append(name, meta);
   const actions = document.createElement('div');
   actions.className = 'row-actions';
+  actions.setAttribute('role', 'cell');
   const kick = document.createElement('button');
   kick.type = 'button';
   kick.className = 'btn btn-warning btn-sm';
@@ -44,7 +46,7 @@ function createPlayerRow(player: PlayerRow): HTMLElement {
   kick.dataset.playerAction = 'kick';
   kick.dataset.userid = player.userid;
   actions.append(kick, createPlayerAction('mute', player), createPlayerAction('unmute', player));
-  row.append(main, actions);
+  row.append(name, meta, actions);
   return row;
 }
 

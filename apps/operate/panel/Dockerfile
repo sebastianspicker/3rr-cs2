@@ -1,4 +1,4 @@
-# Stage 1: Build — compile TypeScript and bundle client
+# Stage 1: Build - compile TypeScript and bundle client
 FROM node:22-bookworm-slim AS builder
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -16,13 +16,14 @@ RUN npm ci && rm -rf /root/.npm /tmp/*
 COPY . .
 
 RUN node scripts/copy-fonts.js && \
+  node scripts/build-css.mjs && \
   npx tsc && \
   find dist -name '*.map' -delete && \
   npx esbuild public/ts/console.ts --bundle --outfile=public/js/console.js --target=es2020 && \
   npm prune --omit=dev && \
   rm -rf /root/.npm /tmp/*
 
-# Stage 2: Runtime — minimal image with only production artifacts
+# Stage 2: Runtime - minimal image with only production artifacts
 FROM node:22-bookworm-slim
 
 ENV NODE_ENV=production
@@ -38,6 +39,7 @@ COPY --from=builder /build/public/fonts ./public/fonts
 COPY --from=builder /build/views ./views
 COPY --from=builder /build/cfg ./cfg
 COPY --from=builder /build/package.json ./
+COPY --from=builder /build/LICENSE ./LICENSE
 
 RUN mkdir -p /home/container/data && chown -R node:node /home/container
 

@@ -1,4 +1,5 @@
-import { better_sqlite_client } from '../db';
+/** Bounded per-server command history for RCON convenience without unbounded retention. */
+import { better_sqlite_client, SQLITE_UTC_NOW } from '../db';
 
 export interface RconHistoryRow {
   id: number;
@@ -11,10 +12,10 @@ const HISTORY_LIMIT = 50;
 
 const upsertHistoryStmt = better_sqlite_client.prepare(`
   INSERT INTO rcon_command_history (user_id, server_id, command, use_count, created_at, last_used_at)
-  VALUES (?, ?, ?, 1, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+  VALUES (?, ?, ?, 1, ${SQLITE_UTC_NOW}, ${SQLITE_UTC_NOW})
   ON CONFLICT(user_id, server_id, command) DO UPDATE SET
     use_count = use_count + 1,
-    last_used_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+    last_used_at = ${SQLITE_UTC_NOW}
 `);
 
 const pruneHistoryStmt = better_sqlite_client.prepare(`

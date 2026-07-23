@@ -1,21 +1,36 @@
+<%# Authenticated server inventory shell populated by the browser status client. %>
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <meta name="color-scheme" content="dark">
+  <%- include('partials/theme-boot') %>
+  <meta name="color-scheme" content="dark light">
   <meta name="csrf-token" content="<%= csrfToken %>">
-  <title>CS2 Panel — Servers</title>
+  <title>3RR - Servers</title>
+  <link rel="icon" href="/3rr-mark.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/css/panel.css">
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to main content</a>
   <%- include('partials/navbar') %>
-  <main class="container" id="main">
-    <div class="page-header">
-      <h1>Servers</h1>
+  <main class="container route-shell route-shell--inventory" id="main">
+    <div class="page-header route-header">
+      <div>
+        <p class="route-kicker">Fleet</p>
+        <h1>Servers</h1>
+        <p>Connection state, player count, and operator access</p>
+      </div>
     </div>
-    <div id="serverList"></div>
+    <section class="route-workspace route-workspace--table" aria-labelledby="servers-heading">
+      <h2 class="visually-hidden" id="servers-heading">Fleet inventory</h2>
+      <div class="server-table" role="table" aria-label="Configured servers">
+        <div class="server-list-head" role="row">
+          <span role="columnheader">Server</span><span role="columnheader">Status</span><span role="columnheader">Address</span><span role="columnheader">Players</span><span role="columnheader">Actions</span>
+        </div>
+        <div id="serverList" role="rowgroup" aria-live="polite" aria-busy="true"></div>
+      </div>
+    </section>
   </main>
 
   <%- include('partials/footer') %>

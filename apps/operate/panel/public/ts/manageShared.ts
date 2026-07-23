@@ -1,3 +1,4 @@
+/** Shared DOM, event, and response contracts for the management-page modules. */
 export interface LiveStatusResponse {
   hostname: string | null;
   map: string | null;

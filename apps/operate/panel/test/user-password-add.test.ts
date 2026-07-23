@@ -1,12 +1,14 @@
 import { test } from 'node:test';
 import {
   app,
-  adminUserId,
   credentialField,
   fixtureCredential,
   withServer,
   assert,
   loginAndGetSession,
+  loginAsAdmin,
+  postUserApi,
+  createAdminServerFixture,
 } from './user-management-fixture';
 
 test('POST /api/users/change-password returns 401 when not authenticated', async () => {
@@ -25,66 +27,43 @@ test('POST /api/users/change-password returns 401 when not authenticated', async
 
 test('POST /api/users/change-password succeeds with correct current password', async () => {
   await withServer(app, async (port) => {
-    const { sessionCookie, csrfToken } = await loginAndGetSession(
+    const session = await loginAsAdmin(port);
+    const res = await postUserApi(
       port,
-      'adminuser',
-      fixtureCredential('admin')
-    );
-    const res = await fetch(`http://127.0.0.1:${port}/api/users/change-password`, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        cookie: sessionCookie,
-        'x-csrf-token': csrfToken,
-      },
-      body: JSON.stringify({
+      'change-password',
+      {
         currentPassword: fixtureCredential('admin'),
         newPassword: fixtureCredential('newadmin'),
-      }),
-    });
+      },
+      session
+    );
     assert.equal(res.status, 200);
     const body = (await res.json()) as { message?: string };
     assert.equal(body.message, 'Password updated');
 
     // Restore password for subsequent tests.
-    const { sessionCookie: sc2, csrfToken: ct2 } = await loginAndGetSession(
+    const updatedSession = await loginAndGetSession(
       port,
       'adminuser',
       fixtureCredential('newadmin')
     );
-    await fetch(`http://127.0.0.1:${port}/api/users/change-password`, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        cookie: sc2,
-        'x-csrf-token': ct2,
-      },
-      body: JSON.stringify({
+    await postUserApi(
+      port,
+      'change-password',
+      {
         currentPassword: fixtureCredential('newadmin'),
         newPassword: fixtureCredential('admin'),
-      }),
-    });
+      },
+      updatedSession
+    );
   });
 });
 
 test('POST /api/users/change-password returns 401 on wrong current password', async () => {
   await withServer(app, async (port) => {
-    const { sessionCookie, csrfToken } = await loginAndGetSession(
-      port,
-      'adminuser',
-      fixtureCredential('admin')
-    );
-    const res = await fetch(`http://127.0.0.1:${port}/api/users/change-password`, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        cookie: sessionCookie,
-        'x-csrf-token': csrfToken,
-      },
-      body: JSON.stringify({
-        currentPassword: fixtureCredential('wrong'),
-        newPassword: fixtureCredential('new'),
-      }),
+    const res = await postUserApi(port, 'change-password', {
+      currentPassword: fixtureCredential('wrong'),
+      newPassword: fixtureCredential('new'),
     });
     assert.equal(res.status, 401);
   });
@@ -92,22 +71,9 @@ test('POST /api/users/change-password returns 401 on wrong current password', as
 
 test('POST /api/users/change-password returns 400 when new password is too short', async () => {
   await withServer(app, async (port) => {
-    const { sessionCookie, csrfToken } = await loginAndGetSession(
-      port,
-      'adminuser',
-      fixtureCredential('admin')
-    );
-    const res = await fetch(`http://127.0.0.1:${port}/api/users/change-password`, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        cookie: sessionCookie,
-        'x-csrf-token': csrfToken,
-      },
-      body: JSON.stringify({
-        currentPassword: fixtureCredential('admin'),
-        newPassword: 'short',
-      }),
+    const res = await postUserApi(port, 'change-password', {
+      currentPassword: fixtureCredential('admin'),
+      newPassword: 'short',
     });
     assert.equal(res.status, 400);
   });
@@ -133,22 +99,9 @@ test('POST /api/users/add returns 401 when not authenticated', async () => {
 
 test('POST /api/users/add creates a new user (admin)', async () => {
   await withServer(app, async (port) => {
-    const { sessionCookie, csrfToken } = await loginAndGetSession(
-      port,
-      'adminuser',
-      fixtureCredential('admin')
-    );
-    const res = await fetch(`http://127.0.0.1:${port}/api/users/add`, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        cookie: sessionCookie,
-        'x-csrf-token': csrfToken,
-      },
-      body: JSON.stringify({
-        username: 'newuser',
-        [credentialField]: fixtureCredential('newuser'),
-      }),
+    const res = await postUserApi(port, 'add', {
+      username: 'newuser',
+      [credentialField]: fixtureCredential('newuser'),
     });
     assert.equal(res.status, 201);
     const body = (await res.json()) as { message?: string };
@@ -158,19 +111,9 @@ test('POST /api/users/add creates a new user (admin)', async () => {
 
 test('POST /api/users/add rejects whitespace-only username', async () => {
   await withServer(app, async (port) => {
-    const { sessionCookie, csrfToken } = await loginAndGetSession(
-      port,
-      'adminuser',
-      fixtureCredential('admin')
-    );
-    const res = await fetch(`http://127.0.0.1:${port}/api/users/add`, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        cookie: sessionCookie,
-        'x-csrf-token': csrfToken,
-      },
-      body: JSON.stringify({ username: '   ', [credentialField]: fixtureCredential('blankuser') }),
+    const res = await postUserApi(port, 'add', {
+      username: '   ',
+      [credentialField]: fixtureCredential('blankuser'),
     });
     assert.equal(res.status, 400);
 
@@ -182,34 +125,13 @@ test('POST /api/users/add rejects whitespace-only username', async () => {
 
 test('POST /api/users/add can grant initial access to an admin-accessible server', async () => {
   const { better_sqlite_client } = await import('../db');
-  const serverInfo = better_sqlite_client
-    .prepare(
-      `INSERT INTO servers (serverIP, serverPort, rconPassword, owner_id) VALUES (?, ?, ?, ?)`
-    )
-    .run('203.0.113.31', 27031, ['test', 'rcon', 'credential'].join('-'), adminUserId);
-  const serverId = Number(serverInfo.lastInsertRowid);
-  better_sqlite_client
-    .prepare(`INSERT INTO server_access (user_id, server_id) VALUES (?, ?)`)
-    .run(adminUserId, serverId);
+  const serverId = await createAdminServerFixture('203.0.113.31', 27031);
 
   await withServer(app, async (port) => {
-    const { sessionCookie, csrfToken } = await loginAndGetSession(
-      port,
-      'adminuser',
-      fixtureCredential('admin')
-    );
-    const res = await fetch(`http://127.0.0.1:${port}/api/users/add`, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        cookie: sessionCookie,
-        'x-csrf-token': csrfToken,
-      },
-      body: JSON.stringify({
-        username: 'servergrantuser',
-        [credentialField]: fixtureCredential('servergrant'),
-        serverId,
-      }),
+    const res = await postUserApi(port, 'add', {
+      username: 'servergrantuser',
+      [credentialField]: fixtureCredential('servergrant'),
+      serverId,
     });
     assert.equal(res.status, 201);
 
@@ -229,23 +151,10 @@ test('POST /api/users/add can grant initial access to an admin-accessible server
 
 test('POST /api/users/add rejects invalid initial server access without creating the user', async () => {
   await withServer(app, async (port) => {
-    const { sessionCookie, csrfToken } = await loginAndGetSession(
-      port,
-      'adminuser',
-      fixtureCredential('admin')
-    );
-    const res = await fetch(`http://127.0.0.1:${port}/api/users/add`, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        cookie: sessionCookie,
-        'x-csrf-token': csrfToken,
-      },
-      body: JSON.stringify({
-        username: 'badgrantuser',
-        [credentialField]: fixtureCredential('badgrant'),
-        serverId: 999999,
-      }),
+    const res = await postUserApi(port, 'add', {
+      username: 'badgrantuser',
+      [credentialField]: fixtureCredential('badgrant'),
+      serverId: 999999,
     });
     assert.equal(res.status, 400);
 
@@ -259,31 +168,10 @@ test('POST /api/users/add rejects invalid initial server access without creating
 
 test('POST /api/users/add returns 409 for duplicate username', async () => {
   await withServer(app, async (port) => {
-    const { sessionCookie, csrfToken } = await loginAndGetSession(
-      port,
-      'adminuser',
-      fixtureCredential('admin')
-    );
-    // First create
-    await fetch(`http://127.0.0.1:${port}/api/users/add`, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        cookie: sessionCookie,
-        'x-csrf-token': csrfToken,
-      },
-      body: JSON.stringify({ username: 'dupeuser', [credentialField]: fixtureCredential('dupe') }),
-    });
-    // Duplicate create
-    const res = await fetch(`http://127.0.0.1:${port}/api/users/add`, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        cookie: sessionCookie,
-        'x-csrf-token': csrfToken,
-      },
-      body: JSON.stringify({ username: 'dupeuser', [credentialField]: fixtureCredential('dupe') }),
-    });
+    const session = await loginAsAdmin(port);
+    const request = { username: 'dupeuser', [credentialField]: fixtureCredential('dupe') };
+    await postUserApi(port, 'add', request, session);
+    const res = await postUserApi(port, 'add', request, session);
     assert.equal(res.status, 409);
   });
 });
@@ -291,42 +179,26 @@ test('POST /api/users/add returns 409 for duplicate username', async () => {
 test('POST /api/users/add returns 403 for non-admin user', async () => {
   await withServer(app, async (port) => {
     // Create a non-admin user first.
-    const { sessionCookie: adminCookie, csrfToken: adminCsrf } = await loginAndGetSession(
-      port,
-      'adminuser',
-      fixtureCredential('admin')
-    );
-    await fetch(`http://127.0.0.1:${port}/api/users/add`, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        cookie: adminCookie,
-        'x-csrf-token': adminCsrf,
-      },
-      body: JSON.stringify({
-        username: 'nonadminuser',
-        [credentialField]: fixtureCredential('nonadmin'),
-      }),
+    await postUserApi(port, 'add', {
+      username: 'nonadminuser',
+      [credentialField]: fixtureCredential('nonadmin'),
     });
 
     // Login as non-admin
-    const { sessionCookie, csrfToken } = await loginAndGetSession(
+    const nonAdminSession = await loginAndGetSession(
       port,
       'nonadminuser',
       fixtureCredential('nonadmin')
     );
-    const res = await fetch(`http://127.0.0.1:${port}/api/users/add`, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        cookie: sessionCookie,
-        'x-csrf-token': csrfToken,
-      },
-      body: JSON.stringify({
+    const res = await postUserApi(
+      port,
+      'add',
+      {
         username: 'anotheruser',
         [credentialField]: fixtureCredential('another'),
-      }),
-    });
+      },
+      nonAdminSession
+    );
     assert.equal(res.status, 403);
   });
 });

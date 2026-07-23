@@ -1,3 +1,4 @@
+/** Parses status output defensively because server plugins vary its formatting. */
 import { cleanRconField } from './rconParserDisplay';
 
 export interface ParsedStatus {

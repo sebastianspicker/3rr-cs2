@@ -1,0 +1,268 @@
+@font-face {
+  font-family: "Syne";
+  src: url("/fonts/syne-latin-wght-normal.woff2") format("woff2");
+  font-display: swap;
+  font-style: normal;
+  font-weight: 400 800;
+}
+
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("/fonts/jetbrains-mono-latin-wght-normal.woff2") format("woff2");
+  font-display: swap;
+  font-style: normal;
+  font-weight: 100 800;
+}
+
+/* Night Desk (default). Explicit dark mirrors :root for completeness. */
+:root,
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --canvas: #0c1016;
+  --shell: #121820;
+  --surface: #171e28;
+  --surface-subtle: #1d2632;
+  --surface-strong: #243040;
+  --ink: #e8edf4;
+  --ink-raised: #121820;
+  --text: #c5cedb;
+  --muted: #8b97a8;
+  --muted-strong: #a8b3c2;
+  --line: #2a3544;
+  --line-strong: #3a4a5e;
+  --action: #5b7cfa;
+  --action-hover: #7290ff;
+  --action-soft: #1a2440;
+  --observed: #3dba8c;
+  --observed-soft: #122820;
+  --danger: #e05a52;
+  --danger-soft: #2a1616;
+  --warn: #d4a017;
+  --warn-soft: #2a2210;
+  --focus: #8eb0ff;
+  --row-hover: rgb(29 38 50 / 55%);
+  --overlay: rgb(12 16 22 / 72%);
+  --glow-primary: rgb(91 124 250 / 10%);
+  --glow-observed: rgb(61 186 140 / 7%);
+  /* legacy aliases */
+  --blue: var(--action);
+  --blue-hover: var(--action-hover);
+  --blue-soft: var(--action-soft);
+  --green: var(--observed);
+  --green-soft: var(--observed-soft);
+  --coral: var(--danger);
+  --coral-hover: #c44b44;
+  --coral-soft: var(--danger-soft);
+  --amber: var(--warn);
+  --amber-soft: var(--warn-soft);
+  --font-body: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI Variable",
+    "Segoe UI", sans-serif;
+  --font-display: "Syne", var(--font-body);
+  --font-mono: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --radius-sm: 4px;
+  --radius: 6px;
+  --radius-lg: 8px;
+  --shadow-float: 0 18px 50px rgb(0 0 0 / 40%);
+  --content-max: 1480px;
+}
+
+/* Daylight Control Desk — opt-in only via html[data-theme="light"].
+   Does not auto-switch on prefers-color-scheme; night remains the product default. */
+html[data-theme="light"] {
+  color-scheme: light;
+  --canvas: #f4f6f9;
+  --shell: #121820;
+  --surface: #ffffff;
+  --surface-subtle: #f8fafc;
+  --surface-strong: #eef2f7;
+  --ink: #12171f;
+  --ink-raised: #1a212b;
+  --text: #202833;
+  --muted: #657180;
+  --muted-strong: #4d5968;
+  --line: #d8dee7;
+  --line-strong: #bdc7d3;
+  --action: #5b7cfa;
+  --action-hover: #4a6ce8;
+  --action-soft: #edf3ff;
+  --observed: #087f63;
+  --observed-soft: #e8f6f1;
+  --danger: #c93632;
+  --danger-soft: #fff0ef;
+  --warn: #8a5a00;
+  --warn-soft: #fff6dd;
+  --focus: #79a7ff;
+  --row-hover: color-mix(in srgb, var(--surface-strong) 70%, transparent);
+  --overlay: color-mix(in srgb, var(--canvas) 28%, rgb(18 24 32 / 55%));
+  --glow-primary: rgb(91 124 250 / 8%);
+  --glow-observed: rgb(8 127 99 / 6%);
+  /* legacy aliases */
+  --blue: var(--action);
+  --blue-hover: var(--action-hover);
+  --blue-soft: var(--action-soft);
+  --green: var(--observed);
+  --green-soft: var(--observed-soft);
+  --coral: var(--danger);
+  --coral-hover: #b02e2b;
+  --coral-soft: var(--danger-soft);
+  --amber: var(--warn);
+  --amber-soft: var(--warn-soft);
+  --shadow-float: 0 18px 50px rgb(18 24 32 / 12%);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--canvas);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.5;
+  min-width: 320px;
+  scroll-behavior: smooth;
+}
+
+body {
+  background:
+    radial-gradient(1200px 500px at 12% -10%, var(--glow-primary), transparent 55%),
+    radial-gradient(900px 420px at 88% 0%, var(--glow-observed), transparent 50%),
+    var(--canvas);
+  color: var(--text);
+  margin: 0;
+  min-height: 100vh;
+  text-rendering: optimizeLegibility;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+body::selection,
+::selection {
+  background: color-mix(in srgb, var(--action) 35%, transparent);
+  color: var(--ink);
+}
+
+a {
+  color: var(--action-hover);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.18em;
+}
+
+a:hover {
+  color: var(--action-hover);
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button,
+summary,
+a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button {
+  cursor: pointer;
+}
+
+button:disabled,
+input:disabled,
+select:disabled,
+textarea:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin-block-start: 0;
+}
+
+h1,
+h2,
+h3 {
+  color: var(--ink);
+  letter-spacing: -0.025em;
+}
+
+h1 {
+  font-family: var(--font-display);
+  font-size: clamp(1.65rem, 2.3vw, 2.35rem);
+  line-height: 1.08;
+  margin-bottom: var(--space-2);
+}
+
+h2 {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  line-height: 1.25;
+  margin-bottom: 0;
+}
+
+h3 {
+  font-size: 0.95rem;
+  margin-bottom: var(--space-2);
+}
+
+code,
+pre,
+.manage-endpoint,
+.server-address-cell,
+.data-value,
+.truth-time,
+.compact-row-meta,
+.player-meta {
+  font-family: var(--font-mono);
+}
+
+.skip-link {
+  background: var(--surface);
+  border: 2px solid var(--action);
+  color: var(--ink);
+  font-weight: 700;
+  left: var(--space-4);
+  padding: var(--space-2) var(--space-4);
+  position: fixed;
+  top: var(--space-3);
+  transform: translateY(-160%);
+  transition: transform 120ms ease;
+  z-index: 1000;
+}
+
+.skip-link:focus {
+  transform: translateY(0);
+}
+
+.visually-hidden {
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  height: 1px;
+  overflow: hidden;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
+}

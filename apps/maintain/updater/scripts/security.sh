@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Fails CI when tracked source appears to contain secret material or unmanaged dependencies.
 set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
@@ -6,6 +7,7 @@ cd "$(dirname "${BASH_SOURCE[0]}")/.."
 secret_regex='(AKIA[0-9A-Z]{16}|ASIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{36}|github_pat_[A-Za-z0-9_]{82}|-----BEGIN (RSA|DSA|EC|OPENSSH|PGP) PRIVATE KEY-----|xox[baprs]-[A-Za-z0-9-]{10,48}|sk_live_[0-9a-zA-Z]{24}|AIza[0-9A-Za-z_-]{35})'
 secret_hits_file="$(mktemp "${TMPDIR:-/tmp}/cs2-secret-scan.XXXXXX")"
 cleanup() {
+    # Remove scan output because it may contain the location of sensitive material.
     rm -f "$secret_hits_file"
 }
 trap cleanup EXIT
@@ -20,6 +22,7 @@ secret_scan_rc=$?
 set -e
 
 if [ "$secret_scan_rc" -eq 0 ]; then
+    # Do not echo potential secret values into CI logs.
     awk -F: '{ print $1 ":" $2 ": [REDACTED]" }' "$secret_hits_file" >&2
     echo "Potential secret material detected. Redact and remove before committing." >&2
     exit 1

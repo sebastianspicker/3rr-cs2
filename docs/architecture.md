@@ -1,6 +1,6 @@
 # Architecture
 
-`cs2-server-ops` is one product with three module boundaries:
+`3rr` is one product with three module boundaries:
 
 - `provision`: bootstrap a server runtime and supporting assets
 - `maintain`: keep an existing server updated safely
@@ -13,17 +13,18 @@ flowchart LR
     P["provision\nbootstrap assets\nenv templates\nplugin/admin seeds"]
     M["maintain\nupdater script\nsystemd timer"]
     O["operate\npanel\nRCON control plane"]
+    R["CS2 runtime\nserver process and files"]
 
-    P -- "generates admin/plugin files\nconsume env template" --> M
-    P -- "generates admin/plugin files\nconsume env template" --> O
-    M -- "separate lifecycle\nno runtime dependency" --> O
+    P -- "writes bootstrap assets" --> R
+    M -- "updates runtime lifecycle" --> R
+    O -- "RCON control and observation" --> R
 ```
 
 ## Runtime Flow
 
-1. `provision` creates files an operator can copy into a CS2 runtime.
-2. `maintain` reads its own config, compares local and remote Steam build IDs, and only stops
-   the service when a real update is known to be required.
+1. `provision` creates files an operator can copy into the CS2 runtime.
+2. `maintain` reads its own config, compares local and remote Steam build IDs, and updates the
+   CS2 runtime only when a real update is known to be required.
 3. `operate` keeps users, server inventory, access grants, and last-known game state in SQLite.
    It connects to CS2 servers over RCON and does not run SteamCMD or shell into hosts.
 
@@ -38,10 +39,11 @@ Operators think in lifecycle stages, but the implementation still needs clear se
 - the updater should remain usable on a plain host
 - the panel should not become a host orchestration daemon
 
-## Historical Notes
+## Provenance
 
-Import notes, migration notes, and completed remediation packets are indexed in
-`docs/archive/README.md`.
+The retained module-origin and licensing boundary is documented in
+[reference/provenance.md](reference/provenance.md). Internal audit, migration-ledger, and
+remediation packets are not part of the public product documentation.
 
 ## Explicit Exclusions
 
@@ -51,4 +53,5 @@ Import notes, migration notes, and completed remediation packets are indexed in
 
 ## Publication Intent
 
-This repo is intended to publish with `dev` as the authoritative branch.
+This repo publishes from `main`. A release tag must identify the exact verified commit; a
+dirty or divergent remediation branch is not a releasable candidate.

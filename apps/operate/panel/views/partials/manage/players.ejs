@@ -1,0 +1,21 @@
+          <div class="panel-header">
+            <h2 aria-label="RCON Players"><span aria-hidden="true">Players</span></h2>
+            <div class="player-header-tools">
+              <input type="search" id="playerSearch" class="form-control" placeholder="Search players" aria-label="Search RCON-observed players" autocomplete="off">
+              <button id="refresh_players" class="btn btn-ghost btn-sm" aria-label="Refresh players">&#8635; Refresh</button>
+            </div>
+          </div>
+          <p class="small text-muted mb-sm" id="players-updated" aria-live="polite">No player observation yet.</p>
+          <p class="small text-danger mb-sm" id="players-error" hidden></p>
+          <div class="player-list-head" role="row" aria-hidden="true">
+            <span role="columnheader">Player</span>
+            <span role="columnheader">Steam ID</span>
+            <span role="columnheader">Actions</span>
+          </div>
+          <div id="playersList" class="player-list" role="table" aria-label="RCON-observed players" aria-live="polite">
+            <p class="empty-state">No players loaded.</p>
+          </div>
+        </div>
+
+        <!-- Scrim Controls -->
+        <details class="panel advanced-panel">

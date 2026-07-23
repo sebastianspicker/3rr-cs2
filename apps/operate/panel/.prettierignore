@@ -4,3 +4,5 @@ public
 views
 cfg/maps.json
 package-lock.json
+# Environment templates use key=value syntax and are validated as deployment contracts.
+.env.example

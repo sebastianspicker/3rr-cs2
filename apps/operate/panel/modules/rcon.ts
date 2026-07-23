@@ -1,13 +1,20 @@
+/** Per-server RCON lifecycle manager with serialized commands and bounded teardown. */
 // NOTE: rcon-srcds uses Math.random() for RCON packet IDs, which is not
 // cryptographically secure. For production deployments with untrusted networks,
 // consider forking the library to use crypto.randomInt() or replacing it with
 // an alternative RCON client that uses a secure RNG.
-import Rcon from 'rcon-srcds';
+import type Rcon from 'rcon-srcds';
 import { better_sqlite_client } from '../db';
-import { decryptRconSecret, RconSecretDecryptError } from '../utils/rconSecret';
 import logger from '../utils/logger';
-import { isResolvedHostAllowed, positiveInt, sqlitePasswordProvider } from './rconProviders';
+import { positiveInt, sqlitePasswordProvider } from './rconProviders';
 import * as limits from './rconConstants';
+import {
+  createAuthenticatedRconConnection,
+  enqueueRconTask,
+  executeRconCommandWithTimeout,
+  executeRconHeartbeatWithTimeout,
+} from './rconConnection';
+import { closeManagedRconSocket, destroyPendingRconSocket } from './rconSocketClose';
 import {
   emptyInitSummary,
   errorMessage,
@@ -46,16 +53,43 @@ export class RconManager {
   private commandChains = new Map<string, Promise<void>>();
   private removedServers = new Set<string>();
   private _shuttingDown = false;
-  // Track in-flight sockets created during connect() so shutdownAll can destroy them
-  private pendingSockets = new Set<Rcon>();
+  // Track in-flight sockets until they close or are promoted into `rcons`.
+  private pendingSockets = new Map<Rcon, { serverId: string; closeListener: () => void }>();
   private initSummary: RconInitSummary = emptyInitSummary();
   private readonly authTimeoutMs: number;
+  private readonly heartbeatIntervalMs: number;
+  private readonly maxHeartbeatIntervalMs: number;
+  private readonly heartbeatTimeoutMs: number;
+  private readonly disconnectTimeoutMs: number;
+  private readonly forceDisconnectTimeoutMs: number;
+  private heartbeatRetryTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  private heartbeatFailures = new Map<string, number>();
 
   private passwordProvider: typeof sqlitePasswordProvider;
 
   constructor(passwordProvider: typeof sqlitePasswordProvider, options: RconManagerOptions = {}) {
     this.authTimeoutMs = positiveInt(options.authTimeoutMs, limits.DEFAULT_AUTH_TIMEOUT_MS);
-    this.commandTimeoutMs = positiveInt(process.env.RCON_COMMAND_TIMEOUT_MS, 2000);
+    this.heartbeatIntervalMs = positiveInt(
+      options.heartbeatIntervalMs,
+      limits.HEARTBEAT_INTERVAL_MS
+    );
+    this.maxHeartbeatIntervalMs = positiveInt(
+      options.maxHeartbeatIntervalMs,
+      limits.MAX_HEARTBEAT_INTERVAL_MS
+    );
+    this.heartbeatTimeoutMs = positiveInt(options.heartbeatTimeoutMs, limits.HEARTBEAT_TIMEOUT_MS);
+    this.disconnectTimeoutMs = positiveInt(
+      options.disconnectTimeoutMs,
+      limits.RCON_DISCONNECT_TIMEOUT_MS
+    );
+    this.forceDisconnectTimeoutMs = positiveInt(
+      options.forceDisconnectTimeoutMs,
+      limits.RCON_FORCE_DISCONNECT_TIMEOUT_MS
+    );
+    this.commandTimeoutMs = positiveInt(
+      options.commandTimeoutMs ?? process.env.RCON_COMMAND_TIMEOUT_MS,
+      2000
+    );
     this.passwordProvider = passwordProvider;
     this.readyPromise = this.init();
   }
@@ -64,24 +98,27 @@ export class RconManager {
     return { ...this.initSummary, errors: [...this.initSummary.errors] };
   }
 
-  /** Fetch the encrypted password via the provider (never from memory cache). */
-  private fetchPassword(serverId: number): string | null {
-    return this.passwordProvider(serverId);
+  private trackPendingSocket(serverId: string, conn: Rcon): void {
+    const closeListener = () => {
+      this.pendingSockets.delete(conn);
+    };
+    this.pendingSockets.set(conn, { serverId, closeListener });
+    conn.connection.once('close', closeListener);
   }
 
-  private enqueueServerTask<T>(server_id: string, task: () => Promise<T>): Promise<T> {
-    // rcon-srcds exposes one socket per server. Queue same-server operations so
-    // command responses cannot interleave across concurrent HTTP requests.
-    const previous = this.commandChains.get(server_id) ?? Promise.resolve();
-    const result = previous.catch(() => undefined).then(task);
-    const tail = result.then(
-      () => undefined,
-      () => undefined
-    );
-    this.commandChains.set(server_id, tail);
-    return result.finally(() => {
-      if (this.commandChains.get(server_id) === tail) {
-        this.commandChains.delete(server_id);
+  private releasePendingSocket(conn: Rcon): void {
+    const pending = this.pendingSockets.get(conn);
+    if (pending) conn.connection.removeListener('close', pending.closeListener);
+    this.pendingSockets.delete(conn);
+  }
+
+  private trackManagedSocket(server_id: string, conn: Rcon): void {
+    conn.connection.once('close', () => {
+      if (this.rcons.get(server_id) === conn) this.rcons.delete(server_id);
+      const details = this.details.get(server_id);
+      if (details) {
+        details.connected = false;
+        details.authenticated = false;
       }
     });
   }
@@ -174,7 +211,14 @@ export class RconManager {
 
   async connectServer(server: ServerRecord): Promise<boolean> {
     const sid = server.id.toString();
+    const removalStillOwnsConnection =
+      this.rcons.has(sid) ||
+      this.reconnecting.has(sid) ||
+      [...this.pendingSockets.values()].some((pending) => pending.serverId === sid);
+    if (this.removedServers.has(sid) && removalStillOwnsConnection) return false;
     this.removedServers.delete(sid);
+    this.clearHeartbeatRetry(sid);
+    this.heartbeatFailures.delete(sid);
     // Cache only connection info, not the password.
     const serverInfo = {
       id: server.id,
@@ -186,94 +230,43 @@ export class RconManager {
     return this.reconnect(sid, serverInfo);
   }
 
-  private async createAuthenticatedConnection(
-    server_id: string,
-    server: ServerInfo,
-    encryptedPassword: string
-  ): Promise<Rcon | null> {
-    if (!(await isResolvedHostAllowed(server_id, server)) || this._shuttingDown) {
-      return null;
-    }
-
-    let decryptedPassword: string;
-    try {
-      decryptedPassword = decryptRconSecret(encryptedPassword);
-    } catch (err) {
-      if (err instanceof RconSecretDecryptError) {
-        logger.error({ server_id, kind: err.kind }, '[rcon] stored credential decrypt failed');
-      }
-      throw err;
-    }
-
-    let conn: Rcon | undefined;
-    try {
-      conn = new Rcon({
-        host: server.serverIP,
-        port: server.serverPort,
-        timeout: limits.RCON_SOCKET_TIMEOUT_MS,
-      });
-      this.pendingSockets.add(conn);
-      const authenticatingConnection = conn;
-      logger.info(
-        { server_id, host: server.serverIP, port: server.serverPort },
-        '[rcon] connecting'
-      );
-
-      let authTimeout: ReturnType<typeof setTimeout> | undefined;
-
-      try {
-        await Promise.race([
-          authenticatingConnection.authenticate(decryptedPassword),
-          new Promise<never>((_, reject) => {
-            authTimeout = setTimeout(() => {
-              logger.error({ server_id }, '[rcon] Authentication timed out');
-              try {
-                authenticatingConnection.connection.destroy();
-              } catch {
-                // ignore
-              }
-              reject(new Error('RCON authentication timed out'));
-            }, this.authTimeoutMs);
-          }),
-        ]);
-        if (authTimeout) clearTimeout(authTimeout);
-        logger.info({ server_id }, '[rcon] authenticated');
-        return conn;
-      } catch (err: unknown) {
-        if (authTimeout) clearTimeout(authTimeout);
-        const message = err instanceof Error ? err.message : String(err);
-        logger.error({ server_id, message }, '[rcon] Authentication failed');
-        conn.connection.destroy();
-        return null;
-      }
-    } catch (err) {
-      logger.error({ err }, '[rcon] connect error');
-      conn?.connection.destroy();
-      return null;
-    } finally {
-      if (conn) {
-        this.pendingSockets.delete(conn);
-      }
-    }
-  }
-
   async probeServer(server: ServerRecord): Promise<void> {
     const sid = server.id.toString();
-    const conn = await this.createAuthenticatedConnection(sid, server, server.rconPassword);
-    if (!conn?.isConnected() || !conn.isAuthenticated()) {
+    const connection = await this.createAuthenticatedConnection(sid, server, server.rconPassword);
+    if (!connection?.conn.isConnected() || !connection.conn.isAuthenticated()) {
       throw new Error('RCON authentication failed');
     }
     try {
-      conn.connection.end();
+      connection.conn.connection.end();
     } catch {
-      conn.connection.destroy();
+      connection.conn.connection.destroy();
     }
   }
 
+  private createAuthenticatedConnection(
+    serverId: string,
+    server: ServerInfo,
+    encryptedPassword: string
+  ) {
+    return createAuthenticatedRconConnection({
+      serverId,
+      server,
+      encryptedPassword,
+      authTimeoutMs: this.authTimeoutMs,
+      shouldAbort: () => this.shouldAbortConnection(serverId),
+      trackPendingSocket: (conn) => this.trackPendingSocket(serverId, conn),
+    });
+  }
+
   async executeCommand(server_id: string, command: string): Promise<string> {
-    return this.enqueueServerTask(server_id, async () => {
+    return enqueueRconTask(this.commandChains, server_id, async () => {
       const conn = await this.getCommandConnection(server_id);
-      return this.executeWithTimeout(server_id, conn, command);
+      return executeRconCommandWithTimeout(
+        conn,
+        command,
+        this.commandTimeoutMs,
+        () => this.rcons.get(server_id) === conn
+      );
     });
   }
 
@@ -301,60 +294,29 @@ export class RconManager {
     return conn;
   }
 
-  private async executeWithTimeout(
-    server_id: string,
-    conn: Rcon,
-    command: string
-  ): Promise<string> {
-    let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
-    try {
-      const response = await Promise.race([
-        conn.execute(command),
-        new Promise<never>((_, reject) => {
-          timeoutHandle = setTimeout(() => {
-            try {
-              if (this.rcons.get(server_id) === conn) {
-                conn.connection.destroy();
-                this.rcons.delete(server_id);
-              }
-            } catch {
-              // ignore cleanup errors
-            }
-            reject(new Error('RCON command timed out'));
-          }, this.commandTimeoutMs);
-        }),
-      ]);
-      return typeof response === 'string' ? response : '';
-    } finally {
-      if (timeoutHandle !== undefined) clearTimeout(timeoutHandle);
-    }
-  }
-
   // Heartbeat intervals could overlap if a heartbeat takes longer than the
   // interval period. The `reconnecting` Map in `reconnect()` serializes
   // concurrent reconnection attempts, preventing duplicate connections.
   async sendHeartbeat(server_id: string, server: ServerInfo): Promise<void> {
     if (this.removedServers.has(server_id)) return;
-    await this.enqueueServerTask(server_id, () => this.runHeartbeat(server_id, server));
+    await enqueueRconTask(this.commandChains, server_id, () =>
+      this.runHeartbeat(server_id, server)
+    );
   }
 
   private async runHeartbeat(server_id: string, server: ServerInfo): Promise<void> {
     if (this.removedServers.has(server_id)) return;
-    if (!this.rcons.get(server_id)?.connection.writable) {
-      logger.info({ server_id }, '[heartbeat] Connection unwritable, reconnecting');
-      await this.reconnect(server_id, server);
-    }
     const connection = this.rcons.get(server_id);
-    if (!connection?.connection.writable) return;
+    if (!connection?.connection.writable) {
+      await this.handleHeartbeatError(
+        server_id,
+        server,
+        new Error('RCON connection is not writable')
+      );
+      return;
+    }
     try {
-      await Promise.race([
-        connection.execute('status'),
-        new Promise<never>((_, reject) => {
-          setTimeout(() => {
-            reject(new Error('Heartbeat timed out'));
-          }, limits.HEARTBEAT_TIMEOUT_MS);
-        }),
-      ]);
+      await executeRconHeartbeatWithTimeout(connection, this.heartbeatTimeoutMs);
       this.markHeartbeatSuccess(server_id, server);
     } catch (error) {
       await this.handleHeartbeatError(server_id, server, error);
@@ -365,9 +327,10 @@ export class RconManager {
     const details = this.details.get(server_id);
     if (!details) return;
     details.connected = true;
-    if (details.heartbeatFailures === 0) return;
+    const recovered = (this.heartbeatFailures.get(server_id) ?? 0) > 0;
+    this.heartbeatFailures.delete(server_id);
     details.heartbeatFailures = 0;
-    this.restartHeartbeat(server_id, server, limits.HEARTBEAT_INTERVAL_MS);
+    if (recovered) this.restartHeartbeat(server_id, server, this.heartbeatIntervalMs);
   }
 
   private async handleHeartbeatError(
@@ -378,16 +341,43 @@ export class RconManager {
     logger.warn({ server_id, err: error }, '[heartbeat] Error, reconnecting');
     const current = this.details.get(server_id);
     if (current) current.connected = false;
-    await this.reconnect(server_id, server);
+    const failures = Math.min((this.heartbeatFailures.get(server_id) ?? 0) + 1, 30);
+    this.heartbeatFailures.set(server_id, failures);
+    let reconnected = false;
+    try {
+      reconnected = await this.reconnect(server_id, server);
+    } catch (reconnectError) {
+      logger.error({ server_id, err: reconnectError }, '[heartbeat] Reconnect failed');
+    }
+    if (this.removedServers.has(server_id) || this._shuttingDown) return;
+    const backoff = Math.min(this.heartbeatIntervalMs * 2 ** failures, this.maxHeartbeatIntervalMs);
     const details = this.details.get(server_id);
-    if (!details) return;
-    details.heartbeatFailures += 1;
-    const backoff = Math.min(
-      limits.HEARTBEAT_INTERVAL_MS * 2 ** details.heartbeatFailures,
-      limits.MAX_HEARTBEAT_INTERVAL_MS
-    );
-    this.restartHeartbeat(server_id, server, backoff);
+    if (reconnected && details) {
+      details.heartbeatFailures = failures;
+      this.restartHeartbeat(server_id, server, backoff);
+    } else {
+      this.scheduleHeartbeatRetry(server_id, server, backoff);
+    }
     logger.info({ server_id, backoff_ms: backoff }, '[heartbeat] Backoff, next check scheduled');
+  }
+
+  private scheduleHeartbeatRetry(server_id: string, server: ServerInfo, delayMs: number): void {
+    this.clearHeartbeatRetry(server_id);
+    if (this.removedServers.has(server_id) || this._shuttingDown) return;
+    const retryTimer = setTimeout(() => {
+      this.heartbeatRetryTimers.delete(server_id);
+      void this.sendHeartbeat(server_id, server).catch((error) => {
+        logger.error({ server_id, err: error }, '[heartbeat] Scheduled retry failed');
+        this.scheduleHeartbeatRetry(server_id, server, delayMs);
+      });
+    }, delayMs);
+    this.heartbeatRetryTimers.set(server_id, retryTimer);
+  }
+
+  private clearHeartbeatRetry(server_id: string): void {
+    const retryTimer = this.heartbeatRetryTimers.get(server_id);
+    if (retryTimer !== undefined) clearTimeout(retryTimer);
+    this.heartbeatRetryTimers.delete(server_id);
   }
 
   private restartHeartbeat(server_id: string, server: ServerInfo, intervalMs: number): void {
@@ -395,18 +385,22 @@ export class RconManager {
     if (!details) return;
     clearInterval(details.heartbeatInterval);
     details.heartbeatInterval = setInterval(() => {
-      void this.sendHeartbeat(server_id, server);
+      void this.sendHeartbeat(server_id, server).catch((error) => {
+        logger.error({ server_id, err: error }, '[heartbeat] Interval check failed');
+      });
     }, intervalMs);
   }
 
+  /** Reconnects through a fresh DNS-pinned, authenticated socket; cached secrets are never reused. */
   async connect(server_id: string, server: ServerInfo): Promise<boolean> {
     if (this.removedServers.has(server_id)) return false;
     if (this.rcons.has(server_id)) {
-      await this.disconnectRcon(server_id);
+      const result = await this.disconnectRcon(server_id);
+      if (!result.closed) return false;
     }
 
     // Fetch the password from the database on every connect, never from cache.
-    const encryptedPassword = this.fetchPassword(server.id);
+    const encryptedPassword = this.passwordProvider(server.id);
     if (!encryptedPassword) {
       logger.error({ server_id }, '[rcon] No password found in DB');
       return false;
@@ -414,12 +408,17 @@ export class RconManager {
 
     if (this._shuttingDown) return false;
 
-    const conn = await this.createAuthenticatedConnection(server_id, server, encryptedPassword);
-    if (!conn) {
+    const connection = await this.createAuthenticatedConnection(
+      server_id,
+      server,
+      encryptedPassword
+    );
+    if (!connection) {
       return false;
     }
+    const { conn, resolvedHost } = connection;
 
-    if (this.shouldAbortConnection()) {
+    if (this.shouldAbortConnection(server_id)) {
       conn.connection.destroy();
       return false;
     }
@@ -429,84 +428,61 @@ export class RconManager {
       return false;
     }
 
+    this.releasePendingSocket(conn);
     this.rcons.set(server_id, conn);
+    this.trackManagedSocket(server_id, conn);
     const details: ServerDetails = {
-      host: server.serverIP,
+      host: resolvedHost,
       port: server.serverPort,
       connected: conn.isConnected(),
       authenticated: conn.isAuthenticated(),
-      heartbeatFailures: 0,
+      heartbeatFailures: this.heartbeatFailures.get(server_id) ?? 0,
     };
     this.details.set(server_id, details);
 
-    details.heartbeatInterval = setInterval(() => {
-      void this.sendHeartbeat(server_id, server);
-    }, limits.HEARTBEAT_INTERVAL_MS);
+    this.restartHeartbeat(server_id, server, this.heartbeatIntervalMs);
     return true;
   }
 
+  /** Stops timers before closing the socket, then reports whether ownership cleanup completed. */
   async disconnectRcon(server_id: string): Promise<RconDisconnectResult> {
     logger.info({ server_id }, '[rcon] disconnecting');
     // Always clear heartbeat interval first so stale setInterval closures
     // never reconnect to a server that has been deleted.
     clearInterval(this.details.get(server_id)?.heartbeatInterval);
+    this.clearHeartbeatRetry(server_id);
 
     const conn = this.rcons.get(server_id);
-    const isConnected =
-      conn && (typeof conn.isConnected === 'function' ? conn.isConnected() : conn.connected);
-    if (!conn || !isConnected) {
-      this.rcons.delete(server_id);
+    if (!conn) {
       this.details.delete(server_id);
       return { server_id, state: 'absent', closed: true };
     }
 
     this.details.delete(server_id);
 
-    if (typeof conn.connection.once !== 'function' || typeof conn.connection.end !== 'function') {
-      this.rcons.delete(server_id);
-      const result: RconDisconnectResult = {
-        server_id,
-        state: 'no_connection_interface',
-        closed: false,
-      };
-      logger.warn(result, '[rcon] disconnect cleanup not confirmed');
-      return result;
-    }
-
-    return new Promise<RconDisconnectResult>((resolve) => {
-      let resolved = false;
-      const done = (result: RconDisconnectResult) => {
-        if (resolved) return;
-        resolved = true;
-        clearTimeout(timeout);
-        this.rcons.delete(server_id);
-        if (!result.closed) {
-          logger.warn(result, '[rcon] disconnect cleanup not confirmed');
-        }
-        resolve(result);
-      };
-      const timeout = setTimeout(() => {
-        done({ server_id, state: 'timeout', closed: false });
-      }, limits.RCON_DISCONNECT_TIMEOUT_MS);
-      conn.connection.once('close', () => {
-        done({ server_id, state: 'closed', closed: true });
-      });
-      conn.connection.once('error', (err: unknown) => {
-        done({ server_id, state: 'error', closed: false, error: errorMessage(err) });
-      });
-      try {
-        conn.connection.end();
-      } catch (err) {
-        done({ server_id, state: 'error', closed: false, error: errorMessage(err) });
-      }
+    const result = await closeManagedRconSocket({
+      serverId: server_id,
+      conn,
+      gracefulTimeoutMs: this.disconnectTimeoutMs,
+      forceTimeoutMs: this.forceDisconnectTimeoutMs,
     });
+    if (result.closed && this.rcons.get(server_id) === conn) this.rcons.delete(server_id);
+    if (!result.closed) logger.warn(result, '[rcon] disconnect cleanup not confirmed');
+    return result;
   }
+
+  private async destroyPendingSocket(server_id: string, conn: Rcon): Promise<RconDisconnectResult> {
+    const result = await destroyPendingRconSocket(server_id, conn, this.forceDisconnectTimeoutMs);
+    if (result.closed) this.pendingSockets.delete(conn);
+    return result;
+  }
+
   hasConnection(server_id: string): boolean {
     return this.rcons.has(server_id);
   }
 
-  private shouldAbortConnection(): boolean {
-    return this._shuttingDown;
+  private shouldAbortConnection(server_id: string): boolean {
+    return this._shuttingDown || this.removedServers.has(server_id);
   }
 
   getConnectionInfo(
@@ -520,13 +496,24 @@ export class RconManager {
   async removeServer(server_id: string): Promise<RconDisconnectResult> {
     this.removedServers.add(server_id);
     this.servers.delete(server_id);
-    const result = await this.disconnectRcon(server_id);
-    if (!result.closed) {
+    this.heartbeatFailures.delete(server_id);
+    const pendingConnections = [...this.pendingSockets.entries()]
+      .filter(([, pending]) => pending.serverId === server_id)
+      .map(([conn]) => conn);
+    const [managedResult, ...pendingResults] = await Promise.all([
+      this.disconnectRcon(server_id),
+      ...pendingConnections.map((conn) => this.destroyPendingSocket(server_id, conn)),
+    ]);
+    const failedResult = [managedResult, ...pendingResults].find((result) => !result.closed);
+    if (failedResult) {
       throw new Error(
-        `RCON cleanup did not confirm closure for server ${server_id}: ${result.state}`
+        `RCON cleanup did not confirm closure for server ${server_id}: ${failedResult.state}`
       );
     }
-    return result;
+    if (managedResult.state === 'absent' && pendingResults.length > 0) {
+      return { server_id, state: 'closed', closed: true };
+    }
+    return managedResult;
   }
 
   async shutdownAll(): Promise<RconShutdownSummary> {
@@ -535,18 +522,15 @@ export class RconManager {
     for (const details of this.details.values()) {
       clearInterval(details.heartbeatInterval);
     }
-    // Destroy in-flight sockets that haven't been stored in this.rcons yet
-    for (const conn of this.pendingSockets) {
-      try {
-        conn.connection?.destroy();
-      } catch {
-        // ignore
-      }
+    for (const retryTimer of this.heartbeatRetryTimers.values()) {
+      clearTimeout(retryTimer);
     }
-    this.pendingSockets.clear();
-    const results = await Promise.all(
-      [...this.rcons.keys()].map((sid) => this.disconnectRcon(sid))
+    this.heartbeatRetryTimers.clear();
+    const pendingClosures = [...this.pendingSockets.entries()].map(([conn, pending]) =>
+      this.destroyPendingSocket(pending.serverId, conn)
     );
+    const storedClosures = [...this.rcons.keys()].map((sid) => this.disconnectRcon(sid));
+    const results = await Promise.all([...pendingClosures, ...storedClosures]);
     const summary: RconShutdownSummary = {
       total: results.length,
       closed: results.filter((result) => result.closed).length,

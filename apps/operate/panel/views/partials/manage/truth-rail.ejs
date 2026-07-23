@@ -1,0 +1,31 @@
+<%# Night Desk truth rail — server-rendered initial RCON/identity strip. %>
+<div class="truth-rail" aria-label="Server truth rail">
+  <div class="truth-rail-inner">
+    <div class="rail-cell">
+      <span class="rail-label">Server</span>
+      <span class="rail-value" id="truth-rail-server"><%= hostname && hostname !== '–' ? hostname : 'Server ' + server_id %></span>
+    </div>
+    <div class="rail-cell">
+      <span class="rail-label">Endpoint</span>
+      <span class="rail-value mono manage-endpoint" id="truth-rail-endpoint"><%= host %>:<%= port %></span>
+    </div>
+    <div class="rail-cell">
+      <span class="rail-label">RCON</span>
+      <span class="rail-value">
+        <span id="truth-rail-status-badge" class="badge <%= initialStatusBadgeClass %>" data-live-status-badge><%= initialStatusLabel %></span>
+      </span>
+    </div>
+    <div class="rail-cell">
+      <span class="rail-label">Observed map</span>
+      <span class="rail-value mono" id="truth-rail-map">–</span>
+    </div>
+    <div class="rail-cell">
+      <span class="rail-label">Players</span>
+      <span class="rail-value mono" id="truth-rail-players">–</span>
+    </div>
+    <div class="rail-cell">
+      <span class="rail-label">Observed</span>
+      <span class="rail-value mono" id="truth-rail-observed-at">No observation yet</span>
+    </div>
+  </div>
+</div>

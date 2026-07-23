@@ -1,3 +1,4 @@
+/** Proves RCON output stays readable without permitting display-control spoofing. */
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { cleanRconDisplayText } from '../utils/rconDisplay';

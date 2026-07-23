@@ -1,0 +1,91 @@
+        <div class="panel setup-panel" id="requested-setup">
+          <div class="panel-header">
+            <h2 aria-label="Requested Setup"><span aria-hidden="true">Run setup</span></h2>
+          </div>
+          <p id="setup-status" class="alert mb-3" role="status" aria-live="polite" hidden></p>
+          <form id="server_setup_form">
+            <div class="mb-3">
+              <span class="form-label" id="game-type-label">Game type</span>
+              <div class="btn-grid cols-3" id="gameTypeBtns" role="group" aria-labelledby="game-type-label">
+                <% gameTypes.forEach(type => { %>
+                  <button type="button" class="btn btn-secondary" data-game-type="<%= type %>" aria-pressed="false">
+                    <%= type.charAt(0).toUpperCase() + type.slice(1) %>
+                  </button>
+                <% }) %>
+              </div>
+              <input type="hidden" id="gameTypeValue" name="game_type" value="<%= requestedGameType %>">
+            </div>
+            <div class="mb-3">
+              <span class="form-label" id="game-mode-label">Game mode</span>
+              <div class="btn-grid" id="gameModeBtns" role="group" aria-labelledby="game-mode-label"></div>
+              <input type="hidden" id="gameModeValue" name="game_mode" value="<%= requestedGameMode %>">
+            </div>
+            <div class="mb-3">
+              <label for="selectedMap" class="form-label">Map</label>
+              <select id="selectedMap" name="selectedMap" class="form-select" required data-requested-map="<%= requestedMap %>">
+                <option disabled selected>Choose a game mode first</option>
+              </select>
+            </div>
+            <div class="mb-3">
+              <p class="requested-state-note">Requested, not observed</p>
+              <button id="send-setup-commands" type="submit" class="btn btn-primary w-100">Apply to server</button>
+            </div>
+            <button id="restart_game" type="button" class="btn btn-danger-outline w-100 setup-destructive">Restart round</button>
+            <details class="inline-advanced setup-advanced">
+              <summary>Advanced setup</summary>
+              <div class="mb-3 mt-sm">
+                <label for="team1" class="form-label">Team 1</label>
+                <input type="text" id="team1" name="team1" class="form-control" placeholder="Team name…" autocomplete="off">
+              </div>
+              <div class="mb-3">
+                <label for="team2" class="form-label">Team 2</label>
+                <input type="text" id="team2" name="team2" class="form-control" placeholder="Team name…" autocomplete="off">
+              </div>
+              <div class="mb-3">
+                <label for="workshopUrl" class="form-label">Or paste Workshop URL</label>
+                <div class="input-row">
+                  <input type="text" id="workshopUrl" name="workshop_url" class="form-control"
+                         placeholder="https://steamcommunity.com/sharedfiles/filedetails/?id=…" autocomplete="off">
+                  <button type="button" id="loadWorkshopMap" class="btn btn-secondary">Load</button>
+                </div>
+                <small class="text-muted">Paste a Steam Workshop URL to load any workshop map</small>
+              </div>
+              <div class="mb-3 workshop-favorites">
+                <div class="panel-subheader">
+                  <span class="section-label">Workshop Favorites</span>
+                  <button type="button" id="refreshWorkshopFavorites" class="btn btn-ghost btn-sm">Refresh</button>
+                </div>
+                <div class="input-row">
+                  <input type="text" id="favoriteWorkshopName" class="form-control" placeholder="Favorite name" maxlength="80" aria-label="Workshop favorite name">
+                  <input type="text" id="favoriteWorkshopId" class="form-control" placeholder="Workshop ID" maxlength="20" inputmode="numeric" aria-label="Workshop favorite ID">
+                  <button type="button" id="addWorkshopFavorite" class="btn btn-secondary">Save</button>
+                </div>
+                <div id="workshopFavoritesList" class="compact-list" aria-live="polite">
+                  <p class="empty-state">No favorites loaded.</p>
+                </div>
+              </div>
+              <div class="mb-3">
+                <label for="workshopCollectionId" class="form-label">Or load Workshop Collection</label>
+                <div class="input-row">
+                  <input type="text" id="workshopCollectionId" name="workshop_collection_id" class="form-control"
+                         placeholder="Collection ID (5–20 digits)" maxlength="20" autocomplete="off">
+                  <button type="button" id="loadWorkshopCollection" class="btn btn-secondary">Load</button>
+                </div>
+                <small class="text-muted">Loads all maps in a Workshop Collection for rotation</small>
+              </div>
+              <div class="mb-3">
+                <label for="mapGroupSelect" class="form-label">Set Map Group</label>
+                <div class="input-row">
+                  <select id="mapGroupSelect" class="form-select">
+                    <% mapGroups.forEach(function(group) { %>
+                      <option value="<%= group.id %>"><%= group.displayName %> (<%= group.id %>)</option>
+                    <% }) %>
+                  </select>
+                  <button type="button" id="setMapGroupBtn" class="btn btn-secondary">Set</button>
+                </div>
+                <small class="text-muted">Sets <code>mp_mapgroupname</code> for map cycling</small>
+              </div>
+            </details>
+          </form>
+        </div>
+

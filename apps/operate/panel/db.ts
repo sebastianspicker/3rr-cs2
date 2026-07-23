@@ -1,3 +1,4 @@
+/** SQLite initialization and forward-only migrations for panel state. */
 import logger from './utils/logger';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -8,8 +9,8 @@ import { encryptRconSecret, hasRconSecretKey, isEncryptedRconSecret } from './ut
 const nodeEnv = process.env.NODE_ENV ?? 'development';
 // The default path matches the container volume contract. Local development can
 // fall back to ./data when /home/container is not writable and DB_PATH is unset.
-const defaultDbPath = path.resolve('/home/container/data/cspanel.db');
-const fallbackDbPath = path.resolve(process.cwd(), 'data', 'cspanel.db');
+const defaultDbPath = path.resolve('/home/container/data/3rr.db');
+const fallbackDbPath = path.resolve(process.cwd(), 'data', '3rr.db');
 const dbPathEnv = process.env.DB_PATH?.trim();
 const preferredDbPath = dbPathEnv ? path.resolve(dbPathEnv) : defaultDbPath;
 
@@ -46,7 +47,7 @@ if (nodeEnv === 'production' && !hasRconSecretKey()) {
   throw new Error('RCON_SECRET_KEY must be set in production to protect stored RCON credentials');
 }
 if (!hasRconSecretKey()) {
-  logger.warn('[db] RCON_SECRET_KEY is not set — stored RCON passwords will be in plaintext');
+  logger.warn('[db] RCON_SECRET_KEY is not set - stored RCON passwords will be in plaintext');
 }
 
 // Enable foreign key enforcement (must be per-connection in SQLite)
@@ -117,8 +118,10 @@ function validateExistingSchema(db: Database.Database, version: number): void {
   }
 }
 
+export const SQLITE_UTC_NOW = `(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`;
+
 const MIGRATIONS = [
-  // 1 — full baseline schema as of v1.0.0.
+  // 1 - full baseline schema as of v1.0.0.
   //     Uses IF NOT EXISTS / try-catch so it is safe to run on a database that
   //     was already bootstrapped by the pre-migration inline code.
   (db: Database.Database) => {
@@ -160,7 +163,7 @@ const MIGRATIONS = [
 
     // Backfill owner_id for rows that were inserted before the column existed.
     db.prepare(
-      `UPDATE servers SET owner_id = (SELECT id FROM users LIMIT 1) WHERE owner_id IS NULL`
+      `UPDATE servers SET owner_id = (SELECT MIN(id) FROM users) WHERE owner_id IS NULL`
     ).run();
 
     // Backfill server_access from owner_id for pre-existing installs (idempotent).
@@ -170,7 +173,7 @@ const MIGRATIONS = [
     `);
   },
 
-  // 2 — add is_admin flag to users.
+  // 2 - add is_admin flag to users.
   //     The oldest user (lowest id) is designated admin automatically, matching
   //     the behaviour of the DEFAULT_USERNAME bootstrap path.
   (db: Database.Database) => {
@@ -186,7 +189,7 @@ const MIGRATIONS = [
     }
   },
 
-  // 3 — per-user/per-server operator UX state.
+  // 3 - per-user/per-server operator UX state.
   (db: Database.Database) => {
     db.exec(`
       CREATE TABLE IF NOT EXISTS workshop_favorites (
@@ -195,8 +198,8 @@ const MIGRATIONS = [
         server_id   INTEGER NOT NULL REFERENCES servers(id) ON DELETE CASCADE,
         workshop_id TEXT    NOT NULL,
         name        TEXT    NOT NULL,
-        created_at  TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-        updated_at  TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+        created_at  TEXT    NOT NULL DEFAULT ${SQLITE_UTC_NOW},
+        updated_at  TEXT    NOT NULL DEFAULT ${SQLITE_UTC_NOW},
         UNIQUE (user_id, server_id, workshop_id)
       );
       CREATE INDEX IF NOT EXISTS idx_workshop_favorites_user_server
@@ -208,8 +211,8 @@ const MIGRATIONS = [
         server_id    INTEGER NOT NULL REFERENCES servers(id) ON DELETE CASCADE,
         command      TEXT    NOT NULL,
         use_count    INTEGER NOT NULL DEFAULT 1,
-        created_at   TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-        last_used_at TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+        created_at   TEXT    NOT NULL DEFAULT ${SQLITE_UTC_NOW},
+        last_used_at TEXT    NOT NULL DEFAULT ${SQLITE_UTC_NOW},
         UNIQUE (user_id, server_id, command)
       );
       CREATE INDEX IF NOT EXISTS idx_rcon_history_user_server_recent
@@ -220,6 +223,7 @@ const MIGRATIONS = [
 
 const CURRENT_VERSION = MIGRATIONS.length;
 
+/** Applies each pending migration atomically so schema version cannot outrun its tables. */
 function runMigrations(db: Database.Database): void {
   const currentVersion = db.pragma('user_version', { simple: true }) as number;
 

@@ -1,8 +1,12 @@
+/** Collects match setup input before the server-side validation boundary. */
 import { fetchJson, sendPostRequest, showToast, toastError, withLoading } from './common';
-import { el, on } from './manageShared';
+import { el, on, setText } from './manageShared';
 
 interface GameModesResponse { gameModes: string[] }
 interface MapsResponse { maps: string[] }
+
+let modeRequestGeneration = 0;
+let mapRequestGeneration = 0;
 
 interface GameSetupElements {
   typeContainer: HTMLDivElement;
@@ -24,7 +28,9 @@ function gameSetupElements(): GameSetupElements | null {
 
 function activateButton(container: HTMLElement, attribute: string, value: string): void {
   container.querySelectorAll<HTMLButtonElement>('.btn').forEach(button => {
-    button.classList.toggle('btn-active', button.getAttribute(attribute) === value);
+    const active = button.getAttribute(attribute) === value;
+    button.classList.toggle('btn-active', active);
+    button.setAttribute('aria-pressed', String(active));
   });
 }
 
@@ -35,16 +41,34 @@ function setMapPlaceholder(elements: GameSetupElements, text: string): void {
   elements.mapSelect.replaceChildren(option);
 }
 
+function setSetupStatus(message: string | null, tone: 'secondary' | 'danger' = 'secondary'): void {
+  const status = el<HTMLElement>('#setup-status');
+  if (!status) return;
+  status.hidden = !message;
+  status.className = `alert mb-3 alert-${tone}`;
+  status.textContent = message ?? '';
+}
+
+function setSetupPending(elements: GameSetupElements, pending: boolean): void {
+  elements.mapSelect.disabled = pending;
+  const submit = el<HTMLButtonElement>('#send-setup-commands');
+  if (submit) submit.disabled = pending;
+}
+
 function loadMaps(
   elements: GameSetupElements,
   gameType: string,
   gameMode: string,
   preferredMap = ''
 ): Promise<void> {
+  const generation = ++mapRequestGeneration;
+  setSetupPending(elements, true);
+  setSetupStatus('Loading maps…');
   return fetchJson<MapsResponse>(
       `/api/game-types/${encodeURIComponent(gameType)}/game-modes/${encodeURIComponent(gameMode)}/maps`
     )
     .then(({ maps }) => {
+      if (generation !== mapRequestGeneration) return;
       elements.mapSelect.replaceChildren();
       maps.forEach(map => {
         const option = document.createElement('option');
@@ -54,13 +78,18 @@ function loadMaps(
       });
       if (!maps.length) {
         setMapPlaceholder(elements, 'No maps available');
+        setSetupStatus('No maps are available for this game mode.', 'danger');
         return;
       }
       elements.mapSelect.value =
         preferredMap && maps.includes(preferredMap) ? preferredMap : (maps[0] ?? '');
+      setSetupPending(elements, false);
+      setSetupStatus(null);
     })
     .catch(() => {
-      showToast('Failed to load maps.', 'error');
+      if (generation !== mapRequestGeneration) return;
+      setMapPlaceholder(elements, 'Maps unavailable');
+      setSetupStatus('Maps could not be loaded. Choose a game mode to retry.', 'danger');
     });
 }
 
@@ -70,8 +99,13 @@ function loadModes(
   preferredMode = '',
   preferredMap = ''
 ): Promise<void> {
+  const generation = ++modeRequestGeneration;
+  mapRequestGeneration += 1;
+  setSetupPending(elements, true);
+  setSetupStatus('Loading game modes…');
   return fetchJson<GameModesResponse>(`/api/game-types/${encodeURIComponent(gameType)}/game-modes`)
     .then(({ gameModes }) => {
+      if (generation !== modeRequestGeneration) return;
       elements.modeContainer.replaceChildren();
       elements.modeContainer.className = `btn-grid ${gameModes.length <= 2 ? 'cols-2' : gameModes.length <= 4 ? 'cols-3' : 'cols-4'}`;
       gameModes.forEach(mode => {
@@ -79,6 +113,7 @@ function loadModes(
         button.type = 'button';
         button.className = 'btn btn-secondary';
         button.dataset.gameMode = mode;
+        button.setAttribute('aria-pressed', 'false');
         button.textContent = mode;
         elements.modeContainer.appendChild(button);
       });
@@ -86,6 +121,7 @@ function loadModes(
         preferredMode && gameModes.includes(preferredMode) ? preferredMode : gameModes.at(0);
       if (!selected) {
         setMapPlaceholder(elements, 'No maps available');
+        setSetupStatus('No game modes are available for this game type.', 'danger');
         return;
       }
       elements.gameModeValue.value = selected;
@@ -93,7 +129,10 @@ function loadModes(
       return loadMaps(elements, gameType, selected, preferredMap);
     })
     .catch(() => {
-      showToast('Failed to load game modes.', 'error');
+      if (generation !== modeRequestGeneration) return;
+      elements.modeContainer.replaceChildren();
+      setMapPlaceholder(elements, 'Maps unavailable');
+      setSetupStatus('Game modes could not be loaded. Choose a game type to retry.', 'danger');
     });
 }
 
@@ -133,9 +172,14 @@ function loadInitialMode(elements: GameSetupElements): void {
 }
 
 function bindSetupForm(serverId: string, elements: GameSetupElements): void {
-  const deployButton = el<HTMLButtonElement>('button[form="server_setup_form"]');
-  el('#server_setup_form')?.addEventListener('submit', event => {
+  const form = el<HTMLFormElement>('#server_setup_form');
+  const deployButton = el<HTMLButtonElement>('#send-setup-commands');
+  form?.addEventListener('submit', event => {
     event.preventDefault();
+    if (!form.checkValidity()) {
+      form.reportValidity();
+      return;
+    }
     const payload = {
       server_id: serverId,
       team1: el<HTMLInputElement>('#team1')?.value ?? '',
@@ -146,7 +190,14 @@ function bindSetupForm(serverId: string, elements: GameSetupElements): void {
     };
     withLoading(deployButton, () =>
       sendPostRequest('/api/setup-game', payload)
-        .then(data => { showToast(data.message, 'success'); })
+        .then(data => {
+          showToast(data.message, 'success');
+          setText('truth-requested-time', new Date().toLocaleTimeString());
+          setText(
+            'truth-requested-detail',
+            `${payload.game_type} / ${payload.game_mode} / ${payload.selectedMap}`
+          );
+        })
         .catch(toastError('Setup command failed.'))
     );
   });

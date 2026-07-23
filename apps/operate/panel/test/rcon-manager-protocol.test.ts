@@ -1,3 +1,4 @@
+/** Protocol-level RCON tests with a local fake server for timeout and packet ordering. */
 import net, { type Server, type Socket } from 'node:net';
 import type { AddressInfo } from 'node:net';
 import { test } from 'node:test';
@@ -23,7 +24,7 @@ mockModule('../db.js', {
 });
 
 mockModule('../utils/networkValidation.js', {
-  isValidServerHostResolved: async () => true,
+  resolveValidServerHost: async (host: string) => host,
 });
 
 interface RconPacket {

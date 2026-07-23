@@ -1,3 +1,4 @@
+/** Provides isolated browser credentials and direct SQLite fixtures for deterministic E2E state. */
 import { expect, test, type Page } from '@playwright/test';
 import Database from 'better-sqlite3';
 export { expect, test, Database };
@@ -9,7 +10,7 @@ export async function login(page: Page): Promise<void> {
   await page.getByLabel('Password').fill(['e2e', 'password', '12345'].join(''));
   await Promise.all([
     page.waitForURL('**/servers'),
-    page.getByRole('button', { name: 'Authenticate' }).click(),
+    page.getByRole('button', { name: 'Sign in' }).click(),
   ]);
 }
 

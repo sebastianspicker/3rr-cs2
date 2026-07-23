@@ -9,6 +9,7 @@ import {
   getLoginPageCsrfAndCookie,
   getPageCsrfToken,
   loginAndGetSession as loginWithCredentials,
+  configurePanelTestEnvironment,
 } from './http-helpers';
 import { mockModule } from './mock-module';
 export {
@@ -68,17 +69,41 @@ export async function loginOrReuseSession(
   return result;
 }
 
-before(async () => {
-  tmpDir = fs.mkdtempSync(path.join(process.cwd(), 'tmp-cs2-panel-'));
-  dbPath = path.join(tmpDir, 'cspanel.db');
+export async function withAppServer(
+  fn: (baseUrl: string, port: number) => Promise<void>
+): Promise<void> {
+  const server: Server = app.listen(0);
+  try {
+    const { port } = server.address() as AddressInfo;
+    await fn(`http://127.0.0.1:${port}`, port);
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
+}
 
-  process.env.NODE_ENV = 'test';
-  process.env.DB_PATH = dbPath;
-  process.env.DEFAULT_USERNAME = 'testuser';
-  process.env.DEFAULT_PASSWORD = ['test', 'pass', '12345'].join('');
-  process.env.ALLOW_DEFAULT_CREDENTIALS = 'true';
-  process.env.SESSION_SECRET = 'test-session-secret';
-  process.env.ENABLE_E2E_TEST_ROUTES = 'true';
+export function postJson(
+  baseUrl: string,
+  path: string,
+  body: Record<string, unknown>,
+  headers: Record<string, string> = {}
+): Promise<Response> {
+  return fetch(`${baseUrl}${path}`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', accept: 'application/json', ...headers },
+    body: JSON.stringify(body),
+  });
+}
+
+before(async () => {
+  tmpDir = fs.mkdtempSync(path.join(process.cwd(), 'tmp-3rr-'));
+  dbPath = path.join(tmpDir, '3rr.db');
+
+  configurePanelTestEnvironment(dbPath, {
+    username: 'testuser',
+    password: ['test', 'pass', '12345'].join(''),
+    sessionSecret: 'test-session-secret',
+    enableLegacyE2ERouteFlag: true,
+  });
 
   mockModule('../modules/rcon.js', {
     default: {

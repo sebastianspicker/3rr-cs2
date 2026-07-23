@@ -1,3 +1,4 @@
+/** Appends sanitized RCON transcript entries while preserving chronological context. */
 import { cleanRconDisplayText } from '../../utils/rconDisplay';
 import { el } from './manageShared';
 

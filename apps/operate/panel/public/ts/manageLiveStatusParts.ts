@@ -1,3 +1,4 @@
+/** Renders individual status fields without assuming a complete RCON response. */
 import { formatObserved, type LiveStatusResponse } from './manageShared';
 
 export function displayLiveText(value: string | null): string {
@@ -19,13 +20,27 @@ export function displayLivePlayers(data: LiveStatusResponse): string {
 }
 
 export function displayLiveState(data: LiveStatusResponse): string {
-  const authenticated = [data.connected, data.authenticated, data.complete].every(Boolean);
-  const candidates: Array<[boolean, string]> = [
-    [data.partial, 'RCON partial'],
-    [Boolean(data.error), 'RCON error'],
-    [authenticated, 'RCON authenticated'],
-  ];
-  return candidates.find(([active]) => active)?.[1] ?? 'RCON disconnected';
+  return liveStatusIndicator(data).label;
+}
+
+export interface LiveStatusIndicator {
+  dotClass: 'online' | 'offline' | 'unknown';
+  badgeClass: 'badge-connected' | 'badge-disconnected' | 'badge-unknown';
+  label: string;
+}
+
+/** Keeps every observed-status indicator on the manage page semantically aligned. */
+export function liveStatusIndicator(data: LiveStatusResponse): LiveStatusIndicator {
+  if (data.partial) {
+    return { dotClass: 'unknown', badgeClass: 'badge-unknown', label: 'RCON partial' };
+  }
+  if (data.error) {
+    return { dotClass: 'unknown', badgeClass: 'badge-unknown', label: 'RCON error' };
+  }
+  if ([data.connected, data.authenticated, data.complete].every(Boolean)) {
+    return { dotClass: 'online', badgeClass: 'badge-connected', label: 'RCON authenticated' };
+  }
+  return { dotClass: 'offline', badgeClass: 'badge-disconnected', label: 'RCON disconnected' };
 }
 
 export function displayLiveObserved(data: LiveStatusResponse): string {

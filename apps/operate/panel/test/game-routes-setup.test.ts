@@ -7,11 +7,14 @@ import {
   commandResponses,
   type SetupGameResponse,
   loginAndGetSession,
+  postSetupGame,
   createAccessibleServerForTest,
   requestedSetupState,
   assert,
   type AddressInfo,
   type Server,
+  withAuthedServer,
+  postAuthedJson,
 } from './game-routes-fixture';
 
 test('POST /api/setup-game rejects unauthenticated requests', async () => {
@@ -39,21 +42,16 @@ test('POST /api/setup-game returns requested-state metadata for a valid payload'
   try {
     const { port } = server.address() as AddressInfo;
     const { sessionCookie, csrfToken } = await loginAndGetSession(port);
-    const res = await fetch(`http://127.0.0.1:${port}/api/setup-game`, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        accept: 'application/json',
-        cookie: sessionCookie,
-        'x-csrf-token': csrfToken,
-      },
-      body: JSON.stringify({
+    const res = await postSetupGame(
+      `http://127.0.0.1:${port}`,
+      { sessionCookie, csrfToken },
+      {
         server_id: serverId,
         game_type: 'competitive',
         game_mode: 'competitive',
         selectedMap: 'de_dust2',
-      }),
-    });
+      }
+    );
     assert.equal(res.status, 200);
     const body = (await res.json()) as SetupGameResponse;
     assert.equal(body.message, 'Game setup commands sent.');
@@ -76,21 +74,16 @@ test('POST /api/setup-game reports config failure before sending later setup com
     const { port } = server.address() as AddressInfo;
     const { sessionCookie, csrfToken } = await loginAndGetSession(port);
     commandsThatFail.add('exec oitc.cfg');
-    const missingCfgRes = await fetch(`http://127.0.0.1:${port}/api/setup-game`, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        accept: 'application/json',
-        cookie: sessionCookie,
-        'x-csrf-token': csrfToken,
-      },
-      body: JSON.stringify({
+    const missingCfgRes = await postSetupGame(
+      `http://127.0.0.1:${port}`,
+      { sessionCookie, csrfToken },
+      {
         server_id: serverId,
         game_type: 'fun',
         game_mode: 'oitc',
         selectedMap: 'de_dust2',
-      }),
-    });
+      }
+    );
     assert.equal(missingCfgRes.status, 500);
     assert.deepEqual(executedCommands, ['exec oitc.cfg']);
   } finally {
@@ -106,23 +99,18 @@ test('POST /api/setup-game executes cfg and team commands before saving requeste
     const { port } = server.address() as AddressInfo;
     const { sessionCookie, csrfToken } = await loginAndGetSession(port);
 
-    const res = await fetch(`http://127.0.0.1:${port}/api/setup-game`, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        accept: 'application/json',
-        cookie: sessionCookie,
-        'x-csrf-token': csrfToken,
-      },
-      body: JSON.stringify({
+    const res = await postSetupGame(
+      `http://127.0.0.1:${port}`,
+      { sessionCookie, csrfToken },
+      {
         server_id: setupServerId,
         game_type: 'fun',
         game_mode: 'ctf',
         selectedMap: 'workshop/3555531615/ctf_2fort',
         team1: 'Alpha',
         team2: 'Bravo',
-      }),
-    });
+      }
+    );
 
     assert.equal(res.status, 200);
     const body = (await res.json()) as SetupGameResponse;
@@ -158,22 +146,17 @@ test('POST /api/setup-game does not persist requested state when a late command 
     const { port } = server.address() as AddressInfo;
     const { sessionCookie, csrfToken } = await loginAndGetSession(port);
 
-    const res = await fetch(`http://127.0.0.1:${port}/api/setup-game`, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        accept: 'application/json',
-        cookie: sessionCookie,
-        'x-csrf-token': csrfToken,
-      },
-      body: JSON.stringify({
+    const res = await postSetupGame(
+      `http://127.0.0.1:${port}`,
+      { sessionCookie, csrfToken },
+      {
         server_id: setupServerId,
         game_type: 'competitive',
         game_mode: 'competitive',
         selectedMap: 'de_mirage',
         team1: 'Alpha',
-      }),
-    });
+      }
+    );
 
     assert.equal(res.status, 500);
     assert.deepEqual(executedCommands, [
@@ -201,21 +184,16 @@ test('POST /api/setup-game treats resolved RCON output as requested, not observe
     const { port } = server.address() as AddressInfo;
     const { sessionCookie, csrfToken } = await loginAndGetSession(port);
 
-    const res = await fetch(`http://127.0.0.1:${port}/api/setup-game`, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        accept: 'application/json',
-        cookie: sessionCookie,
-        'x-csrf-token': csrfToken,
-      },
-      body: JSON.stringify({
+    const res = await postSetupGame(
+      `http://127.0.0.1:${port}`,
+      { sessionCookie, csrfToken },
+      {
         server_id: setupServerId,
         game_type: 'competitive',
         game_mode: 'competitive',
         selectedMap: 'de_mirage',
-      }),
-    });
+      }
+    );
 
     assert.equal(res.status, 200);
     const body = (await res.json()) as SetupGameResponse;
@@ -243,21 +221,16 @@ test('POST /api/setup-game rejects unknown game type', async () => {
   try {
     const { port } = server.address() as AddressInfo;
     const { sessionCookie, csrfToken } = await loginAndGetSession(port);
-    const res = await fetch(`http://127.0.0.1:${port}/api/setup-game`, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        accept: 'application/json',
-        cookie: sessionCookie,
-        'x-csrf-token': csrfToken,
-      },
-      body: JSON.stringify({
+    const res = await postSetupGame(
+      `http://127.0.0.1:${port}`,
+      { sessionCookie, csrfToken },
+      {
         server_id: serverId,
         game_type: 'notavalidgametype',
         game_mode: 'competitive',
         selectedMap: 'de_dust2',
-      }),
-    });
+      }
+    );
     assert.equal(res.status, 400);
     const body = (await res.json()) as { error: string };
     assert.match(body.error, /Unknown game type/);
@@ -272,21 +245,16 @@ test('POST /api/setup-game rejects map not in allowed list', async () => {
   try {
     const { port } = server.address() as AddressInfo;
     const { sessionCookie, csrfToken } = await loginAndGetSession(port);
-    const res = await fetch(`http://127.0.0.1:${port}/api/setup-game`, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        accept: 'application/json',
-        cookie: sessionCookie,
-        'x-csrf-token': csrfToken,
-      },
-      body: JSON.stringify({
+    const res = await postSetupGame(
+      `http://127.0.0.1:${port}`,
+      { sessionCookie, csrfToken },
+      {
         server_id: serverId,
         game_type: 'competitive',
         game_mode: 'competitive',
         selectedMap: 'de_notamap',
-      }),
-    });
+      }
+    );
     assert.equal(res.status, 400);
     const body = (await res.json()) as { error: string };
     assert.match(body.error, /selectedMap must be one of/);
@@ -314,49 +282,27 @@ test('POST /api/workshop-map rejects unauthenticated requests', async () => {
 });
 
 test('POST /api/workshop-map succeeds with a valid workshop id', async () => {
-  const server: Server = app.listen(0);
-  try {
-    const { port } = server.address() as AddressInfo;
-    const { sessionCookie, csrfToken } = await loginAndGetSession(port);
-    const res = await fetch(`http://127.0.0.1:${port}/api/workshop-map`, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        accept: 'application/json',
-        cookie: sessionCookie,
-        'x-csrf-token': csrfToken,
-      },
-      body: JSON.stringify({ server_id: serverId, workshop_id: '12345678901' }),
+  await withAuthedServer(async (baseUrl, auth) => {
+    const res = await postAuthedJson(baseUrl, auth, '/api/workshop-map', {
+      server_id: serverId,
+      workshop_id: '12345678901',
     });
     assert.equal(res.status, 200);
     assert.deepEqual(executedCommands, ['host_workshop_map 12345678901']);
-  } finally {
-    await new Promise<void>((resolve) => server.close(() => resolve()));
-  }
+  });
 });
 
 test('POST /api/workshop-map rejects non-numeric workshop id', async () => {
-  const server: Server = app.listen(0);
-  try {
-    const { port } = server.address() as AddressInfo;
-    const { sessionCookie, csrfToken } = await loginAndGetSession(port);
-    const res = await fetch(`http://127.0.0.1:${port}/api/workshop-map`, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        accept: 'application/json',
-        cookie: sessionCookie,
-        'x-csrf-token': csrfToken,
-      },
-      body: JSON.stringify({ server_id: serverId, workshop_id: 'notanid' }),
+  await withAuthedServer(async (baseUrl, auth) => {
+    const res = await postAuthedJson(baseUrl, auth, '/api/workshop-map', {
+      server_id: serverId,
+      workshop_id: 'notanid',
     });
     assert.equal(res.status, 400);
     const body = (await res.json()) as { error: string };
     assert.match(body.error, /workshop_id must be/);
     assert.deepEqual(executedCommands, []);
-  } finally {
-    await new Promise<void>((resolve) => server.close(() => resolve()));
-  }
+  });
 });
 
 // ── /api/rcon ─────────────────────────────────────────────────────────────────

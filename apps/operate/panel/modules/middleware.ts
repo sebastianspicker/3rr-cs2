@@ -1,3 +1,4 @@
+/** Express access-control middleware backed by the current session user. */
 import type { Request, Response, NextFunction } from 'express';
 import { better_sqlite_client } from '../db';
 import logger from '../utils/logger';

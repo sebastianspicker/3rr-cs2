@@ -1,3 +1,4 @@
+/** Coordinates explicit RCON commands, debounced suggestions, and bounded history. */
 import { fetchJson, sendPostRequest, showToast, toastError, withLoading, showConfirm } from './common';
 import { el, formatObserved, on, type AutocompleteResponse, type RconHistoryResponse, type RconHistoryRow } from './manageShared';
 import { renderSuggestions } from './manageRconSuggestions';

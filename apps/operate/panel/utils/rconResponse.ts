@@ -1,3 +1,4 @@
+/** Converts hostname command output into bounded operator-facing text. */
 import { cleanRconDisplayText } from './rconDisplay';
 
 const MAX_HOSTNAME_LENGTH = 128;

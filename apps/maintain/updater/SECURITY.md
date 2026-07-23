@@ -2,9 +2,12 @@
 
 ## Reporting a Vulnerability
 
-Please report security issues via GitHub Security Advisories if available.
-If you cannot use advisories, open a private channel with the maintainer rather than filing a public issue.
+Please report security issues through a private
+[GitHub security advisory](https://github.com/sebastianspicker/cs2-server-ops/security/advisories/new)
+rather than a public issue.
 
 ## Supported Versions
 
-This repository tracks a single active version. Apply security fixes to the latest release.
+This component tracks one active line. There is no supported stable umbrella
+release during the public-alpha phase. Security fixes target `main` and
+subsequent alpha candidates.

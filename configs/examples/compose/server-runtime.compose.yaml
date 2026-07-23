@@ -8,7 +8,7 @@ services:
     container_name: cs2-runtime
     entrypoint:
       - /bin/bash
-      - /opt/cs2-server-ops/server-start.sh
+      - /opt/3rr/server-start.sh
     environment:
       CS2_INSTALL_DIR: /home/steam/cs2-dedicated
       CS2_HOSTNAME: ${CS2_HOSTNAME:-Example CS2 Server}
@@ -21,11 +21,11 @@ services:
       CSS_ADMINS_FILE: /bootstrap/admins.json
       CSS_GROUPS_FILE: /bootstrap/admin_groups.json
     ports:
-      - "27015:27015/udp"
-      - "27015:27015/tcp"
+      - "${CS2_PORT:-27015}:${CS2_PORT:-27015}/udp"
+      - "${CS2_PORT:-27015}:${CS2_PORT:-27015}/tcp"
     volumes:
       - cs2-runtime-data:/home/steam/cs2-dedicated
-      - ../startup/server-start.sh:/opt/cs2-server-ops/server-start.sh:ro
+      - ../startup/server-start.sh:/opt/3rr/server-start.sh:ro
       - ./bootstrap:/bootstrap:ro
     restart: unless-stopped
 

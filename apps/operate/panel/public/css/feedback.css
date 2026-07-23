@@ -1,0 +1,136 @@
+/* Skeleton, toast, and modal states */
+
+.skeleton-card {
+  pointer-events: none;
+}
+
+.skeleton-line {
+  animation: skeleton 1.4s ease-in-out infinite;
+  background: linear-gradient(90deg, var(--surface-strong) 25%, var(--surface-subtle) 50%, var(--surface-strong) 75%);
+  background-size: 200% 100%;
+  border-radius: 2px;
+  height: 13px;
+}
+
+.skeleton-title {
+  width: 70%;
+}
+
+.skeleton-badge {
+  width: 80px;
+}
+
+.skeleton-addr {
+  width: 75%;
+}
+
+.skeleton-count {
+  width: 36px;
+}
+
+.skeleton-actions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.skeleton-btn {
+  height: 30px;
+  width: 68px;
+}
+
+#cs-toast-container {
+  display: grid;
+  gap: var(--space-2);
+  max-width: min(390px, calc(100vw - 2rem));
+  position: fixed;
+  right: var(--space-4);
+  top: 72px;
+  z-index: 500;
+}
+
+.cs-toast {
+  align-items: flex-start;
+  background: var(--surface-strong);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--muted);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-float);
+  color: var(--ink);
+  display: flex;
+  font-size: 0.82rem;
+  gap: var(--space-3);
+  justify-content: space-between;
+  opacity: 0;
+  padding: var(--space-3) var(--space-4);
+  transform: translateY(-8px);
+  transition: opacity 150ms ease, transform 150ms ease;
+}
+
+.cs-toast--success {
+  border-left-color: var(--observed);
+}
+
+.cs-toast--error {
+  border-left-color: var(--danger);
+}
+
+.cs-toast--warning {
+  border-left-color: var(--warn);
+}
+
+.cs-toast--visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.cs-toast-dismiss {
+  background: transparent;
+  border: 0;
+  color: var(--muted-strong);
+  font-size: 1rem;
+  min-height: 24px;
+  min-width: 24px;
+  padding: 0;
+}
+
+.cs-modal-overlay {
+  align-items: center;
+  background: var(--overlay);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: var(--space-4);
+  position: fixed;
+  z-index: 600;
+}
+
+.cs-modal {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-float);
+  max-width: 430px;
+  padding: var(--space-6);
+  width: 100%;
+}
+
+.cs-modal::before {
+  color: var(--danger);
+  content: "Confirm action";
+  display: block;
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  margin-bottom: var(--space-3);
+}
+
+.cs-modal-message {
+  color: var(--muted-strong);
+  margin: 0;
+}
+
+.cs-modal-actions {
+  display: flex;
+  gap: var(--space-2);
+  justify-content: flex-end;
+  margin-top: var(--space-6);
+}

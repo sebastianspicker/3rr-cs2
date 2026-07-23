@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Runs the cross-module release verification gate from a reproducible repository root.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
@@ -28,7 +29,16 @@ have() {
   command -v "$1" >/dev/null 2>&1
 }
 
+file_mode() {
+  if stat -c '%a' "$1" >/dev/null 2>&1; then
+    stat -c '%a' "$1"
+  else
+    stat -f '%Lp' "$1"
+  fi
+}
+
 install_playwright_chromium() {
+  # Root and CI images need browser OS dependencies; developer machines usually do not.
   if [[ "${CI:-}" == "true" ]] || [[ "$(id -u)" == "0" ]]; then
     run npx playwright install --with-deps chromium
   else
@@ -39,6 +49,7 @@ install_playwright_chromium() {
 PANEL_PROBE_CID=""
 
 cleanup() {
+  # Ensure temporary probes and containers do not survive an interrupted verification run.
   if [[ -n "${PANEL_PROBE_CID}" ]]; then
     docker rm -f "${PANEL_PROBE_CID}" >/dev/null 2>&1 || true
     PANEL_PROBE_CID=""
@@ -59,10 +70,10 @@ panel_surface_probe() {
   PANEL_PROBE_CID="$(docker run -d \
     -p 127.0.0.1::3000 \
     -e NODE_ENV=development \
-    -e DB_PATH=/tmp/cspanel.db \
+    -e DB_PATH=/tmp/3rr.db \
     -e SESSION_SECRET="${session_secret}" \
     -e RCON_SECRET_KEY="${rcon_secret}" \
-    cs2-server-ops-operate-panel:local)"
+    3rr-operate-panel:local)"
 
   if ! port_line="$(docker port "${PANEL_PROBE_CID}" 3000/tcp)"; then
     exit 1
@@ -88,26 +99,45 @@ panel_surface_probe() {
 }
 
 startup_secret_probe() {
-  local install_dir argv_file secret_cfg rcon_probe gslt_probe
+  local install_dir argv_file secret_cfg secret_victim rcon_probe gslt_probe admins_source groups_source admins_target groups_target
   install_dir="${tmpdir}/cs2"
   argv_file="${tmpdir}/cs2-argv.txt"
-  secret_cfg="${install_dir}/game/csgo/cfg/cs2-server-ops-secrets.cfg"
+  secret_cfg="${install_dir}/game/csgo/cfg/3rr-secrets.cfg"
+  secret_victim="${tmpdir}/secret-victim.txt"
   rcon_probe="probe-rcon-$(date +%s)-value"
   gslt_probe="probe-gslt-$(date +%s)-value"
+  admins_source="${tmpdir}/admins.json"
+  groups_source="${tmpdir}/admin_groups.json"
+  admins_target="${install_dir}/game/csgo/addons/counterstrikesharp/configs/admins.json"
+  groups_target="${install_dir}/game/csgo/addons/counterstrikesharp/configs/admin_groups.json"
 
   mkdir -p "${install_dir}/game"
   cat >"${install_dir}/game/cs2.sh" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
+if [[ "${RCON_PASSWORD+x}" == "x" || "${CS2_GSLT+x}" == "x" ]]; then
+  printf 'Startup secrets remained in the CS2 process environment\n' >&2
+  exit 1
+fi
 printf '%s\n' "$@" > "${CS2_ARGV_FILE:?}"
 EOF
   chmod +x "${install_dir}/game/cs2.sh"
+  printf '{}\n' >"${admins_source}"
+  printf '{"groups":[]}\n' >"${groups_source}"
+  mkdir -p "$(dirname -- "${secret_cfg}")"
+  printf 'unchanged victim\n' >"${secret_victim}"
+  ln -s "${secret_victim}" "${secret_cfg}"
 
-  RCON_PASSWORD="${rcon_probe}" \
-    CS2_GSLT="${gslt_probe}" \
-    CS2_INSTALL_DIR="${install_dir}" \
-    CS2_ARGV_FILE="${argv_file}" \
-    configs/examples/startup/server-start.sh
+  (
+    cd "${tmpdir}"
+    RCON_PASSWORD="${rcon_probe}" \
+      CS2_GSLT="${gslt_probe}" \
+      CS2_INSTALL_DIR="${install_dir}" \
+      CS2_ARGV_FILE="${argv_file}" \
+      CSS_ADMINS_FILE="admins.json" \
+      CSS_GROUPS_FILE="admin_groups.json" \
+      "${ROOT}/configs/examples/startup/server-start.sh"
+  )
 
   if grep -Fq "${rcon_probe}" "${argv_file}"; then
     printf 'RCON password leaked into startup argv\n' >&2
@@ -118,9 +148,14 @@ EOF
     exit 1
   fi
   grep -Fq '+exec' "${argv_file}"
-  grep -Fq 'cs2-server-ops-secrets.cfg' "${argv_file}"
+  grep -Fq '3rr-secrets.cfg' "${argv_file}"
   grep -Fq "rcon_password \"${rcon_probe}\"" "${secret_cfg}"
   grep -Fq "sv_setsteamaccount \"${gslt_probe}\"" "${secret_cfg}"
+  grep -Fxq 'unchanged victim' "${secret_victim}"
+  [[ -f "${secret_cfg}" && ! -L "${secret_cfg}" ]]
+  [[ "$(file_mode "${secret_cfg}")" == "600" ]]
+  cmp -s "${admins_source}" "${admins_target}"
+  cmp -s "${groups_source}" "${groups_target}"
 }
 
 require_cmd make
@@ -129,6 +164,7 @@ require_cmd shfmt
 require_cmd jq
 require_cmd ruby
 require_cmd curl
+require_cmd cmp
 
 tmpdir="$(mktemp -d)"
 trap cleanup EXIT
@@ -150,6 +186,19 @@ run shfmt -d -i 2 -bn -ci \
   "${ROOT}/configs/examples/startup/server-start.sh"
 run ruby -ryaml -e "YAML.safe_load(File.read('${ROOT}/configs/examples/compose/panel.compose.yaml'), aliases: false, filename: '${ROOT}/configs/examples/compose/panel.compose.yaml')" >/dev/null
 run ruby -ryaml -e "YAML.safe_load(File.read('${ROOT}/configs/examples/compose/server-runtime.compose.yaml'), aliases: false, filename: '${ROOT}/configs/examples/compose/server-runtime.compose.yaml')" >/dev/null
+run ruby "${ROOT}/scripts/check-doc-links.rb"
+for github_yaml in "${ROOT}"/.github/ISSUE_TEMPLATE/*.yml "${ROOT}"/.github/workflows/*.yml; do
+  run ruby -ryaml -e "YAML.safe_load(File.read(ARGV.fetch(0)), aliases: false, filename: ARGV.fetch(0))" "${github_yaml}" >/dev/null
+done
+grep -Fq "TRUST_PROXY: \${TRUST_PROXY:-false}" "${ROOT}/configs/examples/compose/panel.compose.yaml"
+if grep -Fq "TRUST_PROXY: \${TRUST_PROXY:-1}" "${ROOT}/configs/examples/compose/panel.compose.yaml"; then
+  printf 'Panel Compose must not trust proxy headers by default\n' >&2
+  exit 1
+fi
+grep -Fq "REDIS_URL: \${REDIS_URL:-redis://redis:6379}" "${ROOT}/configs/examples/compose/panel.compose.yaml"
+grep -Fq "\"\${PANEL_BIND_ADDRESS:-127.0.0.1}:3000:3000\"" "${ROOT}/configs/examples/compose/panel.compose.yaml"
+grep -Fq "\"\${CS2_PORT:-27015}:\${CS2_PORT:-27015}/udp\"" "${ROOT}/configs/examples/compose/server-runtime.compose.yaml"
+grep -Fq "\"\${CS2_PORT:-27015}:\${CS2_PORT:-27015}/tcp\"" "${ROOT}/configs/examples/compose/server-runtime.compose.yaml"
 run jq . "${ROOT}/apps/operate/panel/package.json" >/dev/null
 run jq . "${ROOT}/apps/operate/panel/package-lock.json" >/dev/null
 run jq . "${ROOT}/apps/operate/panel/cfg/maps.json" >/dev/null
@@ -215,6 +264,7 @@ run make ci
 
 log "provision module"
 cd "${ROOT}"
+run apps/provision/bootstrap/tests/bootstrap-output-safety.test.sh
 run apps/provision/bootstrap/scripts/bootstrap-admins.sh "${tmpdir}/provision"
 run apps/provision/bootstrap/scripts/bootstrap-plugins.sh "${tmpdir}/provision"
 run startup_secret_probe

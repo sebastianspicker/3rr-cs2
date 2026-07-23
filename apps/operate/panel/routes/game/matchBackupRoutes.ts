@@ -1,3 +1,4 @@
+/** Backup-list and restore endpoints with authenticated server ownership checks. */
 import express from 'express';
 import { parseGameBody } from './matchRouteValidation';
 import rcon from '../../modules/rcon';

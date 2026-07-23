@@ -1,3 +1,4 @@
+/** Zod and persistence contracts shared across match-related route families. */
 import { z } from 'zod';
 import { better_sqlite_client } from '../../db';
 import { RCON_USERID_RE } from '../../utils/rconParsers';

@@ -1,3 +1,4 @@
+/** Loads server cards and represents failed status checks as unknown rather than offline. */
 import { fetchJson, sendPostRequest, initToast, showToast, toastError, showConfirm } from './common';
 import {
   createServerCard,
@@ -36,13 +37,15 @@ async function fetchServers(): Promise<void> {
   const list = document.getElementById('serverList');
   if (!list) return;
   list.replaceChildren(createSkeletonCard(), createSkeletonCard());
+  list.setAttribute('aria-busy', 'true');
   try {
     const { servers } = await fetchJson<ServersResponse>('/api/servers');
     list.replaceChildren();
+    list.setAttribute('aria-busy', 'false');
     if (!servers.length) {
       const empty = document.createElement('div');
       empty.className = 'alert alert-secondary';
-      empty.textContent = 'No servers configured yet.';
+      empty.innerHTML = 'No servers configured yet. <a href="/add-server">Add a server</a> to begin.';
       list.appendChild(empty);
       return;
     }
@@ -54,7 +57,17 @@ async function fetchServers(): Promise<void> {
     });
   } catch {
     list.replaceChildren();
-    showToast('Failed to load server list.', 'error');
+    list.setAttribute('aria-busy', 'false');
+    const error = document.createElement('div');
+    error.className = 'alert alert-danger';
+    error.textContent = 'The server list could not be loaded. ';
+    const retry = document.createElement('button');
+    retry.type = 'button';
+    retry.className = 'btn btn-secondary btn-sm';
+    retry.textContent = 'Retry';
+    retry.addEventListener('click', () => { void fetchServers(); });
+    error.appendChild(retry);
+    list.appendChild(error);
   }
 }
 
@@ -71,7 +84,13 @@ async function handleServerAction(event: Event): Promise<void> {
       .catch(toastError('Reconnect failed.'));
     return;
   }
-  if (!remove?.dataset.serverId || !(await showConfirm('Delete this server?'))) return;
+  if (!remove?.dataset.serverId) return;
+  const serverLabel = remove.dataset.serverLabel ?? 'this server';
+  const confirmed = await showConfirm(
+    `Remove ${serverLabel} from your server list? If no other operator has access, the saved endpoint is deleted.`,
+    'Remove server'
+  );
+  if (!confirmed) return;
   sendPostRequest('/api/delete-server', { server_id: remove.dataset.serverId })
     .then(() => fetchServers())
     .catch(toastError('Delete failed.'));

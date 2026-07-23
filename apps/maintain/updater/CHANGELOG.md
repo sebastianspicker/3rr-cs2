@@ -2,7 +2,35 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## [1.9.0-alpha.1] - Unreleased
+
+### Changed (Unreleased)
+
+- Rebranded the updater script, config, systemd units, install paths, lock path, and log path
+  under the `3rr-update` identity. Disable the previous `cs2-auto-update.timer`
+  before installing and enabling the renamed units.
+- Set the updater version output to `1.9.0-alpha.1` for the proposed umbrella
+  alpha candidate.
+
+### Security (Unreleased)
+
+- Moved the default log to a root-owned path, validate every log ancestor and
+  file before use, and avoid passing a writable log descriptor to SteamCMD.
+- Unverifiable live locks and lock directories without ownership metadata now
+  fail closed instead of being removed automatically.
+
+### Added (Unreleased)
+
+- Added `STEAMCMD_TIMEOUT_SECS` and GNU `timeout` enforcement for every
+  SteamCMD invocation.
+
+### Fixed (Unreleased)
+
+- Restore and confirm the CS2 service after update failure, timeout, partial
+  stop failure, or termination while stopping.
+- Reject malformed config lines and unterminated quoted values.
+- Align the example systemd deadline documentation with the two bounded
+  SteamCMD phases.
 
 ### Removed (Unreleased)
 
@@ -13,21 +41,21 @@ All notable changes to this project will be documented in this file.
 
 ### Security (1.8.0)
 
-- Build ID comparison before/after `steamcmd`: a zero exit with unchanged build ID no longer triggers a restart or success webhook (finding #11).
-- Remote lookup failure (`steamcmd +app_info_print`) now exits non-zero and leaves the service running instead of forcing a stop/update/start cycle (finding #12).
+- Build ID comparison before/after `steamcmd`: a zero exit with unchanged build ID no longer triggers a restart or success webhook.
+- Remote lookup failure (`steamcmd +app_info_print`) now exits non-zero and leaves the service running instead of forcing a stop/update/start cycle.
 
 ### Fixed (1.8.0)
 
-- Stale lock detection: lock file now records `process_start_time`; stale-lock recovery validates both PID and process start time to prevent PID-reuse false positives (finding #13).
-- `--status` and `--dry-run` now exit before any `systemctl` call, restoring portability on non-systemd hosts (finding #14).
-- Config `#` comment stripping: `strip_unquoted_comment` tracks single- and double-quote state; `#` inside quoted values is preserved (finding #15).
-- `--status` unknown build ID is now reported as a distinct `unknown` state with `exit 1` instead of being conflated with update-available (finding #16).
-- `df -Pk` (POSIX portable) replaces platform-specific flags (finding #17).
-- Systemd unit and README quick-start now reference the same `/opt/cs2-server-ops/…` install layout (finding #8).
+- Stale lock detection: lock file now records `process_start_time`; stale-lock recovery validates both PID and process start time to prevent PID-reuse false positives.
+- `--status` and `--dry-run` now exit before any `systemctl` call, restoring portability on non-systemd hosts.
+- Config `#` comment stripping: `strip_unquoted_comment` tracks single- and double-quote state; `#` inside quoted values is preserved.
+- `--status` unknown build ID is now reported as a distinct `unknown` state with `exit 1` instead of being conflated with update-available.
+- `df -Pk` (POSIX portable) replaces platform-specific flags.
+- Systemd unit and README quick-start now reference the same `/opt/cs2-server-ops/…` install layout.
 
 ### Tests (1.8.0)
 
-- Test harness covers false-success updates, remote lookup failure in `--status`, PID-reuse stale-lock, and stop/start retry failures (finding #18).
+- Test harness covers false-success updates, remote lookup failure in `--status`, PID-reuse stale-lock, and stop/start retry failures.
 
 ### Added (1.8.0)
 
@@ -157,7 +185,8 @@ All notable changes to this project will be documented in this file.
 
 ### Added (1.1.0)
 
-- **Modularization:** Broke script into functions (`init_lock()`, `check_space()`, `stop_service()`, etc.) for readability and maintenance.
+- Modularization: broke the script into functions (`init_lock()`, `check_space()`,
+  `stop_service()`, and related helpers) for readability and maintenance.
 - **Trap cleanup:** Added `trap cleanup EXIT` to ensure lockfile removal on unexpected exit.
 - **Retry logic:** Configurable retry loops for service stop/start operations.
 

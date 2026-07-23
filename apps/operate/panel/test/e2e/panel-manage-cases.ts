@@ -1,3 +1,4 @@
+/** Verifies management controls preserve partial outcomes and render untrusted data safely. */
 import {
   login,
   seedManageServer,
@@ -77,6 +78,7 @@ export function registerManageCases(): void {
     });
 
     await page.goto(`/manage/${serverId}`);
+    await page.locator('details.setup-advanced > summary').click();
     const favoritesList = page.locator('#workshopFavoritesList');
     await expect(favoritesList).toContainText('Dust Favorite');
 
@@ -146,6 +148,7 @@ export function registerManageCases(): void {
     });
 
     await page.goto(`/manage/${serverId}`);
+    await page.locator('details.setup-advanced > summary').click();
     const collectionInput = page.locator('#workshopCollectionId');
 
     await collectionInput.fill('bad');
@@ -153,6 +156,8 @@ export function registerManageCases(): void {
     await expect(page.locator('#cs-toast-container')).toContainText(
       'Collection ID must be 5–20 digits.'
     );
+    await expect(page.getByRole('button', { name: 'Dismiss error' })).toBeVisible();
+    await page.getByRole('button', { name: 'Dismiss error' }).click();
     expect(collectionBodies).toHaveLength(0);
 
     await collectionInput.fill('33333333333');
@@ -222,7 +227,9 @@ export function registerManageCases(): void {
 
     await page.goto(`/manage/${savedServerId}`);
     await expect(page.getByRole('heading', { name: 'Requested Setup' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Send Setup Commands' })).toBeVisible();
+    const setupButton = page.getByRole('button', { name: 'Apply to server' });
+    await expect(setupButton).toBeVisible();
+    await expect(page.locator('#server_setup_form #send-setup-commands')).toHaveCount(1);
     await expect(page.locator('#gameTypeValue')).toHaveValue('fun');
     await expect(page.locator('#gameModeValue')).toHaveValue('ctf');
     await expect(page.locator('#selectedMap')).toHaveValue('workshop/3555532817/ctf_doublecross');
@@ -276,6 +283,84 @@ export function registerManageCases(): void {
     await expect(page.locator('#live-status-error')).toContainText('status unavailable');
   });
 
+  test('manage status badges synchronize the initial unknown state with live observations', async ({
+    page,
+  }) => {
+    await login(page);
+    const serverId = seedManageServer();
+    let statusRequests = 0;
+    let releaseInitialObservation: (() => void) | undefined;
+    const initialObservationReleased = new Promise<void>((resolve) => {
+      releaseInitialObservation = resolve;
+    });
+    let initialObservationRequested: (() => void) | undefined;
+    const initialObservationStarted = new Promise<void>((resolve) => {
+      initialObservationRequested = resolve;
+    });
+
+    await page.route(`**/api/status/${serverId}`, async (route) => {
+      statusRequests += 1;
+      if (statusRequests === 1) {
+        initialObservationRequested?.();
+        await initialObservationReleased;
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            hostname: 'Observed Server',
+            map: 'de_dust2',
+            humans: 4,
+            bots: 0,
+            max_players: 12,
+            connected: true,
+            authenticated: true,
+            partial: false,
+            complete: true,
+            observed_at: new Date('2026-05-26T10:00:00.000Z').toISOString(),
+            error: null,
+          }),
+        });
+        return;
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          hostname: null,
+          map: null,
+          humans: null,
+          bots: null,
+          max_players: null,
+          connected: true,
+          authenticated: true,
+          partial: false,
+          complete: false,
+          observed_at: null,
+          error: 'hostname unavailable',
+        }),
+      });
+    });
+
+    await page.goto(`/manage/${serverId}`);
+    await initialObservationStarted;
+    await expect(page.locator('#manage-status-badge')).toHaveText('Status not observed');
+    await expect(page.locator('#rcon-console-status-badge')).toHaveText('Status not observed');
+
+    releaseInitialObservation?.();
+    await expect(page.locator('#manage-status-dot')).toHaveClass(/online/);
+    await expect(page.locator('#manage-status-badge')).toHaveText('RCON authenticated');
+    await expect(page.locator('#manage-status-badge')).toHaveClass(/badge-connected/);
+    await expect(page.locator('#rcon-console-status-badge')).toHaveText('RCON authenticated');
+    await expect(page.locator('#rcon-console-status-badge')).toHaveClass(/badge-connected/);
+
+    await page.locator('#refresh_status').click();
+    await expect(page.locator('#manage-status-dot')).toHaveClass(/unknown/);
+    await expect(page.locator('#manage-status-badge')).toHaveText('RCON error');
+    await expect(page.locator('#manage-status-badge')).toHaveClass(/badge-unknown/);
+    await expect(page.locator('#rcon-console-status-badge')).toHaveText('RCON error');
+    await expect(page.locator('#rcon-console-status-badge')).toHaveClass(/badge-unknown/);
+  });
+
   test('RCON console renders response text without markup execution or unsafe controls', async ({
     page,
   }) => {
@@ -298,7 +383,6 @@ export function registerManageCases(): void {
     });
 
     await page.goto(`/manage/${serverId}`);
-    await page.locator('summary').filter({ hasText: 'RCON Console' }).click();
     await page.locator('#rconInput').fill('status');
     await page.locator('#rconInputBtn').click();
 
@@ -306,6 +390,8 @@ export function registerManageCases(): void {
     await expect(result).toContainText('<b>&amp;already escaped</b>');
     await expect(result.locator('b')).toHaveCount(0);
     expect(await result.textContent()).not.toContain('\u202e');
-    await expect(page.getByText('Command sent, but history was not recorded.')).toBeVisible();
+    await expect(
+      page.getByText('Command sent, but history was not recorded.', { exact: true })
+    ).toBeVisible();
   });
 }

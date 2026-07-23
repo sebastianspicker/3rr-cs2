@@ -2,6 +2,9 @@
 
 # Local environment
 .env
+.env.*
+!.env.example
+!**/.env.example
 *.env.local
 
 # Operate module
@@ -10,7 +13,7 @@ apps/operate/panel/dist/
 apps/operate/panel/data/
 apps/operate/panel/.e2e/
 apps/operate/panel/.env
-apps/operate/panel/tmp-cs2-panel-*/
+apps/operate/panel/tmp-3rr-*/
 apps/operate/panel/tmp-cs2-*/
 apps/operate/panel/.playwright-mcp/
 apps/operate/panel/playwright-report/
@@ -24,6 +27,9 @@ apps/maintain/updater/tests/tmp.*
 
 # Provision examples
 apps/provision/bootstrap/output/
+apps/provision/bootstrap/*.env
+configs/examples/compose/bootstrap/
+configs/examples/compose/*.env
 
 # Generic logs
 *.log
@@ -45,11 +51,21 @@ results.sarif
 .rollup.cache/
 *.tsbuildinfo
 
+# Codacy CLI generated state. The maintained analyzer config remains tracked.
+/.codacy/.gitignore
+/.codacy/cli-config.yaml
+/.codacy/codacy.yaml
+/.codacy/generated/
+/.codacy/logs/
+/.codacy/tools-configs/
+
 # Editor and local tooling
 .vscode/
 .idea/
 .cursor/
 .kilo/
+/.serena/
+/.codegraph/
 *.swp
 *.swo
 *~
@@ -73,6 +89,33 @@ DECISIONS.md
 FINDINGS.md
 LOG.md
 REFACTOR_PLAN.md
+/plan.md
+/audit.md
+/ledger.md
+/remediation.md
+/remediation-plan.md
+/remediation-ledger.md
+/remediation-status.md
+/reports/
+
+# Local credentials and signing material
+*.key
+*.pem
+*.p12
+*.pfx
+*.jks
+*.keystore
+*.secrets
+credentials.json
+service-account*.json
+.netrc
+.npmrc.local
+id_rsa
+id_rsa.pub
+id_ed25519
+id_ed25519.pub
+id_ecdsa
+id_ecdsa.pub
 
 # Screenshot scratch output. Canonical screenshots live under module docs.
 /screenshots/

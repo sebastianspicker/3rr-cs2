@@ -1,4 +1,5 @@
-import { createStatusHeader } from './serverCardHeader';
+/** Builds server cards without trusting incomplete status as a healthy connection. */
+import { createServerTitle, createStatusIndicator } from './serverCardHeader';
 import { isServerOnline, serverStatus } from './serverStatus';
 
 export interface ServerListItem {
@@ -23,18 +24,20 @@ export interface StatusResponse {
 
 function initialPlayerCount(server: ServerListItem): string {
   if (isServerOnline(server)) return '–/–';
-  if (server.timed_out) return ' status timed out';
-  return serverStatus(server) === 'error' ? ' status unavailable' : '';
+  if (server.timed_out) return 'Timed out';
+  return serverStatus(server) === 'error' ? 'Unavailable' : 'Not observed';
 }
 
 function createServerActions(server: ServerListItem): HTMLElement {
   const actions = document.createElement('div');
   actions.className = 'server-card-actions';
+  actions.setAttribute('role', 'cell');
+  const endpoint = `${String(server.serverIP)}:${String(server.serverPort)}`;
   if (!isServerOnline(server)) {
     const reconnect = document.createElement('button');
     reconnect.className = 'btn btn-sm btn-success reconnect-server';
     reconnect.textContent = 'Reconnect';
-    reconnect.setAttribute('aria-label', 'Reconnect to server');
+    reconnect.setAttribute('aria-label', `Reconnect to ${endpoint}`);
     reconnect.dataset.serverId = String(server.id);
     actions.appendChild(reconnect);
   }
@@ -42,12 +45,13 @@ function createServerActions(server: ServerListItem): HTMLElement {
   manage.href = `/manage/${encodeURIComponent(String(server.id))}`;
   manage.className = 'btn btn-sm btn-primary';
   manage.textContent = 'Manage';
-  manage.setAttribute('aria-label', 'Manage server');
+  manage.setAttribute('aria-label', `Manage ${endpoint}`);
   const remove = document.createElement('button');
   remove.className = 'btn btn-sm btn-danger delete-server';
   remove.textContent = 'Delete';
-  remove.setAttribute('aria-label', 'Delete server');
+  remove.setAttribute('aria-label', `Remove ${endpoint}`);
   remove.dataset.serverId = String(server.id);
+  remove.dataset.serverLabel = endpoint;
   actions.append(manage, remove);
   return actions;
 }
@@ -55,18 +59,25 @@ function createServerActions(server: ServerListItem): HTMLElement {
 export function createServerCard(server: ServerListItem): HTMLElement {
   const card = document.createElement('div');
   card.className = 'card server-card mb-3';
-  const body = document.createElement('div');
-  body.className = 'card-body';
-  const address = document.createElement('p');
-  address.className = 'status mb-1 server-addr-line';
-  address.appendChild(document.createTextNode(`${String(server.serverIP)}:${String(server.serverPort)}`));
+  card.setAttribute('role', 'row');
+  const address = document.createElement('div');
+  address.className = 'server-address-cell';
+  address.setAttribute('role', 'cell');
+  address.setAttribute('aria-label', 'Address');
+  address.textContent = `${String(server.serverIP)}:${String(server.serverPort)}`;
   const players = document.createElement('span');
   players.className = 'server-player-count';
+  players.setAttribute('role', 'cell');
+  players.setAttribute('aria-label', 'Players');
   players.dataset.serverId = String(server.id);
   players.textContent = initialPlayerCount(server);
-  address.appendChild(players);
-  body.append(address, createServerActions(server));
-  card.append(createStatusHeader(server), body);
+  card.append(
+    createServerTitle(server),
+    createStatusIndicator(server),
+    address,
+    players,
+    createServerActions(server),
+  );
   return card;
 }
 
@@ -75,10 +86,11 @@ export function createSkeletonCard(): HTMLElement {
   card.className = 'server-card skeleton-card';
   card.setAttribute('aria-hidden', 'true');
   card.innerHTML =
-    '<div class="card-header"><div class="skeleton-line skeleton-title"></div>' +
-    '<div class="skeleton-line skeleton-badge"></div></div><div class="card-body">' +
-    '<div class="skeleton-line skeleton-addr"></div><div class="skeleton-actions">' +
+    '<div class="card-header"><div class="skeleton-line skeleton-title"></div></div>' +
+    '<div class="server-status-cell"><div class="skeleton-line skeleton-badge"></div></div>' +
+    '<div class="skeleton-line skeleton-addr"></div><div class="skeleton-line skeleton-count"></div>' +
+    '<div class="skeleton-actions">' +
     '<div class="skeleton-line skeleton-btn"></div><div class="skeleton-line skeleton-btn"></div>' +
-    '</div></div>';
+    '</div>';
   return card;
 }

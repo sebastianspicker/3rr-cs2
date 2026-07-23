@@ -1,3 +1,4 @@
+/** Browser helpers for same-origin authenticated panel requests and feedback. */
 export interface ApiResponse {
   message: string;
   output?: string;
@@ -7,6 +8,7 @@ export interface ApiResponse {
 }
 
 type JsonMethod = 'GET' | 'POST' | 'PATCH' | 'DELETE';
+const apiRequestTimeoutMs = 15_000;
 
 interface JsonRequestOptions {
   method?: JsonMethod;
@@ -31,6 +33,7 @@ function requestSameOrigin(endpoint: string, init: RequestInit): Promise<Respons
       request.setRequestHeader(name, value);
     });
     request.responseType = 'text';
+    request.timeout = apiRequestTimeoutMs;
     request.onload = () => {
       resolve(
         new Response(request.responseText, {
@@ -41,6 +44,9 @@ function requestSameOrigin(endpoint: string, init: RequestInit): Promise<Respons
     };
     request.onerror = () => {
       reject(new TypeError('Network request failed'));
+    };
+    request.ontimeout = () => {
+      reject(new Error('Request timed out. Retry the action.'));
     };
     request.send(typeof init.body === 'string' ? init.body : null);
   });
@@ -66,14 +72,14 @@ export async function fetchJson<T>(
   if (!resp.ok) {
     if (resp.status === 401) {
       window.location.assign('/?expired=1');
-      throw new Error('Session expired — redirecting to login');
+      throw new Error('Session expired - redirecting to login');
     }
     let errMsg = `Request failed (${resp.status})`;
     try {
       const errBody = await resp.json() as { error?: string; message?: string };
       if (errBody.error) errMsg = errBody.error;
       else if (errBody.message) errMsg = errBody.message;
-    } catch { /* non-JSON body — keep default */ }
+    } catch { /* non-JSON body - keep default */ }
     throw new Error(errMsg);
   }
   return resp.json() as Promise<T>;
@@ -114,18 +120,31 @@ export function showToast(msg: string, type: 'success' | 'error' | 'info'): void
   if (!container) return;
   const t = document.createElement('div');
   t.className = `cs-toast cs-toast--${type}`;
-  t.textContent = msg;
-  container.appendChild(t);
-  requestAnimationFrame(() => { t.classList.add('cs-toast--visible'); });
-  setTimeout(() => {
+  t.setAttribute('role', type === 'error' ? 'alert' : 'status');
+  const message = document.createElement('span');
+  message.textContent = msg;
+  t.appendChild(message);
+  const dismiss = () => {
     t.classList.remove('cs-toast--visible');
     setTimeout(() => {
       t.remove();
     }, 220);
-  }, 3000);
+  };
+  if (type === 'error') {
+    const close = document.createElement('button');
+    close.type = 'button';
+    close.className = 'cs-toast-dismiss';
+    close.setAttribute('aria-label', 'Dismiss error');
+    close.textContent = 'Dismiss';
+    close.addEventListener('click', dismiss);
+    t.appendChild(close);
+  }
+  container.appendChild(t);
+  requestAnimationFrame(() => { t.classList.add('cs-toast--visible'); });
+  if (type !== 'error') setTimeout(dismiss, 3000);
 }
 
-export function showConfirm(message: string): Promise<boolean> {
+export function showConfirm(message: string, confirmLabel = 'Confirm'): Promise<boolean> {
   return new Promise((resolve) => {
     const overlay = document.createElement('div');
     overlay.className = 'cs-modal-overlay';
@@ -146,7 +165,7 @@ export function showConfirm(message: string): Promise<boolean> {
 
     const confirmBtn = document.createElement('button');
     confirmBtn.className = 'btn btn-danger cs-modal-confirm';
-    confirmBtn.textContent = 'Confirm';
+    confirmBtn.textContent = confirmLabel;
 
     actions.append(cancelBtn, confirmBtn);
     modal.append(msgEl, actions);
@@ -158,7 +177,7 @@ export function showConfirm(message: string): Promise<boolean> {
     overlay.setAttribute('aria-labelledby', 'cs-modal-msg');
     msgEl.id = 'cs-modal-msg';
     const previouslyFocusedHTML = document.activeElement as HTMLElement | null;
-    confirmBtn.focus();
+    cancelBtn.focus();
 
     const focusableButtons: HTMLButtonElement[] = [cancelBtn, confirmBtn];
     const keyHandler = (e: KeyboardEvent) => {

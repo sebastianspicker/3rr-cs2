@@ -1,3 +1,4 @@
+/** Parses narrow workshop and restore inputs before requests reach the server. */
 export function validRestoreRound(value: number): boolean {
   return Number.isInteger(value) && value >= 1 && value <= 99;
 }

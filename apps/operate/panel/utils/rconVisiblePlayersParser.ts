@@ -1,3 +1,4 @@
+/** Reads the optional visible-player cap without treating malformed output as data. */
 export function parseVisibleMaxPlayers(text: string): number | null {
   if (typeof text !== 'string' || !text.trim()) return null;
   const value = Number.parseInt(

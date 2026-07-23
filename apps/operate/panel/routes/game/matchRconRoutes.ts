@@ -1,3 +1,4 @@
+/** Explicit RCON endpoints that retain audit history only for sent commands. */
 import express from 'express';
 import rcon from '../../modules/rcon';
 import isAuthenticated from '../../modules/middleware';

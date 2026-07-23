@@ -12,6 +12,7 @@ import {
   loopbackFetch,
 } from './http-helpers';
 import { mockModule } from './mock-module';
+import { grantTestServerAccess, insertLoopbackTestServer } from './database-fixture';
 export { fs, path, assert, bcrypt, getPageCsrfToken, loginWithCredentials, mockModule };
 export type { AddressInfo, Server, Express };
 
@@ -48,6 +49,14 @@ export type SetupGameResponse = {
     game_mode: string;
     map: string;
   };
+};
+export type SetupGamePayload = {
+  server_id: number;
+  game_type: string;
+  game_mode: string;
+  selectedMap: string;
+  team1?: string;
+  team2?: string;
 };
 export type BackupResponse = {
   message?: string;
@@ -88,7 +97,7 @@ export async function loginAndGetSession(
 
 before(async () => {
   tmpDir = fs.mkdtempSync(path.join(process.cwd(), 'tmp-cs2-game-routes-'));
-  const dbPath = path.join(tmpDir, 'cspanel.db');
+  const dbPath = path.join(tmpDir, '3rr.db');
 
   process.env.NODE_ENV = 'test';
   process.env.DB_PATH = dbPath;
@@ -138,21 +147,9 @@ before(async () => {
   app = mod.default;
 
   const { better_sqlite_client: db } = await import('../db');
-  const result = db
-    .prepare(
-      `INSERT OR IGNORE INTO servers (serverIP, serverPort, rconPassword, owner_id) VALUES ('127.0.0.1', 27021, 'test-rcon', 1)`
-    )
-    .run();
-  serverId = Number(result.lastInsertRowid);
-  db.prepare(`INSERT OR IGNORE INTO server_access (user_id, server_id) VALUES (1, ?)`).run(
-    serverId
-  );
-  const inaccessible = db
-    .prepare(
-      `INSERT OR IGNORE INTO servers (serverIP, serverPort, rconPassword, owner_id) VALUES ('127.0.0.1', 27022, 'test-rcon', 1)`
-    )
-    .run();
-  inaccessibleServerId = Number(inaccessible.lastInsertRowid);
+  serverId = insertLoopbackTestServer(db, 27021);
+  grantTestServerAccess(db, serverId);
+  inaccessibleServerId = insertLoopbackTestServer(db, 27022);
 });
 
 afterEach(() => {
@@ -182,6 +179,58 @@ export async function withAuthedServer(
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()));
   }
+}
+
+export async function withServer(fn: (baseUrl: string) => Promise<void>): Promise<void> {
+  const server: Server = app.listen(0);
+  try {
+    const { port } = server.address() as AddressInfo;
+    await fn(`http://127.0.0.1:${port}`);
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
+}
+
+export function postJson(
+  baseUrl: string,
+  path: string,
+  body: Record<string, unknown>,
+  headers: Record<string, string> = {}
+): Promise<Response> {
+  return loopbackFetch(`${baseUrl}${path}`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', accept: 'application/json', ...headers },
+    body: JSON.stringify(body),
+  });
+}
+
+export function postAuthedJson(
+  baseUrl: string,
+  auth: AuthContext,
+  path: string,
+  body: Record<string, unknown>
+): Promise<Response> {
+  return postJson(baseUrl, path, body, {
+    cookie: auth.sessionCookie,
+    'x-csrf-token': auth.csrfToken,
+  });
+}
+
+export async function postSetupGame(
+  baseUrl: string,
+  auth: AuthContext,
+  payload: SetupGamePayload
+): Promise<Response> {
+  return loopbackFetch(`${baseUrl}/api/setup-game`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      accept: 'application/json',
+      cookie: auth.sessionCookie,
+      'x-csrf-token': auth.csrfToken,
+    },
+    body: JSON.stringify(payload),
+  });
 }
 
 export async function createAccessibleServerForTest(): Promise<number> {

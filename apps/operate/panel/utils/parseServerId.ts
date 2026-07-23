@@ -1,3 +1,4 @@
+/** Normalizes route and body identifiers before they reach authorization or SQL. */
 const isPositiveSafeInteger = (value: number): boolean => {
   return Number.isSafeInteger(value) && value > 0;
 };

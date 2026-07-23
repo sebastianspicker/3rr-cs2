@@ -1,20 +1,25 @@
 # IMPORTANT: This service does not terminate TLS. In production, place a
-# TLS-terminating reverse proxy (e.g. nginx, Traefik, or Caddy) in front of
-# the cs2rcon container to encrypt traffic between clients and the panel.
+# TLS-terminating reverse proxy (for example nginx, Traefik, or Caddy) in front
+# of the panel container to encrypt traffic between clients and the panel.
 #
 # Copy .env.example to .env and set a strong SESSION_SECRET before running.
-# For production, also set RCON_SECRET_KEY and any required Redis settings.
+# For production, also set RCON_SECRET_KEY. The included Redis service stores
+# sessions and rate-limit state.
 # Override env vars in .env; do not commit real credentials.
 services:
-  cs2rcon:
+  panel:
     build:
       context: .
+    depends_on:
+      redis:
+        condition: service_healthy
     ports:
-      - '3000:3000'
+      - '${PANEL_BIND_ADDRESS:-127.0.0.1}:3000:3000'
     env_file:
       - .env
     environment:
       PORT: 3000
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
     volumes:
       - ./data:/home/container/data
     restart: unless-stopped
@@ -27,3 +32,20 @@ services:
       resources:
         limits:
           memory: 512m
+
+  redis:
+    image: redis:7.4-alpine
+    command: ['redis-server', '--appendonly', 'yes']
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  redis-data:

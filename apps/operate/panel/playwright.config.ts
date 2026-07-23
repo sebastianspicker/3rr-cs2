@@ -1,3 +1,4 @@
+/** Isolated Playwright configuration that gives each run its own panel database. */
 import fs from 'node:fs';
 import path from 'node:path';
 import { defineConfig, devices } from '@playwright/test';
@@ -6,7 +7,7 @@ const e2ePort = Number(process.env.E2E_PORT ?? 3210);
 const e2eRunId = process.env.E2E_RUN_ID ?? `${Date.now()}-${process.pid}`;
 process.env.E2E_RUN_ID = e2eRunId;
 const e2eStateDir = path.resolve(process.env.E2E_STATE_DIR ?? path.join('.e2e', e2eRunId));
-const e2eDbPath = path.join(e2eStateDir, 'cspanel.db');
+const e2eDbPath = path.join(e2eStateDir, '3rr.db');
 fs.mkdirSync(e2eStateDir, { recursive: true });
 process.env.E2E_DB_PATH = e2eDbPath;
 

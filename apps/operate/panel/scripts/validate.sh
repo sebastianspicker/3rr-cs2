@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Runs deterministic panel checks and keeps Docker-dependent validation opt-in.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
@@ -93,7 +94,7 @@ if [[ $require_docker -eq 1 ]]; then
   log "validate: docker"
   docker_ok || die "$(docker_unavailable_message)"
 
-  run docker build -t cs2-server-ops-operate-panel:local "${ROOT}"
+  run docker build -t 3rr-operate-panel:local "${ROOT}"
 
   # docker compose config requires .env referenced by env_file; use .env.example
   # as a stand-in when .env doesn't exist (CI, fresh clones).

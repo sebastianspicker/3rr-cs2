@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Formats the updater's canonical shell-file set for local and CI consistency.
 set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.."

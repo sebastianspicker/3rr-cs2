@@ -1,3 +1,4 @@
+/** Normalizes server status for conservative list rendering. */
 import type { ServerListItem } from './serverCards';
 
 export type ServerStatus = 'connected' | 'disconnected' | 'unknown' | 'error';

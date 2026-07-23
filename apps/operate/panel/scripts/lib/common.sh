@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Shared shell helpers keep validation scripts fail-fast and consistently logged.
 set -euo pipefail
 
 log() {

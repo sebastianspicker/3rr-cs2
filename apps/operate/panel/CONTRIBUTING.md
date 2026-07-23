@@ -1,7 +1,5 @@
 # Contributing
 
-Thanks for contributing!
-
 ## Development Setup
 
 ```bash
@@ -34,4 +32,6 @@ npm run validate
 
 ## Issue Reports
 
-Use the GitHub issue templates for bugs and feature requests.
+Use the umbrella repository's GitHub issue templates for bugs and feature requests. Security
+reports belong in a private
+[GitHub security advisory](https://github.com/sebastianspicker/cs2-server-ops/security/advisories/new).

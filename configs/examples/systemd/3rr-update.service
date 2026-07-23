@@ -1,0 +1,12 @@
+[Unit]
+Description=3RR dedicated-server update
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/3rr/apps/maintain/updater/3rr-update.sh
+WorkingDirectory=/opt/3rr/apps/maintain/updater
+# Covers the two default 30-minute SteamCMD budgets plus lifecycle overhead.
+# Raise this deadline when STEAMCMD_TIMEOUT_SECS is raised; the unit deadline wins.
+TimeoutStartSec=65min

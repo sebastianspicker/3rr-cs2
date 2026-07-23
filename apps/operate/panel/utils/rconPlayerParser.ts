@@ -1,3 +1,4 @@
+/** Parses player rows conservatively from untrusted RCON text. */
 import { cleanRconField, MAX_RCON_FIELD_LENGTH } from './rconParserDisplay';
 
 const STEAMID64_BASE = 76561197960265728n;

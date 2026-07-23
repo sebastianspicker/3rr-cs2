@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Exercises updater decisions with deterministic command doubles instead of a host service.
 set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
@@ -74,6 +75,7 @@ run_validation_test() {
     expected_rc="$2"
     needle="$3"
     shift 3
+    # Reset the baseline for each case so environment leakage cannot mask a regression.
     export LOCKDIR="$tmpdir/lock"
     export LOGFILE="$tmpdir/log"
     export CS2_DIR="$tmpdir/cs2"
@@ -92,11 +94,16 @@ run_validation_test() {
     export STEAMCMD_UPDATE_EXIT="0"
     export STEAMCMD_APPINFO_EXIT="0"
     export STEAMCMD_UPDATE_BUILDID="100"
+    export STEAMCMD_TIMEOUT_SECS="1800"
+    export TIMEOUT_FORCE_APP_UPDATE="0"
     export STEAMCMD_CALLS_FILE="$tmpdir/steamcmd.calls"
+    export STEAMCMD_FD_PROBE_FILE=""
     export SYSTEMCTL_CALLS_FILE="$tmpdir/systemctl.calls"
     export SYSTEMCTL_STATE_FILE="$tmpdir/systemctl.state"
     export UPDATER_EVENTS_FILE="$tmpdir/events"
     export SYSTEMCTL_STOP_EXIT="0"
+    export SYSTEMCTL_STOP_CHANGES_STATE="0"
+    export SYSTEMCTL_SIGNAL_DURING_STOP=""
     export SYSTEMCTL_START_EXIT="0"
     export SYSTEMCTL_START_STATE="active"
     unset_removed_config_env
@@ -110,7 +117,7 @@ run_validation_test() {
     done
     echo "==> $name"
     set +e
-    ./update_cs2.sh > "$tmpdir/stdout" 2> "$tmpdir/stderr"
+    ./3rr-update.sh > "$tmpdir/stdout" 2> "$tmpdir/stderr"
     rc=$?
     set -e
     [ "$rc" -eq "$expected_rc" ] || fail "expected rc=$expected_rc, got $rc; stderr=$(cat "$tmpdir/stderr")"
@@ -202,19 +209,37 @@ run_case() {
     export STEAMCMD_UPDATE_EXIT="$update_exit"
     export STEAMCMD_APPINFO_EXIT="0"
     export STEAMCMD_UPDATE_BUILDID="$remote_build"
+    export STEAMCMD_TIMEOUT_SECS="1800"
+    export TIMEOUT_FORCE_APP_UPDATE="0"
+    if [ "$name" = "update-timeout" ]; then
+        export TIMEOUT_FORCE_APP_UPDATE="1"
+    fi
     export STEAMCMD_CALLS_FILE="$tmpdir/steamcmd.calls"
+    export STEAMCMD_FD_PROBE_FILE=""
+    if [ "$name" = "no-log-fd-inheritance" ]; then
+        export STEAMCMD_FD_PROBE_FILE="$tmpdir/steamcmd-fd-probe"
+    fi
 
     export SYSTEMCTL_CALLS_FILE="$tmpdir/systemctl.calls"
     export SYSTEMCTL_STATE_FILE="$tmpdir/systemctl.state"
     export UPDATER_EVENTS_FILE="$tmpdir/events"
     export SYSTEMCTL_STOP_EXIT="0"
+    export SYSTEMCTL_STOP_CHANGES_STATE="0"
+    export SYSTEMCTL_SIGNAL_DURING_STOP=""
     export SYSTEMCTL_START_EXIT="0"
     export SYSTEMCTL_START_STATE="active"
+    if [ "$name" = "stop-partial-failure" ]; then
+        export SYSTEMCTL_STOP_EXIT="1"
+        export SYSTEMCTL_STOP_CHANGES_STATE="1"
+    fi
+    if [ "$name" = "signal-during-stop" ]; then
+        export SYSTEMCTL_SIGNAL_DURING_STOP="TERM"
+    fi
     unset_removed_config_env
     echo "$initial_state" > "$SYSTEMCTL_STATE_FILE"
 
     set +e
-    ./update_cs2.sh > "$tmpdir/stdout" 2> "$tmpdir/stderr"
+    ./3rr-update.sh > "$tmpdir/stdout" 2> "$tmpdir/stderr"
     rc=$?
     set -e
 
@@ -238,6 +263,12 @@ run_case() {
             assert_no_event "steamcmd app_update"
             assert_no_event "systemctl start"
             ;;
+        "no-log-fd-inheritance")
+            [ "$rc" -eq 0 ] || fail "expected rc=0, got $rc; stderr=$stderr"
+            assert_contains "No update required" "$stdout"
+            [ "$(cat "$STEAMCMD_FD_PROBE_FILE")" = "closed" ] || fail "SteamCMD inherited writable fd 3"
+            assert_not_contains "UNTRUSTED_FD3_WRITE" "$(cat "$LOGFILE")"
+            ;;
         "update-applied")
             [ "$rc" -eq 0 ] || fail "expected rc=0, got $rc; stderr=$stderr"
             assert_contains "Update required" "$stdout"
@@ -252,6 +283,30 @@ run_case() {
             assert_contains "stop" "$calls"
             assert_contains "start" "$calls"
             assert_ordered_events "buildid read" "steamcmd app_info_print" "systemctl stop" "steamcmd app_update" "systemctl start" "systemctl is-active"
+            [ "$(grep -c '^start$' "$SYSTEMCTL_CALLS_FILE")" -eq 1 ] || fail "failed update must restore the service exactly once"
+            ;;
+        "update-timeout")
+            [ "$rc" -ne 0 ] || fail "expected timeout to fail"
+            assert_contains "SteamCMD update timed out" "$stdout"
+            assert_ordered_events "buildid read" "steamcmd app_info_print" "systemctl stop" "steamcmd app_update" "systemctl start" "systemctl is-active"
+            assert_contains "active" "$(cat "$SYSTEMCTL_STATE_FILE")"
+            [ "$(grep -c '^start$' "$SYSTEMCTL_CALLS_FILE")" -eq 1 ] || fail "timeout recovery must start the service exactly once"
+            ;;
+        "stop-partial-failure")
+            [ "$rc" -ne 0 ] || fail "expected partial stop failure to fail"
+            assert_contains "Failed to stop $SERVICE_NAME" "$stdout"
+            assert_contains "active" "$(cat "$SYSTEMCTL_STATE_FILE")"
+            assert_ordered_events "systemctl is-active" "systemctl stop" "systemctl start" "systemctl is-active"
+            assert_no_event "steamcmd app_update"
+            [ "$(grep -c '^start$' "$SYSTEMCTL_CALLS_FILE")" -eq 1 ] || fail "partial stop failure must restore the service exactly once"
+            ;;
+        "signal-during-stop")
+            [ "$rc" -eq 143 ] || fail "expected SIGTERM exit 143, got $rc"
+            assert_contains "Received TERM" "$stdout"
+            assert_contains "active" "$(cat "$SYSTEMCTL_STATE_FILE")"
+            assert_ordered_events "systemctl is-active" "systemctl stop" "systemctl start" "systemctl is-active"
+            assert_no_event "steamcmd app_update"
+            [ "$(grep -c '^start$' "$SYSTEMCTL_CALLS_FILE")" -eq 1 ] || fail "signal cleanup must restore the service exactly once"
             ;;
         "unknown-remote")
             [ "$rc" -ne 0 ] || fail "expected non-zero rc, got $rc"
@@ -323,11 +378,16 @@ run_with_args_case() {
     export STEAMCMD_UPDATE_EXIT="0"
     export STEAMCMD_APPINFO_EXIT="0"
     export STEAMCMD_UPDATE_BUILDID="200"
+    export STEAMCMD_TIMEOUT_SECS="1800"
+    export TIMEOUT_FORCE_APP_UPDATE="0"
     export STEAMCMD_CALLS_FILE="$tmpdir/steamcmd.calls"
+    export STEAMCMD_FD_PROBE_FILE=""
     export SYSTEMCTL_CALLS_FILE="$tmpdir/systemctl.calls"
     export SYSTEMCTL_STATE_FILE="$tmpdir/systemctl.state"
     export UPDATER_EVENTS_FILE="$tmpdir/events"
     export SYSTEMCTL_STOP_EXIT="0"
+    export SYSTEMCTL_STOP_CHANGES_STATE="0"
+    export SYSTEMCTL_SIGNAL_DURING_STOP=""
     export SYSTEMCTL_START_EXIT="0"
     export SYSTEMCTL_START_STATE="active"
     unset_removed_config_env
@@ -335,7 +395,7 @@ run_with_args_case() {
 
     set +e
     # shellcheck disable=SC2086
-    ./update_cs2.sh $args > "$tmpdir/stdout" 2> "$tmpdir/stderr"
+    ./3rr-update.sh $args > "$tmpdir/stdout" 2> "$tmpdir/stderr"
     rc=$?
     set -e
     [ "$rc" -eq "$expected_rc" ] || fail "expected rc=$expected_rc, got $rc; stderr=$(cat "$tmpdir/stderr")"
@@ -370,11 +430,16 @@ run_lock_case() {
     export STEAMCMD_UPDATE_EXIT="0"
     export STEAMCMD_APPINFO_EXIT="0"
     export STEAMCMD_UPDATE_BUILDID="100"
+    export STEAMCMD_TIMEOUT_SECS="1800"
+    export TIMEOUT_FORCE_APP_UPDATE="0"
+    export STEAMCMD_FD_PROBE_FILE=""
     export STEAMCMD_CALLS_FILE="$tmpdir/steamcmd.calls"
     export SYSTEMCTL_CALLS_FILE="$tmpdir/systemctl.calls"
     export SYSTEMCTL_STATE_FILE="$tmpdir/systemctl.state"
     export UPDATER_EVENTS_FILE="$tmpdir/events"
     export SYSTEMCTL_STOP_EXIT="0"
+    export SYSTEMCTL_STOP_CHANGES_STATE="0"
+    export SYSTEMCTL_SIGNAL_DURING_STOP=""
     export SYSTEMCTL_START_EXIT="0"
     export SYSTEMCTL_START_STATE="active"
     unset_removed_config_env
@@ -383,7 +448,7 @@ run_lock_case() {
     "$prepare_fn"
 
     set +e
-    ./update_cs2.sh > "$tmpdir/stdout" 2> "$tmpdir/stderr"
+    ./3rr-update.sh > "$tmpdir/stdout" 2> "$tmpdir/stderr"
     rc=$?
     set -e
     [ "$rc" -eq "$expected_rc" ] || fail "expected rc=$expected_rc, got $rc; stderr=$(cat "$tmpdir/stderr")"
@@ -402,17 +467,24 @@ prepare_stale_lock_with_live_pid_mismatched_metadata() {
     cat > "$tmpdir/lock/meta" << EOF
 pid=$$
 started=Thu Jan  1 00:00:00 1970
-script=$PWD/update_cs2.sh
+script=$PWD/3rr-update.sh
 EOF
 }
 
 run_case "no-update" "100" "100" "0"
+run_case "no-log-fd-inheritance" "100" "100" "0"
 run_case "update-applied" "100" "200" "0"
 run_case "update-failed" "100" "200" "1"
+run_case "update-timeout" "100" "200" "0"
+run_case "stop-partial-failure" "100" "200" "0"
+run_case "signal-during-stop" "100" "200" "0"
 run_case "unknown-remote" "100" "" "0"
 run_case "no-update-service-inactive" "100" "100" "0" "inactive"
 run_lock_case "stale-lock-recovery" "prepare_stale_lock_with_dead_pid" 0 "Recovered stale lock and acquired a new lock."
-run_lock_case "stale-lock-live-pid-metadata-mismatch" "prepare_stale_lock_with_live_pid_mismatched_metadata" 0 "Recovered stale lock and acquired a new lock."
+run_lock_case "live-lock-metadata-mismatch-fails-closed" "prepare_stale_lock_with_live_pid_mismatched_metadata" 1 "ownership metadata cannot be verified"
+[ -f "$tmpdir/lock/pid" ] || fail "live unverifiable lock must remain intact"
+assert_no_event "steamcmd app_info_print"
+assert_no_event "systemctl stop"
 
 # Validation tests (reject bad config or expect normalized success)
 run_validation_test "reject LOCKDIR=/" 1 "LOCKDIR must not be root" LOCKDIR="/" LOGFILE="$tmpdir/log" CS2_DIR="$tmpdir/cs2"
@@ -425,6 +497,7 @@ run_validation_test "reject invalid LOG_LEVEL" 1 "LOG_LEVEL must be one of" LOG_
 run_validation_test "reject unused LOG_LEVEL=verbose" 1 "LOG_LEVEL must be one of: quiet, normal" LOG_LEVEL="verbose"
 run_validation_test "reject invalid NO_SLEEP" 1 "NO_SLEEP must be 0 or 1" NO_SLEEP="yes"
 run_validation_test "reject invalid DRY_RUN" 1 "DRY_RUN must be 0 or 1" DRY_RUN="maybe"
+run_validation_test "reject STEAMCMD_TIMEOUT_SECS=0" 1 "STEAMCMD_TIMEOUT_SECS must be a positive integer" STEAMCMD_TIMEOUT_SECS="0"
 
 run_validation_test "reject LOGFILE=/" 1 "LOGFILE must not be root" LOGFILE="/" SLEEP_SECS="0"
 run_validation_test "reject LOGFILE non-regular" 1 "LOGFILE must be a regular file path" LOGFILE="/dev/null"
@@ -433,6 +506,21 @@ run_validation_test "reject LOGFILE non-regular" 1 "LOGFILE must be a regular fi
 touch "$tmpdir/logtarget"
 ln -sf "$tmpdir/logtarget" "$tmpdir/loglink"
 run_validation_test "reject LOGFILE symlink" 1 "LOGFILE must not be a symlink" LOGFILE="$(cd "$tmpdir" && pwd)/loglink"
+
+mkdir -p "$tmpdir/unsafe-logdir"
+chmod 0777 "$tmpdir/unsafe-logdir"
+run_validation_test "reject writable LOGFILE parent" 1 "Log directory must not be group- or world-writable" LOGFILE="$tmpdir/unsafe-logdir/update.log"
+chmod 0700 "$tmpdir/unsafe-logdir"
+
+mkdir -p "$tmpdir/unsafe-log-ancestor/safe-child"
+chmod 0777 "$tmpdir/unsafe-log-ancestor"
+chmod 0700 "$tmpdir/unsafe-log-ancestor/safe-child"
+run_validation_test "reject writable LOGFILE ancestor" 1 "Log path ancestor must not be group- or world-writable" LOGFILE="$tmpdir/unsafe-log-ancestor/safe-child/update.log"
+chmod 0700 "$tmpdir/unsafe-log-ancestor"
+
+touch "$tmpdir/writable-log"
+chmod 0660 "$tmpdir/writable-log"
+run_validation_test "reject writable LOGFILE" 1 "Log file must not be group- or world-writable" LOGFILE="$tmpdir/writable-log"
 
 run_validation_test "reject CONFIG_FILE=-" 1 "must not be '-'" CONFIG_FILE="-"
 run_validation_test "reject CONFIG_FILE like option" 1 "must not look like an option" CONFIG_FILE="--dry-run"
@@ -462,6 +550,21 @@ SLEEP_SECS=0
 SLEEP_SECS=1
 CONFEOF
 run_validation_test "reject duplicate config key" 1 "Duplicate config key: SLEEP_SECS" CONFIG_FILE="$tmpdir/duplicateconf"
+
+cat > "$tmpdir/malformedconf" << 'CONFEOF'
+SERVICE_NAME cs2.service
+CONFEOF
+run_validation_test "reject malformed config assignment" 1 "Malformed config line 1" CONFIG_FILE="$tmpdir/malformedconf"
+
+cat > "$tmpdir/bareconf" << 'CONFEOF'
+this-is-not-an-assignment
+CONFEOF
+run_validation_test "reject bare config token" 1 "Malformed config line 1" CONFIG_FILE="$tmpdir/bareconf"
+
+cat > "$tmpdir/unclosedquoteconf" << 'CONFEOF'
+SERVICE_NAME="cs2.service
+CONFEOF
+run_validation_test "reject unterminated config quote" 1 "unterminated quoted value" CONFIG_FILE="$tmpdir/unclosedquoteconf"
 
 cat > "$tmpdir/quotedconf" << 'CONFEOF'
 SERVICE_NAME='custom.service' # quoted value with trailing comment
@@ -523,7 +626,7 @@ pass
 # CLI: --help
 echo "==> --help flag"
 set +e
-./update_cs2.sh --help > "$tmpdir/stdout" 2> "$tmpdir/stderr"
+./3rr-update.sh --help > "$tmpdir/stdout" 2> "$tmpdir/stderr"
 rc=$?
 set -e
 [ "$rc" -eq 0 ] || fail "--help: expected rc=0, got $rc"
@@ -533,12 +636,12 @@ pass
 # CLI: --version
 echo "==> --version flag"
 set +e
-./update_cs2.sh --version > "$tmpdir/stdout" 2> "$tmpdir/stderr"
+./3rr-update.sh --version > "$tmpdir/stdout" 2> "$tmpdir/stderr"
 rc=$?
 set -e
 [ "$rc" -eq 0 ] || fail "--version: expected rc=0, got $rc"
-# Version string should be a number pattern like X.Y.Z
-grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$' "$tmpdir/stdout" || fail "--version: output not in X.Y.Z format: $(cat "$tmpdir/stdout")"
+# Version output accepts a stable semantic version or a prerelease candidate.
+grep -qE '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$' "$tmpdir/stdout" || fail "--version: output is not a semantic version: $(cat "$tmpdir/stdout")"
 pass
 
 # CLI: --status (up-to-date)
@@ -552,7 +655,7 @@ export CONFIG_FILE="" REMOTE_BUILDID="100" STEAMCMD_UPDATE_EXIT="0"
 export SYSTEMCTL_CALLS_FILE="$tmpdir/systemctl.calls" SYSTEMCTL_STATE_FILE="$tmpdir/systemctl.state"
 echo "active" > "$SYSTEMCTL_STATE_FILE"
 set +e
-./update_cs2.sh --status > "$tmpdir/stdout" 2> "$tmpdir/stderr"
+./3rr-update.sh --status > "$tmpdir/stdout" 2> "$tmpdir/stderr"
 rc=$?
 set -e
 [ "$rc" -eq 0 ] || fail "--status up-to-date: expected rc=0, got $rc"
@@ -565,7 +668,7 @@ echo "==> --status update-available"
 rm -rf "$tmpdir/lock" "$tmpdir/log" "$tmpdir/systemctl.calls"
 export REMOTE_BUILDID="200"
 set +e
-./update_cs2.sh --status > "$tmpdir/stdout" 2> "$tmpdir/stderr"
+./3rr-update.sh --status > "$tmpdir/stdout" 2> "$tmpdir/stderr"
 rc=$?
 set -e
 [ "$rc" -eq 0 ] || fail "--status update-available: expected rc=0, got $rc"
@@ -579,7 +682,7 @@ rm -rf "$tmpdir/lock" "$tmpdir/log" "$tmpdir/systemctl.calls" "$tmpdir/steamcmd.
 export REMOTE_BUILDID=""
 export STEAMCMD_APPINFO_EXIT="1"
 set +e
-./update_cs2.sh --status > "$tmpdir/stdout" 2> "$tmpdir/stderr"
+./3rr-update.sh --status > "$tmpdir/stdout" 2> "$tmpdir/stderr"
 rc=$?
 set -e
 unset STEAMCMD_APPINFO_EXIT
@@ -600,7 +703,7 @@ rm -rf "$tmpdir/lock" "$tmpdir/log" "$tmpdir/systemctl.calls"
 export PATH="$tmpdir:$PWD/tests/bin:$PATH"
 export REMOTE_BUILDID="100"
 set +e
-./update_cs2.sh --status > "$tmpdir/stdout" 2> "$tmpdir/stderr"
+./3rr-update.sh --status > "$tmpdir/stdout" 2> "$tmpdir/stderr"
 rc=$?
 set -e
 export PATH="$old_path"
@@ -632,7 +735,7 @@ export UPDATER_EVENTS_FILE="$tmpdir/events"
 export SYSTEMCTL_START_STATE="active"
 echo "active" > "$SYSTEMCTL_STATE_FILE"
 set +e
-./update_cs2.sh > "$tmpdir/stdout" 2> "$tmpdir/stderr"
+./3rr-update.sh > "$tmpdir/stdout" 2> "$tmpdir/stderr"
 rc=$?
 set -e
 [ "$rc" -ne 0 ] || fail "unchanged buildid: expected non-zero rc, got $rc"
@@ -656,7 +759,7 @@ export SYSTEMCTL_START_EXIT="1"
 export SYSTEMCTL_START_STATE="active"
 echo "active" > "$SYSTEMCTL_STATE_FILE"
 set +e
-./update_cs2.sh > "$tmpdir/stdout" 2> "$tmpdir/stderr"
+./3rr-update.sh > "$tmpdir/stdout" 2> "$tmpdir/stderr"
 rc=$?
 set -e
 unset SYSTEMCTL_START_EXIT
@@ -681,7 +784,7 @@ export SYSTEMCTL_START_EXIT="0"
 export SYSTEMCTL_START_STATE="inactive"
 echo "active" > "$SYSTEMCTL_STATE_FILE"
 set +e
-./update_cs2.sh > "$tmpdir/stdout" 2> "$tmpdir/stderr"
+./3rr-update.sh > "$tmpdir/stdout" 2> "$tmpdir/stderr"
 rc=$?
 set -e
 unset SYSTEMCTL_START_EXIT SYSTEMCTL_START_STATE
@@ -721,7 +824,7 @@ set +e
 CONFIG_FILE="$tmpdir/../conf" LOCKDIR="$tmpdir/lock" LOGFILE="$tmpdir/log" CS2_DIR="$tmpdir/cs2" \
     SERVICE_NAME="cs2.service" SLEEP_SECS="0" ALLOW_NONROOT="1" NO_SLEEP="1" \
     LOG_LEVEL="normal" DRY_RUN="0" \
-    ./update_cs2.sh > "$tmpdir/stdout" 2> "$tmpdir/stderr"
+    ./3rr-update.sh > "$tmpdir/stdout" 2> "$tmpdir/stderr"
 rc=$?
 set -e
 [ "$rc" -eq 1 ] || fail "CONFIG_FILE ..: expected rc=1, got $rc"
@@ -741,7 +844,7 @@ export SYSTEMCTL_STOP_EXIT="0" SYSTEMCTL_START_EXIT="0" SYSTEMCTL_START_STATE="a
 export DF_AVAILABLE="100"
 echo "active" > "$SYSTEMCTL_STATE_FILE"
 set +e
-./update_cs2.sh > "$tmpdir/stdout" 2> "$tmpdir/stderr"
+./3rr-update.sh > "$tmpdir/stdout" 2> "$tmpdir/stderr"
 rc=$?
 set -e
 unset DF_AVAILABLE
@@ -753,7 +856,8 @@ pass
 prepare_stale_lock_no_pid() {
     mkdir -p "$tmpdir/lock"
 }
-run_lock_case "stale-lock-no-pid-recovery" "prepare_stale_lock_no_pid" 0 "Recovered stale lock (no PID file)"
+run_lock_case "lock-without-pid-fails-closed" "prepare_stale_lock_no_pid" 1 "refusing automatic recovery"
+[ -d "$tmpdir/lock" ] || fail "unverifiable lock directory must remain intact"
 
 # Config file: multi-key and comment stripping
 echo "==> config file multi-key and comments"
@@ -772,7 +876,7 @@ export SYSTEMCTL_CALLS_FILE="$tmpdir/systemctl.calls" SYSTEMCTL_STATE_FILE="$tmp
 export SYSTEMCTL_STOP_EXIT="0" SYSTEMCTL_START_EXIT="0" SYSTEMCTL_START_STATE="active"
 echo "active" > "$SYSTEMCTL_STATE_FILE"
 set +e
-./update_cs2.sh > "$tmpdir/stdout" 2> "$tmpdir/stderr"
+./3rr-update.sh > "$tmpdir/stdout" 2> "$tmpdir/stderr"
 rc=$?
 set -e
 [ "$rc" -eq 0 ] || fail "config multi-key: expected rc=0, got $rc; stderr=$(cat "$tmpdir/stderr")"

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Runs syntax, static-analysis, and format-diff checks over the canonical shell-file set.
 set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.."

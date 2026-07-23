@@ -21,7 +21,9 @@
 - `routes/users.ts`: password changes and admin-only user management
 - `utils/`: validation, maps config, logging, secret handling, Redis client factory
 - `views/`: EJS templates including login, servers, management, settings, and admin user management
-- `public/`: static assets
+- `views/partials/manage/`: manage workbench partials (truth rail, setup, observed status, RCON, controls)
+- `public/css/panel.css`: Night Desk design-system entry; modules in `public/css/*.css`
+- `public/`: static assets and browser TypeScript sources
 - `cfg/`: gameplay presets and map metadata
 
 ## Scripts and tests

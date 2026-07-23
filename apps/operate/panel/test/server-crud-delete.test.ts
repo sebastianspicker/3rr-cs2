@@ -1,56 +1,37 @@
+/** Covers deletion authorization and RCON manager cleanup for removed servers. */
 import { test } from 'node:test';
-import type { AddressInfo, Server } from './server-crud-fixture';
 import {
-  app,
   assert,
-  loginAndGetSession,
   insertAccessibleServer,
+  postDeleteServer,
   removeServerCalls,
   setRemoveServerShouldFail,
+  withPanelServer,
 } from './server-crud-fixture';
 
 test('GET /api/servers rejects unauthenticated request', async () => {
-  const server: Server = app.listen(0);
-  try {
-    const { port } = server.address() as AddressInfo;
-
+  await withPanelServer(async (port) => {
     const res = await fetch(`http://127.0.0.1:${port}/api/servers`, {
       headers: { accept: 'application/json' },
     });
-
     assert.equal(res.status, 401);
-  } finally {
-    await new Promise<void>((resolve) => server.close(() => resolve()));
-  }
+  });
 });
 
 test('POST /api/delete-server removes only caller access for a shared server', async () => {
-  const server: Server = app.listen(0);
-  try {
-    const { better_sqlite_client: db } = await import('../db');
-    const sharedId = await insertAccessibleServer('198.51.100.31', 27031);
-    const otherUser = db
-      .prepare(`INSERT INTO users (username, password, is_admin) VALUES (?, 'hash', 0)`)
-      .run('shared-delete-user');
-    const otherUserId = Number(otherUser.lastInsertRowid);
-    db.prepare(`INSERT INTO server_access (user_id, server_id) VALUES (?, ?)`).run(
-      otherUserId,
-      sharedId
-    );
+  const { better_sqlite_client: db } = await import('../db');
+  const sharedId = await insertAccessibleServer('198.51.100.31', 27031);
+  const otherUser = db
+    .prepare(`INSERT INTO users (username, password, is_admin) VALUES (?, 'hash', 0)`)
+    .run('shared-delete-user');
+  const otherUserId = Number(otherUser.lastInsertRowid);
+  db.prepare(`INSERT INTO server_access (user_id, server_id) VALUES (?, ?)`).run(
+    otherUserId,
+    sharedId
+  );
 
-    const { port } = server.address() as AddressInfo;
-    const { sessionCookie, csrfToken } = await loginAndGetSession(port);
-
-    const res = await fetch(`http://127.0.0.1:${port}/api/delete-server`, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        accept: 'application/json',
-        cookie: sessionCookie,
-        'x-csrf-token': csrfToken,
-      },
-      body: JSON.stringify({ server_id: sharedId }),
-    });
+  await withPanelServer(async (port) => {
+    const res = await postDeleteServer(port, sharedId);
 
     assert.equal(res.status, 200);
     const body = (await res.json()) as Record<string, unknown>;
@@ -72,30 +53,15 @@ test('POST /api/delete-server removes only caller access for a shared server', a
       accessRows.map((row) => row.user_id),
       [otherUserId]
     );
-  } finally {
-    await new Promise<void>((resolve) => server.close(() => resolve()));
-  }
+  });
 });
 
 test('POST /api/delete-server deletes an orphan server and cleans up RCON state', async () => {
-  const server: Server = app.listen(0);
-  try {
-    const { better_sqlite_client: db } = await import('../db');
-    const orphanId = await insertAccessibleServer('198.51.100.32', 27032);
+  const { better_sqlite_client: db } = await import('../db');
+  const orphanId = await insertAccessibleServer('198.51.100.32', 27032);
 
-    const { port } = server.address() as AddressInfo;
-    const { sessionCookie, csrfToken } = await loginAndGetSession(port);
-
-    const res = await fetch(`http://127.0.0.1:${port}/api/delete-server`, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        accept: 'application/json',
-        cookie: sessionCookie,
-        'x-csrf-token': csrfToken,
-      },
-      body: JSON.stringify({ server_id: orphanId }),
-    });
+  await withPanelServer(async (port) => {
+    const res = await postDeleteServer(port, orphanId);
 
     assert.equal(res.status, 200);
     const body = (await res.json()) as Record<string, unknown>;
@@ -109,101 +75,82 @@ test('POST /api/delete-server deletes an orphan server and cleans up RCON state'
       .prepare(`SELECT COUNT(*) AS count FROM server_access WHERE server_id = ?`)
       .get(orphanId) as { count: number };
     assert.equal(access.count, 0);
+  });
+});
+
+test('POST /api/delete-server rolls back access removal when orphan deletion fails', async () => {
+  const { better_sqlite_client: db } = await import('../db');
+  const orphanId = await insertAccessibleServer('198.51.100.34', 27034);
+  db.exec(`
+    CREATE TRIGGER test_fail_orphan_server_delete
+    BEFORE DELETE ON servers
+    WHEN OLD.id = ${orphanId}
+    BEGIN
+      SELECT RAISE(ABORT, 'forced orphan delete failure');
+    END
+  `);
+
+  try {
+    await withPanelServer(async (port) => {
+      const res = await postDeleteServer(port, orphanId);
+
+      assert.equal(res.status, 500);
+      const serverRow = db.prepare(`SELECT id FROM servers WHERE id = ?`).get(orphanId);
+      assert.ok(serverRow, 'the server must remain when the orphan delete fails');
+      const access = db
+        .prepare(`SELECT COUNT(*) AS count FROM server_access WHERE user_id = 1 AND server_id = ?`)
+        .get(orphanId) as { count: number };
+      assert.equal(access.count, 1, 'the caller access delete must be rolled back');
+      assert.deepEqual(removeServerCalls, []);
+    });
   } finally {
-    await new Promise<void>((resolve) => server.close(() => resolve()));
+    db.exec(`DROP TRIGGER IF EXISTS test_fail_orphan_server_delete`);
   }
 });
 
 test('POST /api/delete-server reports RCON cleanup failure after orphan deletion', async () => {
-  const server: Server = app.listen(0);
+  const { better_sqlite_client: db } = await import('../db');
+  const orphanId = await insertAccessibleServer('198.51.100.33', 27033);
+  setRemoveServerShouldFail(true);
+
   try {
-    const { better_sqlite_client: db } = await import('../db');
-    const orphanId = await insertAccessibleServer('198.51.100.33', 27033);
-    setRemoveServerShouldFail(true);
+    await withPanelServer(async (port) => {
+      const res = await postDeleteServer(port, orphanId);
 
-    const { port } = server.address() as AddressInfo;
-    const { sessionCookie, csrfToken } = await loginAndGetSession(port);
-
-    const res = await fetch(`http://127.0.0.1:${port}/api/delete-server`, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        accept: 'application/json',
-        cookie: sessionCookie,
-        'x-csrf-token': csrfToken,
-      },
-      body: JSON.stringify({ server_id: orphanId }),
+      assert.equal(res.status, 500);
+      const body = (await res.json()) as Record<string, unknown>;
+      assert.equal(body.error, 'Server deleted, but RCON cleanup failed');
+      assert.equal(body.server_deleted, true);
+      assert.equal(body.rcon_cleanup, 'failed');
+      assert.deepEqual(removeServerCalls, [String(orphanId)]);
+      const serverRow = db.prepare(`SELECT id FROM servers WHERE id = ?`).get(orphanId);
+      assert.equal(serverRow, undefined);
     });
-
-    assert.equal(res.status, 500);
-    const body = (await res.json()) as Record<string, unknown>;
-    assert.equal(body.error, 'Server deleted, but RCON cleanup failed');
-    assert.equal(body.server_deleted, true);
-    assert.equal(body.rcon_cleanup, 'failed');
-    assert.deepEqual(removeServerCalls, [String(orphanId)]);
-    const serverRow = db.prepare(`SELECT id FROM servers WHERE id = ?`).get(orphanId);
-    assert.equal(serverRow, undefined);
   } finally {
     setRemoveServerShouldFail(false);
-    await new Promise<void>((resolve) => server.close(() => resolve()));
   }
 });
 
 test('POST /api/delete-server rejects malformed server_id', async () => {
-  const server: Server = app.listen(0);
-  try {
-    const { port } = server.address() as AddressInfo;
-    const { sessionCookie, csrfToken } = await loginAndGetSession(port);
-
-    const res = await fetch(`http://127.0.0.1:${port}/api/delete-server`, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        accept: 'application/json',
-        cookie: sessionCookie,
-        'x-csrf-token': csrfToken,
-      },
-      body: JSON.stringify({ server_id: 'abc' }),
-    });
-
+  await withPanelServer(async (port) => {
+    const res = await postDeleteServer(port, 'abc');
     assert.equal(res.status, 400);
     const body = (await res.json()) as Record<string, unknown>;
     assert.equal(body.error, 'Missing or invalid server_id');
-  } finally {
-    await new Promise<void>((resolve) => server.close(() => resolve()));
-  }
+  });
 });
 
 test('POST /api/delete-server returns 404 for non-existent server', async () => {
-  const server: Server = app.listen(0);
-  try {
-    const { port } = server.address() as AddressInfo;
-    const { sessionCookie, csrfToken } = await loginAndGetSession(port);
-
-    const res = await fetch(`http://127.0.0.1:${port}/api/delete-server`, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        accept: 'application/json',
-        cookie: sessionCookie,
-        'x-csrf-token': csrfToken,
-      },
-      body: JSON.stringify({ server_id: 99999 }),
-    });
-
+  await withPanelServer(async (port) => {
+    const res = await postDeleteServer(port, 99999);
     assert.equal(res.status, 404);
     const body = (await res.json()) as Record<string, unknown>;
     assert.equal(body.error, 'Server not found');
-  } finally {
-    await new Promise<void>((resolve) => server.close(() => resolve()));
-  }
+  });
 });
 
 test('POST /api/delete-server rejects unauthenticated request', async () => {
-  const server: Server = app.listen(0);
-  try {
-    const { port } = server.address() as AddressInfo;
-
+  await withPanelServer(async (port) => {
     const res = await fetch(`http://127.0.0.1:${port}/api/delete-server`, {
       method: 'POST',
       headers: {
@@ -212,9 +159,6 @@ test('POST /api/delete-server rejects unauthenticated request', async () => {
       },
       body: JSON.stringify({ server_id: 1 }),
     });
-
     assert.equal(res.status, 401);
-  } finally {
-    await new Promise<void>((resolve) => server.close(() => resolve()));
-  }
+  });
 });

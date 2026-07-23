@@ -1,4 +1,4 @@
-# Provision: Bootstrap
+# 3RR - Provision
 
 This module contains generic bootstrap assets for self-hosted CS2 server runtimes.
 

@@ -1,3 +1,4 @@
+/** Verifies connected, unknown, timed-out, and unavailable status states remain distinct. */
 import { login, expect, test } from './panel-fixture';
 
 const mixedServerStatuses = [
@@ -119,12 +120,24 @@ export function registerStatusCases(): void {
     await expect(page.locator('.server-card').filter({ hasText: '203.0.113.52' })).toContainText(
       'Status unknown'
     );
+    await expect(page.locator('.server-card').filter({ hasText: '203.0.113.52' })).toContainText(
+      'Server 52'
+    );
+    await expect(page.locator('.server-card').filter({ hasText: '203.0.113.52' })).toContainText(
+      'Not observed'
+    );
+    await expect(page.getByRole('table', { name: 'Configured servers' })).toBeVisible();
+    await expect(page.locator('#serverList')).toHaveAttribute('role', 'rowgroup');
+    await expect(page.locator('.server-card').first()).toHaveAttribute('role', 'row');
     await expect(
       page.locator('.server-card').filter({ hasText: '203.0.113.52' })
     ).not.toContainText('Disconnected');
     await expect(page.locator('.server-card').filter({ hasText: '203.0.113.53' })).toContainText(
       'Status timed out'
     );
+    await expect(
+      page.locator('[aria-describedby="server-53-status-detail"]')
+    ).toHaveAccessibleDescription('hostname probe timed out');
     await expect(
       page.locator('.server-card').filter({ hasText: 'Disconnected List Server' })
     ).toContainText('Disconnected');

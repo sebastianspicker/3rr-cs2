@@ -1,0 +1,11 @@
+<%# FOUC-safe theme boot: apply stored preference before CSS paint. %>
+<script nonce="<%= typeof cspNonce !== 'undefined' ? cspNonce : '' %>">
+(function () {
+  try {
+    var t = localStorage.getItem('3rr.theme');
+    if (t === 'light' || t === 'dark') {
+      document.documentElement.setAttribute('data-theme', t);
+    }
+  } catch (e) { /* private mode / storage blocked */ }
+})();
+</script>

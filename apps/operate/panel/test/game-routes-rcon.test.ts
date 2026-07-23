@@ -5,9 +5,12 @@ import {
   inaccessibleServerId,
   executedCommands,
   commandsThatFail,
+  loginAndGetSession,
   commandResponses,
   type RconCommandResponse,
-  loginAndGetSession,
+  postAuthedJson,
+  postJson,
+  withServer,
   withAuthedServer,
   createAccessibleServerForTest,
   countHistoryRows,
@@ -20,36 +23,16 @@ import {
 import { loopbackFetch } from './http-helpers';
 
 test('POST /api/rcon rejects unauthenticated requests', async () => {
-  const server: Server = app.listen(0);
-  try {
-    const { port } = server.address() as AddressInfo;
-    const res = await fetch(`http://127.0.0.1:${port}/api/rcon`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ server_id: serverId, command: 'status' }),
-    });
+  await withServer(async (baseUrl) => {
+    const res = await postJson(baseUrl, '/api/rcon', { server_id: serverId, command: 'status' });
     assert.equal(res.status, 401);
-  } finally {
-    await new Promise<void>((resolve) => server.close(() => resolve()));
-  }
+  });
 });
 
 test('POST /api/rcon reports command and history success separately', async () => {
-  const server: Server = app.listen(0);
-  try {
-    const { port } = server.address() as AddressInfo;
-    const { sessionCookie, csrfToken } = await loginAndGetSession(port);
+  await withAuthedServer(async (baseUrl, auth) => {
     const command = 'status srp010-success';
-    const res = await fetch(`http://127.0.0.1:${port}/api/rcon`, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        accept: 'application/json',
-        cookie: sessionCookie,
-        'x-csrf-token': csrfToken,
-      },
-      body: JSON.stringify({ server_id: serverId, command }),
-    });
+    const res = await postAuthedJson(baseUrl, auth, '/api/rcon', { server_id: serverId, command });
     assert.equal(res.status, 200);
     const body = (await res.json()) as RconCommandResponse;
     assert.equal(body.message, 'Command sent.');
@@ -57,13 +40,10 @@ test('POST /api/rcon reports command and history success separately', async () =
     assert.equal(body.history_recorded, true);
     assert.equal(body.partial, false);
     assert.equal(await countHistoryRows(command), 1);
-  } finally {
-    await new Promise<void>((resolve) => server.close(() => resolve()));
-  }
+  });
 });
 
 test('POST /api/rcon reports partial success when history persistence fails after dispatch', async () => {
-  const server: Server = app.listen(0);
   const { better_sqlite_client: db } = await import('../db');
   db.exec(`
     DROP TRIGGER IF EXISTS fail_rcon_history_insert;
@@ -74,102 +54,59 @@ test('POST /api/rcon reports partial success when history persistence fails afte
     END;
   `);
   try {
-    const { port } = server.address() as AddressInfo;
-    const { sessionCookie, csrfToken } = await loginAndGetSession(port);
-    const command = 'status srp010-history-failure';
-    const res = await fetch(`http://127.0.0.1:${port}/api/rcon`, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        accept: 'application/json',
-        cookie: sessionCookie,
-        'x-csrf-token': csrfToken,
-      },
-      body: JSON.stringify({ server_id: serverId, command }),
+    await withAuthedServer(async (baseUrl, auth) => {
+      const command = 'status srp010-history-failure';
+      const res = await postAuthedJson(baseUrl, auth, '/api/rcon', {
+        server_id: serverId,
+        command,
+      });
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as RconCommandResponse;
+      assert.equal(body.message, 'Command sent, but history was not recorded.');
+      assert.equal(body.command_sent, true);
+      assert.equal(body.history_recorded, false);
+      assert.equal(body.partial, true);
+      assert.deepEqual(executedCommands, [command]);
+      assert.equal(await countHistoryRows(command), 0);
     });
-    assert.equal(res.status, 200);
-    const body = (await res.json()) as RconCommandResponse;
-    assert.equal(body.message, 'Command sent, but history was not recorded.');
-    assert.equal(body.command_sent, true);
-    assert.equal(body.history_recorded, false);
-    assert.equal(body.partial, true);
-    assert.deepEqual(executedCommands, [command]);
-    assert.equal(await countHistoryRows(command), 0);
   } finally {
     db.exec(`DROP TRIGGER IF EXISTS fail_rcon_history_insert`);
-    await new Promise<void>((resolve) => server.close(() => resolve()));
   }
 });
 
 test('POST /api/rcon does not record history when command dispatch fails', async () => {
-  const server: Server = app.listen(0);
-  try {
-    const { port } = server.address() as AddressInfo;
-    const { sessionCookie, csrfToken } = await loginAndGetSession(port);
+  await withAuthedServer(async (baseUrl, auth) => {
     const command = 'status srp010-rcon-failure';
     commandsThatFail.add(command);
-    const res = await fetch(`http://127.0.0.1:${port}/api/rcon`, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        accept: 'application/json',
-        cookie: sessionCookie,
-        'x-csrf-token': csrfToken,
-      },
-      body: JSON.stringify({ server_id: serverId, command }),
-    });
+    const res = await postAuthedJson(baseUrl, auth, '/api/rcon', { server_id: serverId, command });
     assert.equal(res.status, 500);
     const body = (await res.json()) as RconCommandResponse;
     assert.match(body.error ?? '', /RCON/);
     assert.equal(body.command_sent, undefined);
     assert.equal(await countHistoryRows(command), 0);
-  } finally {
-    await new Promise<void>((resolve) => server.close(() => resolve()));
-  }
+  });
 });
 
 test('POST /api/rcon rejects a blocked command', async () => {
-  const server: Server = app.listen(0);
-  try {
-    const { port } = server.address() as AddressInfo;
-    const { sessionCookie, csrfToken } = await loginAndGetSession(port);
-    const res = await fetch(`http://127.0.0.1:${port}/api/rcon`, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        accept: 'application/json',
-        cookie: sessionCookie,
-        'x-csrf-token': csrfToken,
-      },
-      body: JSON.stringify({ server_id: serverId, command: 'exec config.cfg' }),
+  await withAuthedServer(async (baseUrl, auth) => {
+    const res = await postAuthedJson(baseUrl, auth, '/api/rcon', {
+      server_id: serverId,
+      command: 'exec config.cfg',
     });
     assert.equal(res.status, 400);
     const body = (await res.json()) as { error: string };
     assert.match(body.error, /Command not allowed/);
-  } finally {
-    await new Promise<void>((resolve) => server.close(() => resolve()));
-  }
+  });
 });
 
 test('POST /api/rcon rejects a command containing non-ASCII characters', async () => {
-  const server: Server = app.listen(0);
-  try {
-    const { port } = server.address() as AddressInfo;
-    const { sessionCookie, csrfToken } = await loginAndGetSession(port);
-    const res = await fetch(`http://127.0.0.1:${port}/api/rcon`, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        accept: 'application/json',
-        cookie: sessionCookie,
-        'x-csrf-token': csrfToken,
-      },
-      body: JSON.stringify({ server_id: serverId, command: 'status\u013B' }),
+  await withAuthedServer(async (baseUrl, auth) => {
+    const res = await postAuthedJson(baseUrl, auth, '/api/rcon', {
+      server_id: serverId,
+      command: 'status\u013B',
     });
     assert.equal(res.status, 400);
-  } finally {
-    await new Promise<void>((resolve) => server.close(() => resolve()));
-  }
+  });
 });
 
 test('game-control success messages report command dispatch, not verified state changes', async () => {

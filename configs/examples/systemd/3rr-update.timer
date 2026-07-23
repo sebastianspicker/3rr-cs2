@@ -1,0 +1,11 @@
+[Unit]
+# Schedules the updater independently of the server runtime service.
+Description=Run the 3RR updater daily
+
+[Timer]
+OnCalendar=*-*-* 07:00:00
+# Catch up one missed run after a host outage without replaying every interval.
+Persistent=true
+
+[Install]
+WantedBy=timers.target

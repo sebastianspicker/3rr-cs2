@@ -1,3 +1,4 @@
+/** Selects the appropriate page initializer after the shared browser bundle loads. */
 import { initServersPage } from './servers';
 import { initManagePage } from './manage';
 

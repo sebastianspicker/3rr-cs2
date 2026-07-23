@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Deterministic SteamCMD double used to simulate metadata and update outcomes.
 set -euo pipefail
 
 app_id="${CS2_APP_ID:-730}"
@@ -12,6 +13,15 @@ update_buildid="${STEAMCMD_UPDATE_BUILDID:-${remote}}"
 calls_file="${STEAMCMD_CALLS_FILE:-}"
 
 args="$*"
+
+if [ -n "${STEAMCMD_FD_PROBE_FILE:-}" ]; then
+    # Verify the updater does not leak inherited file descriptors to SteamCMD.
+    if { printf 'UNTRUSTED_FD3_WRITE\n' >&3; } 2> /dev/null; then
+        printf 'open\n' > "$STEAMCMD_FD_PROBE_FILE"
+    else
+        printf 'closed\n' > "$STEAMCMD_FD_PROBE_FILE"
+    fi
+fi
 
 record_event() {
     if [ -n "${UPDATER_EVENTS_FILE:-}" ]; then

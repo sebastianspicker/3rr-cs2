@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Test double that preserves updater command sequencing without changing host users.
 set -euo pipefail
 
 # Minimal stub for tests: ignore user switching and run the command.

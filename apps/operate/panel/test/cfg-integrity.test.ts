@@ -1,3 +1,4 @@
+/** Keeps map metadata and shipped/server-provided CFG contracts in sync. */
 import fs from 'node:fs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

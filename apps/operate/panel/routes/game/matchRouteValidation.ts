@@ -1,3 +1,4 @@
+/** Consistent request-body parsing so invalid inputs fail before runtime side effects. */
 import type { Response } from 'express';
 import type { z } from 'zod';
 

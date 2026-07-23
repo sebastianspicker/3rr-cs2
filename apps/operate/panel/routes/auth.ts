@@ -1,3 +1,4 @@
+/** Authentication, session rotation, and CSRF issuance for panel users. */
 import express from 'express';
 import crypto from 'node:crypto';
 import bcrypt from 'bcrypt';
@@ -96,7 +97,7 @@ const login = async (req: Request, res: Response): Promise<void> => {
 router.post('/auth/login', login);
 
 router.post('/auth/logout', (req, res) => {
-  const sessionCookieName = req.app.get('sessionCookieName') || 'cspanel.sid';
+  const sessionCookieName = req.app.get('sessionCookieName') || '3rr.sid';
   const sessionCookieConfig = req.app.get('sessionCookieConfig') || { path: '/' };
   req.session.destroy((err) => {
     if (err) {

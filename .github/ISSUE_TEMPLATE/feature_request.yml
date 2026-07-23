@@ -1,0 +1,42 @@
+# Feature requests must preserve the provision, maintain, and operate boundaries.
+name: Feature request
+description: Propose a bounded operator-facing improvement.
+title: "[Feature]: "
+body:
+  - type: dropdown
+    id: module
+    attributes:
+      label: Intended module
+      options:
+        - operate panel
+        - maintain updater
+        - provision bootstrap
+        - shared configuration or documentation
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Operator problem
+      description: Describe the problem without prescribing an implementation.
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Desired outcome
+      description: Explain how an operator would know the change works.
+    validations:
+      required: true
+  - type: textarea
+    id: boundaries
+    attributes:
+      label: Boundaries and risks
+      description: Note privilege, RCON, persistence, compatibility, and deployment implications.
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Scope check
+      options:
+        - label: The proposal does not require the panel to shell into hosts or run SteamCMD.
+          required: true

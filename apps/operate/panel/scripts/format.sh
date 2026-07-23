@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Runs Prettier from the panel root so callers get a stable formatting target.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"

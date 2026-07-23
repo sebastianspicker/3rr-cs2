@@ -1,0 +1,67 @@
+        <!-- RCON -->
+        <details class="panel advanced-panel console-panel" id="console" open>
+          <summary class="panel-header">
+            <h2 aria-label="RCON Console"><span aria-hidden="true">Truth ledger</span></h2>
+            <span id="rcon-console-status-badge" class="badge <%= initialStatusBadgeClass %>" data-live-status-badge>
+              <%= initialStatusLabel %>
+            </span>
+          </summary>
+          <div class="rcon-transcript">
+            <div class="truth-ledger" aria-label="Observed, requested, and sent server state">
+              <div class="truth-row truth-row--observed">
+                <span class="truth-time" id="truth-observed-time">Pending</span>
+                <strong>Observed</strong>
+                <span id="truth-observed-detail">Waiting for a live RCON observation</span>
+              </div>
+              <div class="truth-row truth-row--requested">
+                <span class="truth-time" id="truth-requested-time">Saved</span>
+                <strong>Requested</strong>
+                <span id="truth-requested-detail"><%= requestedGameType %> / <%= requestedGameMode %> / <%= requestedMap %></span>
+              </div>
+            </div>
+            <div class="rcon-history-header">
+              <span class="rcon-response-label">Sent commands</span>
+              <button id="rconHistoryClearBtn" class="btn btn-ghost btn-sm">Clear</button>
+            </div>
+            <div id="rconHistoryList" class="compact-list" aria-live="polite">
+              <p class="empty-state">No sent RCON commands yet.</p>
+            </div>
+            <div id="rconResultBox" class="rcon-response">
+              <div class="rcon-response-header">
+                <span class="rcon-response-label">Output</span>
+                <button id="rconClearBtn" class="btn btn-ghost btn-sm" aria-label="Clear console output">Clear</button>
+              </div>
+              <pre id="rconResultText"></pre>
+            </div>
+          </div>
+          <div class="input-row rcon-command-row">
+            <input
+              type="text"
+              id="rconInput"
+              name="rcon_command"
+              class="form-control"
+              placeholder="RCON command…"
+              aria-label="RCON command"
+              autocomplete="off"
+            >
+            <button id="rconSuggestRefreshBtn" class="btn btn-secondary">Suggest</button>
+            <button id="rconInputBtn" class="btn btn-primary">Send command</button>
+          </div>
+          <div id="rconSuggestions" class="rcon-suggestions" hidden></div>
+          <details class="inline-advanced rcon-message-panel">
+            <summary>Admin message</summary>
+            <div class="input-row mt-sm">
+              <input
+                type="text"
+                id="say_input"
+                name="say_message"
+                class="form-control"
+                placeholder="Say as admin… (Enter to send)"
+                aria-label="Say as admin message"
+                autocomplete="off"
+              >
+              <button id="say_input_btn" class="btn btn-secondary">Say</button>
+            </div>
+          </details>
+          <p id="rcon-command-status" class="visually-hidden" role="status" aria-live="polite"></p>
+        </details>

@@ -5,7 +5,12 @@ import assert from 'node:assert/strict';
 import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
 import type { Express } from 'express';
-import { loginAndGetSession as loginWithCredentials } from './http-helpers';
+import type Database from 'better-sqlite3';
+import {
+  configurePanelTestEnvironment,
+  loginAndGetSession as loginWithCredentials,
+  loopbackFetch,
+} from './http-helpers';
 import { mockModule } from './mock-module';
 
 export { assert };
@@ -50,22 +55,85 @@ export interface ServerListItem {
   error: string | null;
 }
 
-export async function loginAndGetSession(
-  port: number
-): Promise<{ sessionCookie: string; csrfToken: string }> {
+export interface AddServerRequest {
+  server_ip: string;
+  server_port: number;
+  rcon_password: string;
+}
+
+export type AuthenticatedPanelSession = {
+  sessionCookie: string;
+  csrfToken: string;
+};
+
+export async function loginAndGetSession(port: number): Promise<AuthenticatedPanelSession> {
   return loginWithCredentials(port, 'testuser', ['test', 'pass', '12345'].join(''));
 }
 
-before(async () => {
-  tmpDir = fs.mkdtempSync(path.join(process.cwd(), 'tmp-cs2-panel-'));
-  dbPath = path.join(tmpDir, 'cspanel.db');
+/** Runs one callback against an ephemeral listener for the shared panel fixture. */
+export async function withPanelServer(fn: (port: number) => Promise<void>): Promise<void> {
+  const server: Server = app.listen(0);
+  try {
+    const { port } = server.address() as AddressInfo;
+    await fn(port);
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
+}
 
-  process.env.NODE_ENV = 'test';
-  process.env.DB_PATH = dbPath;
-  process.env.DEFAULT_USERNAME = 'testuser';
-  process.env.DEFAULT_PASSWORD = ['test', 'pass', '12345'].join('');
-  process.env.ALLOW_DEFAULT_CREDENTIALS = 'true';
-  process.env.SESSION_SECRET = 'test-session-secret';
+/** Posts an authenticated add-server request using the panel's CSRF contract. */
+export function postAddServer(
+  port: number,
+  session: AuthenticatedPanelSession,
+  body: AddServerRequest
+): Promise<Response> {
+  return loopbackFetch(`http://127.0.0.1:${port}/api/add-server`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      accept: 'application/json',
+      cookie: session.sessionCookie,
+      'x-csrf-token': session.csrfToken,
+    },
+    body: JSON.stringify(body),
+  });
+}
+
+/** Retrieves the caller's server list using its authenticated session cookie. */
+export function getAccessibleServers(port: number, sessionCookie: string): Promise<Response> {
+  return loopbackFetch(`http://127.0.0.1:${port}/api/servers`, {
+    headers: { accept: 'application/json', cookie: sessionCookie },
+  });
+}
+
+/** Posts an authenticated delete-server request using the panel's CSRF contract. */
+export async function postDeleteServer(
+  port: number,
+  serverId: unknown,
+  session?: AuthenticatedPanelSession
+): Promise<Response> {
+  const authenticated = session ?? (await loginAndGetSession(port));
+  return loopbackFetch(`http://127.0.0.1:${port}/api/delete-server`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      accept: 'application/json',
+      cookie: authenticated.sessionCookie,
+      'x-csrf-token': authenticated.csrfToken,
+    },
+    body: JSON.stringify({ server_id: serverId }),
+  });
+}
+
+before(async () => {
+  tmpDir = fs.mkdtempSync(path.join(process.cwd(), 'tmp-3rr-'));
+  dbPath = path.join(tmpDir, '3rr.db');
+
+  configurePanelTestEnvironment(dbPath, {
+    username: 'testuser',
+    password: ['test', 'pass', '12345'].join(''),
+    sessionSecret: 'test-session-secret',
+  });
 
   mockModule('../modules/rcon.js', {
     default: {
@@ -155,6 +223,42 @@ export async function insertAccessibleServer(
   return serverId;
 }
 
+/** Seeds user one's access list to the limit, returning the refreshed record and its cleanup. */
+export async function seedServerCapacity(): Promise<{
+  target: { id: number; serverIP: string; serverPort: number };
+  cleanup: () => void;
+}> {
+  const { better_sqlite_client: db } = await import('../db');
+  const current = db
+    .prepare(`SELECT COUNT(*) AS count FROM server_access WHERE user_id = 1`)
+    .get() as { count: number };
+  assert.ok(current.count < 50, 'fixture must start below the server limit');
+  const serverIds: number[] = [];
+  for (let index = current.count; index < 50; index += 1) {
+    const inserted = db
+      .prepare(
+        `INSERT INTO servers (serverIP, serverPort, rconPassword, owner_id)
+         VALUES ('198.51.100.250', ?, 'old-limit-password', 1)`
+      )
+      .run(28100 + index);
+    const serverId = Number(inserted.lastInsertRowid);
+    serverIds.push(serverId);
+    db.prepare(`INSERT INTO server_access (user_id, server_id) VALUES (1, ?)`).run(serverId);
+  }
+  const targetId = serverIds[0];
+  assert.ok(targetId !== undefined, 'capacity fixture must create a target server');
+  const target = db
+    .prepare(`SELECT id, serverIP, serverPort FROM servers WHERE id = ?`)
+    .get(targetId) as { id: number; serverIP: string; serverPort: number };
+  return {
+    target,
+    cleanup: () => {
+      for (const serverId of serverIds)
+        db.prepare(`DELETE FROM servers WHERE id = ?`).run(serverId);
+    },
+  };
+}
+
 export function setProbeShouldFail(value: boolean): void {
   probeShouldFail = value;
 }
@@ -165,4 +269,20 @@ export function setConnectShouldFail(value: boolean): void {
 
 export function setRemoveServerShouldFail(value: boolean): void {
   removeServerShouldFail = value;
+}
+
+/** Installs the deterministic access-insert failure used by transaction rollback tests. */
+export function installFailingServerAccessTrigger(
+  db: Database.Database,
+  triggerName: 'test_fail_new_server_access' | 'test_fail_existing_server_access'
+): () => void {
+  db.exec(`
+    CREATE TRIGGER ${triggerName}
+    BEFORE INSERT ON server_access
+    WHEN NEW.user_id = 1
+    BEGIN
+      SELECT RAISE(ABORT, 'forced server access failure');
+    END
+  `);
+  return () => db.exec(`DROP TRIGGER IF EXISTS ${triggerName}`);
 }

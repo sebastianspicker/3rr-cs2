@@ -1,3 +1,4 @@
+/** Verifies RCON credentials encrypt, decrypt, and fail closed under key or payload errors. */
 import { beforeEach, test } from 'node:test';
 import assert from 'node:assert/strict';
 

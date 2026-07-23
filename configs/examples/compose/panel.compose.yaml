@@ -5,15 +5,20 @@ services:
   panel:
     build:
       context: ../../../apps/operate/panel
+    depends_on:
+      redis:
+        condition: service_healthy
     environment:
       PORT: 3000
-      DB_PATH: /home/container/data/cspanel.db
+      DB_PATH: /home/container/data/3rr.db
       SESSION_SECRET: ${SESSION_SECRET:-}
-      REDIS_URL: ${REDIS_URL:-}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
       RCON_SECRET_KEY: ${RCON_SECRET_KEY:-}
-      TRUST_PROXY: ${TRUST_PROXY:-1}
+      # Keep false when the published port is reachable directly. Set 1 only
+      # when every request is guaranteed to traverse one trusted proxy hop.
+      TRUST_PROXY: ${TRUST_PROXY:-false}
     ports:
-      - "3000:3000"
+      - "${PANEL_BIND_ADDRESS:-127.0.0.1}:3000:3000"
     volumes:
       - panel-data:/home/container/data
     restart: unless-stopped
@@ -27,5 +32,20 @@ services:
         limits:
           memory: 512m
 
+  redis:
+    image: redis:7.4-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - panel-redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+
 volumes:
   panel-data:
+  panel-redis:
