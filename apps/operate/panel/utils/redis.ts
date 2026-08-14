@@ -3,7 +3,7 @@ import { createClient } from 'redis';
 import { RedisStore as RateLimitRedisStore } from 'rate-limit-redis';
 import logger from './logger';
 
-export const redisUrl = process.env.REDIS_URL ?? null;
+const redisUrl = process.env.REDIS_URL ?? null;
 
 // Singleton Redis client - null when Redis is not configured.
 export const redisClient = redisUrl

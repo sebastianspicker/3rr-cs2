@@ -23,7 +23,6 @@ coverage/
 .nyc_output/
 test-results/
 junit.xml
-results.sarif
 *.sarif
 .gitleaks-report.json
 .eslintcache
@@ -44,50 +43,54 @@ build/
 out/
 tmp/
 tmp-cs2-*
-tmp-cs2-*/
 tmp-3rr-*
-tmp-3rr-*/
 tmp-entry-3rr-*
-tmp-entry-3rr-*/
 *.tmp
 *.pid
-reports/
 playwright-report/
 
 .DS_Store
-.vscode/
-.cursor/
-.playwright-mcp/
-.idea/
+/.vscode/
+/.cursor/
+/.playwright-mcp/
+/.idea/
 *.swp
 *.swo
 *~
 
-# AI development artifacts
-.claude/
-progress.md
-prompts/
-.agents/
-.codex/
-.github/codex/
-docs/agent/
-docs/source-audit/
-AGENTS.md
-HARNESS_PRINCIPLES.md
-AUDIT.md
-code_review.md
+# Local workspaces and private notes
+/.internal/
+/.claude/
+/.agents/
+/.codex/
+/.github/codex/
+/.github/copilot-instructions.md
+/.github/instructions/
+/progress.md
+/prompts/
+/docs/agent/
+/docs/source-audit/
+/AGENTS.md
+/CLAUDE.md
+/GEMINI.md
+/HARNESS_PRINCIPLES.md
+/AUDIT.md
+/code_review.md
 
-# docs (local findings/logs/decisions)
-DECISIONS.md
-FINDINGS.md
-LOG.md
-REFACTOR_PLAN.md
+# Local findings, logs, and decisions
+/DECISIONS.md
+/FINDINGS.md
+/LOG.md
+/REFACTOR_PLAN.md
 
 !data/.gitkeep
 !.env.example
 
 # Client-side compiled output (built from public/ts/console.ts)
 public/js/console.js
+
+# Stylesheet bundle generated from public/css modules
+public/css/panel.css
 
 # Fonts copied from node_modules during prebuild
 public/fonts/

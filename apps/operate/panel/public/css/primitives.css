@@ -1,4 +1,4 @@
-/* Primitives — panels, forms, buttons, badges, alerts */
+/* Shared panels, forms, buttons, badges, and alerts. */
 
 .panel,
 .card {
@@ -20,24 +20,23 @@
   justify-content: space-between;
 }
 
-.panel > .panel-header:first-child,
-.panel > summary.panel-header:first-child {
+.panel > .panel-header:first-child {
   border-bottom: 1px solid var(--line);
   margin: calc(var(--space-5) * -1) calc(var(--space-5) * -1) var(--space-5);
   padding: var(--space-4) var(--space-5);
 }
 
-details.panel > summary.panel-header {
+.advanced-panel > .panel-header {
   cursor: pointer;
   list-style: none;
 }
 
-details.panel > summary.panel-header::-webkit-details-marker {
+.advanced-panel > .panel-header::-webkit-details-marker {
   display: none;
 }
 
-details.panel > summary.panel-header::after,
-details.inline-advanced > summary::after {
+.advanced-panel > .panel-header::after,
+.inline-advanced > summary::after {
   border-bottom: 1.5px solid currentColor;
   border-right: 1.5px solid currentColor;
   content: "";
@@ -48,8 +47,8 @@ details.inline-advanced > summary::after {
   width: 7px;
 }
 
-details.panel[open] > summary.panel-header::after,
-details.inline-advanced[open] > summary::after {
+.advanced-panel[open] > .panel-header::after,
+.inline-advanced[open] > summary::after {
   transform: rotate(225deg);
 }
 
@@ -171,13 +170,13 @@ textarea::placeholder {
 .btn-primary {
   background: var(--action);
   border-color: var(--action);
-  color: #fff;
+  color: rgb(255 255 255);
 }
 
 .btn-primary:hover {
   background: var(--action-hover);
   border-color: var(--action-hover);
-  color: #fff;
+  color: rgb(255 255 255);
 }
 
 .btn-secondary {
@@ -194,48 +193,48 @@ textarea::placeholder {
 .btn-success {
   background: var(--observed);
   border-color: var(--observed);
-  color: #fff;
+  color: rgb(255 255 255);
 }
 
 .btn-success:hover {
-  background: #34a87c;
-  border-color: #34a87c;
-  color: #fff;
+  background: rgb(52 168 124);
+  border-color: rgb(52 168 124);
+  color: rgb(255 255 255);
 }
 
 .btn-danger {
   background: var(--danger);
   border-color: var(--danger);
-  color: #fff;
+  color: rgb(255 255 255);
 }
 
 .btn-danger:hover {
   background: var(--coral-hover);
   border-color: var(--coral-hover);
-  color: #fff;
+  color: rgb(255 255 255);
 }
 
 .btn-danger-outline {
   background: transparent;
   border-color: rgb(224 90 82 / 55%);
-  color: #f0a09b;
+  color: rgb(240 160 155);
 }
 
 .btn-danger-outline:hover {
   background: var(--danger-soft);
   border-color: var(--coral-hover);
-  color: #f0a09b;
+  color: rgb(240 160 155);
 }
 
 .btn-warning {
   background: var(--warn-soft);
   border-color: rgb(212 160 23 / 40%);
-  color: #e6c15a;
+  color: rgb(230 193 90);
 }
 
 .btn-warning:hover {
-  background: #322810;
-  color: #f0d078;
+  background: rgb(50 40 16);
+  color: rgb(240 208 120);
 }
 
 .btn-info,
@@ -273,8 +272,8 @@ textarea::placeholder {
   padding: 0.42rem 0.65rem;
 }
 
-.btn-loading {
-  color: transparent !important;
+.btn.btn-loading {
+  color: transparent;
   position: relative;
 }
 
@@ -349,14 +348,14 @@ textarea::placeholder {
   background: var(--danger-soft);
   border-color: rgb(224 90 82 / 30%);
   border-left-color: var(--danger);
-  color: #f0a09b;
+  color: rgb(240 160 155);
 }
 
 .alert-warning {
   background: var(--warn-soft);
   border-color: rgb(212 160 23 / 30%);
   border-left-color: var(--warn);
-  color: #e6c15a;
+  color: rgb(230 193 90);
 }
 
 .alert-secondary {
@@ -400,7 +399,7 @@ textarea::placeholder {
 .badge-offline {
   background: var(--danger-soft);
   border-color: rgb(224 90 82 / 28%);
-  color: #f0a09b;
+  color: rgb(240 160 155);
 }
 
 .badge-unknown,
@@ -408,7 +407,7 @@ textarea::placeholder {
 .badge-secondary {
   background: var(--warn-soft);
   border-color: rgb(212 160 23 / 30%);
-  color: #e6c15a;
+  color: rgb(230 193 90);
 }
 
 .status-dot {

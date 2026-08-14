@@ -13,9 +13,8 @@
   alpha tag. The package is not intended for npm publication.
 - Added Redis to the maintained Compose deployment and bound the published
   panel port to `127.0.0.1` by default.
-- Moved screenshot-capture state and an E2E boundary fixture to isolated
-  operating-system temporary directories. Playwright run state remains under
-  the ignored `.e2e/` directory.
+- Moved screenshot-capture state to an isolated operating-system temporary
+  directory. Playwright run state remains under the ignored `.e2e/` directory.
 
 ### Security
 
@@ -40,5 +39,4 @@
 ## [1.0.0] - 2026-04-19
 
 - imported the standalone panel into `cs2-server-ops` as the `operate` module
-- removed standalone release-only and audit-only documentation
 - aligned package metadata, docs, and validation with the umbrella repo

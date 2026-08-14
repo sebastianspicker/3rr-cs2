@@ -1,19 +1,17 @@
-# 3RR - Maintain
-
-This module is the `maintain` surface of `3rr`.
+# 3RR Maintain Updater
 
 When upgrading from the pre-3RR updater, disable `cs2-auto-update.timer` before
 installing and enabling `3rr-update.timer`; both timers must never run together.
 
-It keeps a Counter-Strike 2 dedicated server updated by comparing local and remote build IDs and
-only stopping the service when a real update is available.
+The updater compares local and remote Counter-Strike 2 build IDs and stops the
+server service only when an update is confirmed.
 
 If the remote build status cannot be determined, the updater exits non-zero and leaves the service running instead of forcing speculative downtime.
 
-## What It Does
+## Capabilities
 
-- safe update detection via SteamCMD build IDs
-- unknown-remote detection that preserves availability instead of forcing a stop/update/start cycle
+- SteamCMD build-ID comparison
+- unknown-remote handling that exits without stopping the service
 - stop/update/start lifecycle with retries
 - bounded SteamCMD calls and automatic service restoration on failure or interruption
 - post-start active checks before reporting update success
@@ -21,7 +19,7 @@ If the remote build status cannot be determined, the updater exits non-zero and 
 - disk-space checks
 - root-owned file logging under `/var/log/3rr` plus stdout for journald/cron
 
-## Update Decision Flow
+## Update decision flow
 
 1. Load environment/config values, then trim and validate them.
 2. Acquire an atomic lock directory so only one updater runs at a time.
@@ -31,7 +29,7 @@ If the remote build status cannot be determined, the updater exits non-zero and 
 6. Stop the service only when local and remote build IDs are known and different.
 7. Run `steamcmd +app_update`, read the post-update build ID, restart the service, verify it is active, then report the result.
 
-## Config Policy
+## Configuration
 
 Config files accept only the documented `KEY=value` settings. Unknown keys,
 duplicate active keys, and explicit empty critical values fail fast; removed
@@ -57,24 +55,41 @@ supported config-file keys.
 ## Requirements
 
 - Linux host with systemd
-- CS2 installed under a service account such as `steam`
+- CS2 installed under a service account named `steam`
 - SteamCMD available on the host
 - GNU coreutils `timeout`
 
-## Quick Start
+## Installation
+
+Run the following commands from the repository root:
 
 ```bash
+cd apps/maintain/updater
 sudo install -d /opt/3rr/apps/maintain/updater
 sudo install -m 0755 3rr-update.sh /opt/3rr/apps/maintain/updater/3rr-update.sh
-sudo install -m 0644 3rr-update.conf.example /opt/3rr/apps/maintain/updater/3rr-update.conf
+sudo install -d /opt/3rr/apps/maintain/updater/lib
+sudo install -m 0644 lib/*.sh /opt/3rr/apps/maintain/updater/lib/
+sudo install -m 0600 3rr-update.conf.example /opt/3rr/apps/maintain/updater/3rr-update.conf
 sudo nano /opt/3rr/apps/maintain/updater/3rr-update.conf
 sudo install -m 0644 ../../../configs/examples/systemd/3rr-update.service /etc/systemd/system/
 sudo install -m 0644 ../../../configs/examples/systemd/3rr-update.timer /etc/systemd/system/
 sudo systemctl daemon-reload
+```
+
+The systemd examples assume the
+`/opt/3rr/apps/maintain/updater/` layout. Before enabling the timer, run:
+
+```bash
+sudo /opt/3rr/apps/maintain/updater/3rr-update.sh \
+  --config=/opt/3rr/apps/maintain/updater/3rr-update.conf \
+  --dry-run
+sudo /opt/3rr/apps/maintain/updater/3rr-update.sh \
+  --config=/opt/3rr/apps/maintain/updater/3rr-update.conf
 sudo systemctl enable --now 3rr-update.timer
 ```
 
-The shared systemd unit examples in `../../../configs/examples/systemd/` assume that same `/opt/3rr/apps/maintain/updater/` layout.
+Run the second command while monitoring the CS2 service and updater log. Enable
+the timer only after both commands succeed.
 
 ## Validation
 
@@ -82,8 +97,8 @@ The shared systemd unit examples in `../../../configs/examples/systemd/` assume 
 make ci
 ```
 
-## Scope Boundary
+## Limitations
 
 - this module does not provide a web UI
 - this module can be used without the panel
-- shared publication, docs, and CI live at repo root
+- shared documentation and repository verification live at the repository root

@@ -171,6 +171,35 @@ function loadInitialMode(elements: GameSetupElements): void {
   );
 }
 
+function setupPayload(serverId: string, elements: GameSetupElements) {
+  return {
+    server_id: serverId,
+    team1: el<HTMLInputElement>('#team1')?.value ?? '',
+    team2: el<HTMLInputElement>('#team2')?.value ?? '',
+    game_type: elements.gameTypeValue.value,
+    game_mode: elements.gameModeValue.value,
+    selectedMap: elements.mapSelect.value,
+  };
+}
+
+function submitSetup(
+  deployButton: HTMLButtonElement | null,
+  payload: ReturnType<typeof setupPayload>
+): void {
+  withLoading(deployButton, () =>
+    sendPostRequest('/api/setup-game', payload)
+      .then(data => {
+        showToast(data.message, 'success');
+        setText('truth-requested-time', new Date().toLocaleTimeString());
+        setText(
+          'truth-requested-detail',
+          `${payload.game_type} / ${payload.game_mode} / ${payload.selectedMap}`
+        );
+      })
+      .catch(toastError('Setup command failed.'))
+  );
+}
+
 function bindSetupForm(serverId: string, elements: GameSetupElements): void {
   const form = el<HTMLFormElement>('#server_setup_form');
   const deployButton = el<HTMLButtonElement>('#send-setup-commands');
@@ -180,26 +209,7 @@ function bindSetupForm(serverId: string, elements: GameSetupElements): void {
       form.reportValidity();
       return;
     }
-    const payload = {
-      server_id: serverId,
-      team1: el<HTMLInputElement>('#team1')?.value ?? '',
-      team2: el<HTMLInputElement>('#team2')?.value ?? '',
-      game_type: elements.gameTypeValue.value,
-      game_mode: elements.gameModeValue.value,
-      selectedMap: elements.mapSelect.value,
-    };
-    withLoading(deployButton, () =>
-      sendPostRequest('/api/setup-game', payload)
-        .then(data => {
-          showToast(data.message, 'success');
-          setText('truth-requested-time', new Date().toLocaleTimeString());
-          setText(
-            'truth-requested-detail',
-            `${payload.game_type} / ${payload.game_mode} / ${payload.selectedMap}`
-          );
-        })
-        .catch(toastError('Setup command failed.'))
-    );
+    submitSetup(deployButton, setupPayload(serverId, elements));
   });
 }
 

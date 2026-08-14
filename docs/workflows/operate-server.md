@@ -1,9 +1,18 @@
-# Operate Running Servers
+# Operate a running server
 
-Use this workflow when admins need live control over existing servers.
+1. Install and configure the panel using
+   [apps/operate/panel/README.md](../../apps/operate/panel/README.md).
+2. Confirm `GET /api/health` returns `200` with `"ready": true`.
+3. Sign in and add the existing server's host, port, and RCON password. The
+   panel probes the credentials before saving the server.
+4. Confirm the inventory shows an observed connection state.
+5. Use a read-only status or player request before sending state-changing
+   commands.
+6. Enable only controls whose CFG files, maps, and plugins are installed on the
+   server. See
+   [SERVER-SETUP.md](../../apps/operate/panel/docs/SERVER-SETUP.md).
 
-1. Deploy `apps/operate/panel`.
-2. Configure session and RCON secrets from the shared env contract.
-3. Add servers to the panel inventory.
-4. Use status and RCON-backed actions for day-to-day operations.
-5. Keep update automation outside the panel runtime.
+The panel stores sent-command history, not proof that the server applied a
+command. Check the returned state and server logs when an operation matters.
+Keep host updates in the maintain updater rather than adding host command
+execution to the panel.
