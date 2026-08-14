@@ -10,14 +10,13 @@ import { chromium } from '@playwright/test';
 const panelRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), '3rr-screenshot-'));
 const dbPath = path.join(tempDir, '3rr.db');
-const captureDir = path.join(tempDir, 'captures');
+const captureDir = fs.mkdtempSync(path.join(tempDir, 'captures-'));
 const screenshotDir = path.join(panelRoot, 'docs', 'screenshots');
 const port = '3217';
 const username = ['docs', 'operator'].join('-');
 const password = ['docs', 'password', '12345'].join('-');
 const captureSettleMs = 250;
 
-fs.mkdirSync(captureDir, { recursive: true });
 fs.mkdirSync(screenshotDir, { recursive: true });
 
 const app = spawn(process.execPath, ['dist/app.js'], {
@@ -37,18 +36,38 @@ const app = spawn(process.execPath, ['dist/app.js'], {
 });
 const appClosed = new Promise((resolve) => app.once('close', resolve));
 
+function captureFailure(label, error) {
+  const detail = error instanceof Error ? error.message : String(error);
+  return new Error(`${label}: ${detail}`, { cause: error });
+}
+
 async function waitForApp() {
-  await new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error('Panel startup timed out')), 20_000);
-    app.once('error', reject);
-    app.once('exit', (code) => reject(new Error(`Panel exited before capture (${code})`)));
-    app.stdout.on('data', (chunk) => {
-      if (String(chunk).includes('Server is running')) {
+  try {
+    await new Promise((resolve, reject) => {
+      let timer;
+      const cleanup = () => {
         clearTimeout(timer);
-        resolve();
-      }
+        app.removeListener('error', onError);
+        app.removeListener('exit', onExit);
+        app.stdout.removeListener('data', onOutput);
+      };
+      const finish = (callback, value) => {
+        cleanup();
+        callback(value);
+      };
+      const onError = (error) => finish(reject, error);
+      const onExit = (code) => finish(reject, new Error(`Panel exited before capture (${code})`));
+      const onOutput = (chunk) => {
+        if (String(chunk).includes('Server is running')) finish(resolve);
+      };
+      timer = setTimeout(() => finish(reject, new Error('Panel startup timed out')), 20_000);
+      app.once('error', onError);
+      app.once('exit', onExit);
+      app.stdout.on('data', onOutput);
     });
-  });
+  } catch (error) {
+    throw captureFailure('Panel startup failed', error);
+  }
 }
 
 async function prepareForCapture(page, readySelector) {
@@ -59,44 +78,52 @@ async function prepareForCapture(page, readySelector) {
 }
 
 async function assertViewportFit(page, label) {
-  const dimensions = await page.evaluate(() => ({
-    clientWidth: document.documentElement.clientWidth,
-    scrollLeft: window.scrollX,
-    scrollWidth: document.documentElement.scrollWidth,
-  }));
-  if (dimensions.scrollWidth > dimensions.clientWidth + 1) {
-    throw new Error(
-      `${label} overflows horizontally (${dimensions.scrollWidth}px > ${dimensions.clientWidth}px)`
-    );
-  }
-  if (dimensions.scrollLeft !== 0) {
-    throw new Error(`${label} starts horizontally scrolled by ${dimensions.scrollLeft}px`);
+  try {
+    const dimensions = await page.evaluate(() => ({
+      clientWidth: document.documentElement.clientWidth,
+      scrollLeft: window.scrollX,
+      scrollWidth: document.documentElement.scrollWidth,
+    }));
+    if (dimensions.scrollWidth > dimensions.clientWidth + 1) {
+      throw new Error(
+        `${label} overflows horizontally (${dimensions.scrollWidth}px > ${dimensions.clientWidth}px)`
+      );
+    }
+    if (dimensions.scrollLeft !== 0) {
+      throw new Error(`${label} starts horizontally scrolled by ${dimensions.scrollLeft}px`);
+    }
+  } catch (error) {
+    throw captureFailure(`${label} viewport verification failed`, error);
   }
 }
 
 async function assertElementNotClipped(page, selector, label) {
-  const bounds = await page.locator(selector).evaluate((element) => {
-    const rect = element.getBoundingClientRect();
-    return {
-      bottom: rect.bottom,
-      height: rect.height,
-      left: rect.left,
-      right: rect.right,
-      top: rect.top,
-      width: rect.width,
-      viewportHeight: window.innerHeight,
-      viewportWidth: window.innerWidth,
-    };
-  });
-  if (
-    bounds.width <= 0 ||
-    bounds.height <= 0 ||
-    bounds.left < 0 ||
-    bounds.top < 0 ||
-    bounds.right > bounds.viewportWidth ||
-    bounds.bottom > bounds.viewportHeight
-  ) {
-    throw new Error(`${label} is clipped: ${JSON.stringify(bounds)}`);
+  try {
+    const bounds = await page.locator(selector).evaluate((element) => {
+      const rect = element.getBoundingClientRect();
+      return {
+        bottom: rect.bottom,
+        height: rect.height,
+        left: rect.left,
+        right: rect.right,
+        top: rect.top,
+        width: rect.width,
+        viewportHeight: window.innerHeight,
+        viewportWidth: window.innerWidth,
+      };
+    });
+    if (
+      bounds.width <= 0 ||
+      bounds.height <= 0 ||
+      bounds.left < 0 ||
+      bounds.top < 0 ||
+      bounds.right > bounds.viewportWidth ||
+      bounds.bottom > bounds.viewportHeight
+    ) {
+      throw new Error(`${label} is clipped: ${JSON.stringify(bounds)}`);
+    }
+  } catch (error) {
+    throw captureFailure(`${label} clipping verification failed`, error);
   }
 }
 

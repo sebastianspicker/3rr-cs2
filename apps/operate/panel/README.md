@@ -1,157 +1,188 @@
-# 3RR - Operate
+# 3RR Operate Panel
 
-This module is the `operate` surface of `3rr`.
+The operate panel is an Express and EJS application for authenticated control
+of existing Counter-Strike 2 servers over RCON.
 
-It is part of the repository's public-alpha candidate. Review the root
-[release status](../../../RELEASE_STATUS.md) before treating a local build as a releasable
-artifact.
+## Capabilities
 
-It provides an authenticated web control plane for Counter-Strike 2 servers:
+- user authentication, administrator accounts, and per-server access grants
+- server inventory and connection status
+- live status and player observations
+- fixed game, match, bot, map, Workshop, MatchZy, and backup controls
+- a single-command RCON console with blocked-command and input checks
+- Workshop favorites and sent-command history
+- SQLite storage
+- Redis-backed production sessions and rate limits
 
-- server inventory and access control
-- RCON-backed actions and status checks
-- session-backed operator auth
-- Docker-friendly deployment
+The panel does not install or update CS2, CFG files, maps, or plugins. It does
+not run commands on the server host. Plugin-backed controls require the
+server-side files listed in [docs/SERVER-SETUP.md](docs/SERVER-SETUP.md).
 
-This module does not own host patch orchestration or bootstrap packaging. Those concerns live in
-the umbrella repository’s `maintain` and `provision` modules.
+## Request and data flow
 
-## Request And Data Flow
-
-1. Operators authenticate through Express sessions.
-2. SQLite stores users, server inventory, server-access grants, and last-known game selections.
-3. Server routes authorize every server-scoped action through `server_access`.
-4. The RCON manager keeps live sockets per server and serializes commands for the same server.
-5. RCON passwords are fetched from SQLite at connect time; the in-memory cache keeps host/port only.
+1. Express authenticates the operator through a session cookie.
+2. SQLite stores users, servers, access grants, favorites, and RCON history.
+3. Server-scoped routes check the current user's access before each operation.
+4. The RCON manager maintains one connection state per server and serializes
+   commands sent to the same server.
+5. The manager reads RCON passwords from SQLite when connecting. Its in-memory
+   server records contain only host and port.
 
 ## Requirements
 
-- Node.js `22.x`
-- npm `10.x`
-- Docker for container deployment
-- Redis with `REDIS_URL` for production sessions and rate limits
+- Node.js 22
+- npm
+- Redis when `NODE_ENV=production`
+- Docker with Compose for the included container deployment
 
-## Quick Start
+## Installation
 
 ```bash
+cd apps/operate/panel
 npm ci
 cp .env.example .env
-npm run build
-npm start
 ```
 
-Then open `http://localhost:3000`.
+Set local values in `.env`. `SESSION_SECRET` must contain at least 32 characters
+in production. `RCON_SECRET_KEY` must be a 32-byte base64 or hex key in
+production.
 
-On an empty database, first-admin creation is opt-in: set
-`ALLOW_DEFAULT_CREDENTIALS=true`, `DEFAULT_USERNAME`, and a 12+ character
-`DEFAULT_PASSWORD` for the initial start. After the administrator exists, remove the
-bootstrap credentials and set `ALLOW_DEFAULT_CREDENTIALS=false`.
+For the first start with an empty database, set
+`ALLOW_DEFAULT_CREDENTIALS=true`, `DEFAULT_USERNAME`, and a password of at
+least 12 characters. Remove those credential values and set
+`ALLOW_DEFAULT_CREDENTIALS=false` after the administrator exists.
 
-## Important Environment Variables
+## Usage
 
-| Variable                    | Required           | Default                  | Notes                                                |
-| --------------------------- | ------------------ | ------------------------ | ---------------------------------------------------- |
-| `SESSION_SECRET`            | yes in production  | generated in development | Must be strong in production                         |
-| `PORT`                      | no                 | `3000`                   | Listen port                                          |
-| `DB_PATH`                   | no                 | runtime-dependent        | SQLite database path                                 |
-| `REDIS_URL`                 | yes in production  | unset                    | Required for production sessions and rate limits     |
-| `TRUST_PROXY`               | proxy-dependent    | `false`                  | Set only for known reverse-proxy hops                |
-| `SESSION_COOKIE_SECURE`     | no                 | `true` in production     | Set `TRUST_PROXY=1` behind a reverse proxy           |
-| `RCON_SECRET_KEY`           | yes in production  | unset                    | 32-byte base64 or hex key for encrypted RCON secrets |
-| `RCON_COMMAND_TIMEOUT_MS`   | no                 | `2000`                   | Per-command timeout                                  |
-| `ALLOW_DEFAULT_CREDENTIALS` | first startup only | `false`                  | Explicitly permits first-admin bootstrap             |
+Build and start the panel:
 
-See:
+```bash
+npm run build
+node --env-file=.env dist/app.js
+```
 
-- [docs/API.md](docs/API.md)
-- [docs/RUNBOOK.md](docs/RUNBOOK.md)
-- [docs/SERVER-SETUP.md](docs/SERVER-SETUP.md)
-- [docs/REPO_MAP.md](docs/REPO_MAP.md)
-- [docs/FRONTEND.md](docs/FRONTEND.md)
-- [docs/UI_UX_AUDIT.md](docs/UI_UX_AUDIT.md)
+Open `http://localhost:3000`.
+
+`npm start` runs `dist/app.js` with variables already exported in the process
+environment. It does not read `.env`. For a watch-mode development server,
+export the required variables in the shell and run:
+
+```bash
+npm run dev
+```
+
+## Configuration
+
+| Variable                  | Required        | Default                       | Purpose                                                                    |
+| ------------------------- | --------------- | ----------------------------- | -------------------------------------------------------------------------- |
+| `SESSION_SECRET`          | Production      | Temporary development value   | Signs session cookies; production requires 32 or more characters           |
+| `RCON_SECRET_KEY`         | Production      | Unset                         | Encrypts stored RCON passwords; accepts a 32-byte base64 or hex key        |
+| `REDIS_URL`               | Production      | Unset                         | Redis connection for sessions and rate limits                              |
+| `PORT`                    | No              | `3000`                        | HTTP listen port                                                           |
+| `DB_PATH`                 | No              | `/home/container/data/3rr.db` | SQLite file; local development can fall back to `./data/3rr.db` when unset |
+| `TRUST_PROXY`             | Proxy dependent | `false`                       | Express trusted-proxy hop count or boolean                                 |
+| `SESSION_COOKIE_SECURE`   | No              | `true` in production          | Requires HTTPS when enabled                                                |
+| `SESSION_COOKIE_SAMESITE` | No              | `strict`                      | Session cookie SameSite mode                                               |
+| `SESSION_COOKIE_NAME`     | No              | `3rr.sid`                     | Session cookie name                                                        |
+| `SESSION_MAX_AGE_MS`      | No              | `86400000`                    | Rolling session lifetime in milliseconds                                   |
+| `RCON_COMMAND_TIMEOUT_MS` | No              | `2000`                        | Per-command timeout in milliseconds                                        |
+| `HEALTHCHECK_VERBOSE`     | No              | `false`                       | Exposes detailed unauthenticated health state when true                    |
+
+`PANEL_BIND_ADDRESS` belongs to `docker-compose.yaml`, not the Node process. It
+defaults to `127.0.0.1`.
+
+See the complete shared contract in
+[docs/reference/env.md](../../../docs/reference/env.md).
 
 ## Scripts
 
-| Command               | Purpose                                       |
-| --------------------- | --------------------------------------------- |
-| `npm run dev`         | Development server with client rebuild        |
-| `npm run build`       | Compile server and bundle the browser console |
-| `npm test`            | Compile and run the Node test suite           |
-| `npm run test:e2e`    | Build the app and run Playwright E2E tests    |
-| `npm run screenshots` | Capture the sanitized panel tour              |
-| `npm run lint`        | ESLint                                        |
-| `npm run typecheck`   | TypeScript checks                             |
-| `npm run validate`    | Shell, JSON, YAML, and Docker validation      |
+| Command                                | Purpose                                                  |
+| -------------------------------------- | -------------------------------------------------------- |
+| `npm run dev`                          | Build browser code, then run the server in watch mode    |
+| `npm run build`                        | Compile the server and browser code                      |
+| `npm start`                            | Run `dist/app.js` with the current process environment   |
+| `npm run format:check`                 | Check formatting                                         |
+| `npm run lint`                         | Run ESLint                                               |
+| `npm run typecheck`                    | Check server and browser TypeScript                      |
+| `npm test`                             | Compile and run the Node test suite                      |
+| `npm run test:e2e`                     | Build and run Chromium Playwright tests                  |
+| `npm run validate`                     | Check shell, JSON, and YAML; run available Docker checks |
+| `npm run validate -- --require-docker` | Require all Docker validation                            |
+| `npm run screenshots`                  | Capture the documented panel views                       |
 
-## End-To-End Tests
-
-The E2E suite uses Playwright with Chromium only. It starts the built Express app on
-`127.0.0.1:3210`, creates an isolated SQLite database under `.e2e/`, and covers login,
-server/status truth, add-server validation, RCON console/history, Workshop favorites,
-user rendering, logout, and health behavior.
+## Testing
 
 ```bash
-npm ci
-npm run test:e2e:install
+npm run format:check
+npm run lint
+npm run typecheck
+npm test
 npm run test:e2e
+npm run build
+npm run validate -- --require-docker
 ```
+
+Install the Playwright Chromium binary once with
+`npm run test:e2e:install`. The browser suite starts the built application on
+`127.0.0.1:3210` with an isolated SQLite database under `.e2e/`.
 
 ## Deployment
 
-The included Compose deployment runs the panel with Redis and publishes the
-panel on loopback by default:
+The included Compose file builds the panel, starts Redis, mounts `./data` at
+`/home/container/data`, and publishes the panel on loopback:
 
 ```bash
 cp .env.example .env
 docker compose up --build
 ```
 
-Set `PANEL_BIND_ADDRESS=0.0.0.0` only when direct network exposure is
-intentional and TLS or equivalent network controls are already present. This
-variable is consumed by Compose and is not read by the Node process.
+Set real secrets in `.env` before starting. The container does not terminate
+TLS. Keep `PANEL_BIND_ADDRESS=127.0.0.1` unless a TLS-terminating reverse proxy
+and network access controls are in place. Set `TRUST_PROXY` only to the proxy
+hops you operate.
 
-## Scope Boundary
+Read [docs/RUNBOOK.md](docs/RUNBOOK.md) for storage, migration, health, and
+shutdown details. The HTTP contract is in [docs/API.md](docs/API.md).
+Frontend source and browser behavior are described in
+[docs/FRONTEND.md](docs/FRONTEND.md). The maintained file map is in
+[docs/REPO_MAP.md](docs/REPO_MAP.md).
 
-- Use the root repo’s `apps/maintain/updater` for unattended updates
-- Use the root repo’s `apps/provision/bootstrap` and `configs/examples/` for bootstrap templates
-- Treat this module as the day-to-day operator surface only
+## Panel tour
 
-## Panel Tour
+The screenshots use an isolated SQLite database, the reserved documentation
+address `203.0.113.10`, and empty public credential fields. They do not connect
+to a live RCON server. The inventory shows the initial unknown state, while the
+management captures use fixed local HTTP responses for status, players, and
+history.
 
-These screenshots were generated with `npm run screenshots` from an isolated
-SQLite database. The fixture uses the reserved `203.0.113.10` documentation
-address, leaves credentials empty in public views, and does not connect to a
-live RCON server. Unknown and unobserved status labels are therefore expected.
-
-### 1. Authenticate
-
-The signed-out entry point keeps operator credentials inside the authenticated
-panel boundary.
+### Login
 
 ![3RR operator login](docs/screenshots/01-login.png)
 
-### 2. Review Servers
-
-The inventory keeps connection state, address, player observation, and primary
-actions visible in one row. The documentation fixture remains explicitly
-unknown because no RCON observation occurred.
+### Server inventory
 
 ![3RR server inventory](docs/screenshots/02-servers.png)
 
-### 3. Register A Server
-
-Operators add an existing CS2 endpoint and its RCON credential. The screenshot
-uses a TEST-NET-3 address and leaves the password field empty.
+### Add a server
 
 ![3RR add-server form](docs/screenshots/03-add-server.png)
 
-### 4. Operate A Server
+### Manage a server
 
-The management surface combines requested game setup, RCON-observed status,
-player state, the console, and guarded match controls without presenting an
-unobserved fixture as connected.
+![3RR server management page](docs/screenshots/04-manage.png)
 
-![3RR server management surface](docs/screenshots/04-manage.png)
+The [screenshot manifest](docs/screenshots/README.md) lists all eight files,
+their dimensions, and the capture command.
 
-Capture provenance and the publication checklist are recorded in the
-[screenshot manifest](docs/screenshots/README.md).
+## Security
+
+- Keep the panel behind HTTPS.
+- Use Redis in production.
+- Protect `.env`, the SQLite database, backups, and logs as secrets.
+- Restrict network access to RCON endpoints.
+- Do not weaken the single-command ASCII validation for console input.
+- Back up the SQLite database before upgrading.
+
+Report vulnerabilities using
+[SECURITY.md](SECURITY.md). Contribution requirements are in
+[CONTRIBUTING.md](CONTRIBUTING.md).

@@ -1,37 +1,41 @@
-# Contributing
+# Contributing to the operate panel
 
-## Development Setup
+## Setup
 
 ```bash
-cat .nvmrc
+cd apps/operate/panel
 npm ci
-cp .env.example .env
 npm run dev
 ```
+
+Keep `ALLOW_DEFAULT_CREDENTIALS=false` unless a test specifically needs
+first-administrator creation. `npm run dev` reads the current process
+environment, not `.env`. Never commit `.env`, SQLite files, credentials, or
+captured operator data.
 
 ## Checks
 
 ```bash
-npm run lint
 npm run format:check
+npm run lint
+npm run typecheck
 npm test
-npm run validate
+npm run test:e2e
+npm run build
+npm run validate -- --require-docker
 ```
 
-## Security
+`npm run validate` without the flag does not require Docker. Run the root
+`./scripts/verify.sh` before release work.
 
-- Do not commit secrets or credentials.
-- Use `ALLOW_DEFAULT_CREDENTIALS=false` for local testing unless explicitly needed.
-- Prefer Redis-backed sessions for production.
+## Change requirements
 
-## Pull Requests
+- Keep routes, authorization, CSRF, storage, and RCON changes focused.
+- Preserve per-server RCON command serialization and explicit connection state.
+- Add regression tests for behavior changes.
+- Update `docs/API.md` for HTTP contract changes.
+- Update `docs/RUNBOOK.md` or `.env.example` for operational changes.
 
-- Keep changes minimal and focused.
-- Update documentation when behavior changes.
-- Ensure tests, lint, format, and validate are green.
-
-## Issue Reports
-
-Use the umbrella repository's GitHub issue templates for bugs and feature requests. Security
-reports belong in a private
-[GitHub security advisory](https://github.com/sebastianspicker/cs2-server-ops/security/advisories/new).
+Use the root issue templates for defects and feature requests. Report security
+issues through a private
+[GitHub security advisory](https://github.com/sebastianspicker/3rr/security/advisories/new).

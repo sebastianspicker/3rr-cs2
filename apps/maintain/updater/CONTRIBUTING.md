@@ -1,44 +1,35 @@
-# Contributing
+# Contributing to the maintain updater
 
-## Local Setup
+## Requirements
 
-Install the linting and formatting tools. GitHub Actions installs these via
-`apt`. The repository keeps a pinned downloader only for local/manual setup when
-the host package manager cannot provide the required versions and checksum
-verification is useful:
+Install ShellCheck 0.10.0 or later and shfmt 3.8.0 or later. The helper below
+downloads pinned copies and verifies their checksums:
 
 ```bash
-./scripts/ci-install-tools.sh   # Downloads shellcheck + shfmt with SHA256 verification
+cd apps/maintain/updater
+./scripts/ci-install-tools.sh
 ```
-
-Or install manually: [shellcheck](https://github.com/koalaman/shellcheck) 0.10.0+, [shfmt](https://github.com/mvdan/sh) 3.8.0+.
 
 ## Development
 
-- Run `make ci` (lint + test + security) before submitting. This is the same pipeline that runs in GitHub Actions.
-- Use `make fmt` to auto-format scripts (shfmt style: `-i 4 -ci -bn -sr`).
-- Use `make help` to list all available targets.
-- Keep changes focused and avoid unrelated refactors.
+```bash
+make lint
+make test
+make security
+make ci
+```
 
-### Coding Style
+`make fmt` applies the repository shfmt style. Use Bash 4 or later,
+`set -euo pipefail`, four-space indentation, local function variables, and
+quoted expansions.
 
-- Bash 4.x+ with `set -euo pipefail`
-- 4-space indentation (enforced by shfmt)
-- Declare all function-scoped variables with `local`
-- Quote all variable expansions
+Changes to update detection, locking, path validation, service control, signal
+handling, retry behavior, or logging require focused tests. Preserve the rule
+that an unknown remote build ID leaves the CS2 service running.
 
-## Pull Requests
+Pull requests must describe the behavior change and include relevant,
+credential-free logs. Update the README and configuration example when
+operator-facing behavior changes.
 
-- Describe the problem and the proposed solution.
-- Include verification steps and relevant logs (redact secrets).
-- Update documentation if behavior changes.
-- Root CODEOWNERS requires maintainer review for updater runtime, tooling, and workflow changes.
-
-## Commit Messages
-
-Use conventional commits: `fix:`, `feat:`, `docs:`, `test:`, `ci:`, `refactor:`, `security:`, `chore:`
-
-## Security
-
-Please do not file public issues for security-sensitive reports. Use a private
-[GitHub security advisory](https://github.com/sebastianspicker/cs2-server-ops/security/advisories/new).
+Report security issues through a private
+[GitHub security advisory](https://github.com/sebastianspicker/3rr/security/advisories/new).

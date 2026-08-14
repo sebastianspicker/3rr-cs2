@@ -1,14 +1,14 @@
 import { describe, it, before } from 'node:test';
 import assert from 'node:assert/strict';
 import type { requireAllowlisted as RequireAllowlistedFn } from '../routes/game/helpers';
-import { mockModule } from './mock-module';
+import { mockModule } from './support/mock-module';
 
 // Mock the modules that trigger native-dependency side effects (better-sqlite3)
 // before importing helpers.ts. This allows testing the pure functions in helpers
 // without requiring a working native SQLite binding.
 before(() => {
-  mockModule('../db.js', { better_sqlite_client: {} });
-  mockModule('../modules/rcon.js', { default: { executeCommand: async () => '' } });
+  mockModule('../../db.js', { better_sqlite_client: {} });
+  mockModule('../../modules/rcon.js', { default: { executeCommand: async () => '' } });
 });
 
 // Dynamic import after mocks are set up

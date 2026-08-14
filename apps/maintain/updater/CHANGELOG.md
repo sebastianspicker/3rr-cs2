@@ -169,8 +169,8 @@ All notable changes to this project will be documented in this file.
 
 ### Added (1.2.0)
 
-- **Precise update detection:** Regex pattern extended to match both `up-to-date` variants and `download complete`.
-- **Service health check:** Added `ensure_service_running()` to confirm service status when no update is applied.
+- Precise update detection: the pattern matches both `up-to-date` variants and `download complete`.
+- Service health check: `ensure_service_running()` confirms service status when no update is applied.
 
 ### Changed (1.2.0)
 
@@ -187,8 +187,8 @@ All notable changes to this project will be documented in this file.
 
 - Modularization: broke the script into functions (`init_lock()`, `check_space()`,
   `stop_service()`, and related helpers) for readability and maintenance.
-- **Trap cleanup:** Added `trap cleanup EXIT` to ensure lockfile removal on unexpected exit.
-- **Retry logic:** Configurable retry loops for service stop/start operations.
+- Trap cleanup: `trap cleanup EXIT` removes the lock after an unexpected exit.
+- Retry logic: configurable loops retry service stop and start operations.
 
 ### Changed (1.1.0)
 

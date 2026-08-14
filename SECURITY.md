@@ -1,21 +1,26 @@
-# Security Policy
+# Security policy
 
-3RR is preparing its first public alpha. There is no supported stable release.
-Security fixes are developed on the `main` branch and included in subsequent
-alpha candidates.
+The repository is under alpha development and does not have a supported stable
+release line. Security fixes target `main` and subsequent prereleases.
 
 ## Reporting
 
-Open a private [GitHub security advisory](https://github.com/sebastianspicker/cs2-server-ops/security/advisories/new)
-before disclosing a vulnerability publicly. Include reproduction steps, affected versions,
-impact, and any known mitigation. Do not place secrets or live RCON credentials in the report.
+Open a private
+[GitHub security advisory](https://github.com/sebastianspicker/3rr/security/advisories/new)
+before public disclosure. Include reproduction steps, affected versions,
+impact, and known mitigations. Do not include live credentials, tokens, or
+private host details.
 
-## Priority Areas
+## Security boundaries
 
-- `apps/operate/panel`: auth, session handling, CSRF, RCON secret handling, network boundary validation
-- `apps/maintain/updater`: privilege boundaries, lock handling, service control, SteamCMD execution
-- `apps/provision/bootstrap`: secret templates, admin bootstrap data, startup command safety
+- The operate panel handles authentication, sessions, CSRF, authorization,
+  SQLite data, Redis state, and RCON credentials.
+- The maintain updater runs with host privileges and controls systemd and
+  SteamCMD.
+- The provision module writes credentials and administrator configuration and
+  constructs the CS2 startup command.
 
-## Boundary Notes
-
-- RCON console input must remain single-command ASCII input. Reject separators, control bytes, and non-ASCII characters before handing commands to the RCON client. Any protocol-driven exception requires a documented threat model, focused regression tests, and maintainer approval before implementation.
+RCON console input must remain one ASCII command. Reject separators, control
+bytes, and non-ASCII characters before invoking the RCON client. Any exception
+requires a documented threat model, focused regression tests, and maintainer
+approval.

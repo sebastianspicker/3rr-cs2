@@ -23,6 +23,13 @@ class RconSecretDecryptError extends Error {
   }
 }
 
+const throwInvalidKey = (): never => {
+  throw new RconSecretDecryptError(
+    'invalid_key',
+    'RCON_SECRET_KEY must be 32 bytes (hex-64 or base64-encoded)'
+  );
+};
+
 const parseKey = (raw: string | undefined): Buffer | null => {
   if (!raw || typeof raw !== 'string') return null;
   const trimmed = raw.trim();
@@ -36,13 +43,10 @@ const parseKey = (raw: string | undefined): Buffer | null => {
     const key = Buffer.from(trimmed, 'base64');
     if (key.length === KEY_BYTES) return key;
   } catch {
-    // fall through
+    return throwInvalidKey();
   }
 
-  throw new RconSecretDecryptError(
-    'invalid_key',
-    'RCON_SECRET_KEY must be 32 bytes (hex-64 or base64-encoded)'
-  );
+  return throwInvalidKey();
 };
 
 let cachedKey: Buffer | null | undefined;
@@ -74,22 +78,23 @@ const encryptRconSecret = (plaintext: string | null | undefined): string => {
   return `${ENC_PREFIX}${iv.toString('hex')}:${tag.toString('hex')}:${ciphertext.toString('hex')}`;
 };
 
+const throwInvalidHexSegment = (name: string): never => {
+  throw new RconSecretDecryptError(
+    'invalid_format',
+    `Invalid encrypted RCON password format: ${name} is not valid hex`
+  );
+};
+
 const parseHexSegment = (
   name: string,
   value: string | undefined,
   expectedChars?: number
 ): Buffer => {
-  if (
-    !value ||
-    (expectedChars !== undefined && value.length !== expectedChars) ||
-    value.length % 2 !== 0 ||
-    !HEX_RE.test(value)
-  ) {
-    throw new RconSecretDecryptError(
-      'invalid_format',
-      `Invalid encrypted RCON password format: ${name} is not valid hex`
-    );
-  }
+  if (!value) return throwInvalidHexSegment(name);
+  if (expectedChars !== undefined && value.length !== expectedChars)
+    return throwInvalidHexSegment(name);
+  if (value.length % 2 !== 0) return throwInvalidHexSegment(name);
+  if (!HEX_RE.test(value)) return throwInvalidHexSegment(name);
   return Buffer.from(value, 'hex');
 };
 

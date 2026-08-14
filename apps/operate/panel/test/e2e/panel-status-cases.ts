@@ -143,6 +143,76 @@ export function registerStatusCases(): void {
     ).toContainText('Disconnected');
   });
 
+  test('server-card layout and reduced-motion contracts preserve status visibility', async ({
+    page,
+  }) => {
+    await page.route('**/api/servers', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ servers: mixedServerStatuses }),
+      });
+    });
+    await page.route('**/api/status/51', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ humans: 3, max_players: 12 }),
+      });
+    });
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await login(page);
+
+    const card = page.locator('.server-card').filter({ hasText: 'Observed List Server' });
+    await expect(card).toBeVisible();
+    const desktopLayout = await card.evaluate((element) => {
+      const status = element.querySelector('.server-status-cell');
+      const actions = element.querySelector('.server-card-actions');
+      const window = element.ownerDocument.defaultView;
+      if (!status || !actions || !window) return null;
+      return {
+        statusAlignment: window.getComputedStyle(status).alignItems,
+        actionsRightPadding: window.getComputedStyle(actions).paddingRight,
+        actionsMotion: window.getComputedStyle(actions).transitionDuration,
+        actionsAnimation: window.getComputedStyle(actions).animationDuration,
+        actionsAnimationIterations: window.getComputedStyle(actions).animationIterationCount,
+        rootScrollBehavior: window.getComputedStyle(element.ownerDocument.documentElement)
+          .scrollBehavior,
+      };
+    });
+    expect(desktopLayout).toEqual({
+      statusAlignment: 'center',
+      actionsRightPadding: '0px',
+      actionsMotion: '1e-05s',
+      actionsAnimation: '1e-05s',
+      actionsAnimationIterations: '1',
+      rootScrollBehavior: 'auto',
+    });
+
+    await page.setViewportSize({ width: 800, height: 900 });
+    await expect
+      .poll(() =>
+        card.evaluate(
+          (element) => element.ownerDocument.defaultView?.matchMedia('(max-width: 900px)').matches
+        )
+      )
+      .toBe(true);
+    await card.evaluate(
+      (element) =>
+        new Promise<void>((resolve) => {
+          const window = element.ownerDocument.defaultView;
+          if (!window) return resolve();
+          window.requestAnimationFrame(() => window.requestAnimationFrame(resolve));
+        })
+    );
+    const mobilePadding = await card.evaluate((element) => {
+      const actions = element.querySelector('.server-card-actions');
+      const window = element.ownerDocument.defaultView;
+      return actions && window ? window.getComputedStyle(actions).paddingTop : null;
+    });
+    expect(mobilePadding).toBe('12px');
+  });
+
   test('servers page shows status unavailable when live player status fetch fails', async ({
     page,
   }) => {

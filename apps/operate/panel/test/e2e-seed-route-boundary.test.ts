@@ -1,5 +1,4 @@
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { after, before, test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -22,8 +21,8 @@ const fakeRedisClient = {
 };
 
 before(async () => {
-  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), '3rr-e2e-seed-boundary-'));
-  dbPath = path.join(tmpDir, '3rr.db');
+  tmpDir = fs.mkdtempSync(path.join(process.cwd(), 'tmp-e2e-seed-boundary-'));
+  dbPath = path.join(tmpDir, 'cspanel.db');
 
   process.env.NODE_ENV = 'production';
   process.env.DB_PATH = dbPath;

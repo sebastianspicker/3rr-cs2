@@ -98,6 +98,29 @@ assert_directory_symlink_is_refused() {
   [[ ! -e "${output_dir}/${other_output_name}" ]] || fail "wrote ${other_output_name} after rejecting a directory symlink"
 }
 
+assert_failed_atomic_write_cleans_temp_file() {
+  local script="$1"
+  local script_name
+  local output_dir
+  local fake_bin
+  local temp_files
+
+  script_name="$(basename "${script}")"
+  output_dir="${TMP_DIR}/${script_name}-failed-rename"
+  fake_bin="${TMP_DIR}/${script_name}-fake-bin"
+  mkdir -p "${output_dir}" "${fake_bin}"
+  printf '#!/usr/bin/env bash\nexit 1\n' >"${fake_bin}/mv"
+  chmod 700 "${fake_bin}/mv"
+
+  if PATH="${fake_bin}:${PATH}" "${script}" "${output_dir}"; then
+    fail "expected atomic rename to fail for ${script}"
+  fi
+
+  shopt -s nullglob
+  temp_files=("${output_dir}"/.*.??????)
+  [[ "${#temp_files[@]}" == "0" ]] || fail "left temporary output file after failed rename for ${script}"
+}
+
 ADMIN_SCRIPT="${ROOT}/scripts/bootstrap-admins.sh"
 PLUGIN_SCRIPT="${ROOT}/scripts/bootstrap-plugins.sh"
 
@@ -107,5 +130,7 @@ assert_directory_symlink_is_refused "${ADMIN_SCRIPT}" "admins.json" "admin_group
 assert_symlink_is_replaced "${PLUGIN_SCRIPT}" "plugins.env" "plugins.txt"
 assert_directory_is_refused_before_writes "${PLUGIN_SCRIPT}" "plugins.txt" "plugins.env"
 assert_directory_symlink_is_refused "${PLUGIN_SCRIPT}" "plugins.txt" "plugins.env"
+assert_failed_atomic_write_cleans_temp_file "${ADMIN_SCRIPT}"
+assert_failed_atomic_write_cleans_temp_file "${PLUGIN_SCRIPT}"
 
 printf 'Provision bootstrap output safety tests passed.\n'

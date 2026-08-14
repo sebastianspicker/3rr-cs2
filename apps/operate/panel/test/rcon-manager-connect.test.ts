@@ -1,7 +1,7 @@
 /** Connection setup tests; fixture mocks load before RconManager. */
 import { afterEach, test } from 'node:test';
 import assert from 'node:assert/strict';
-import { rconFixture, resetRconFixture, settleWithin } from './rcon-manager-fixture';
+import { rconFixture, resetRconFixture, settleWithin } from './support/rcon-manager-fixture';
 
 const TEST_AUTH_TIMEOUT_MS = 50;
 

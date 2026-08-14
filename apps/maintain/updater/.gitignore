@@ -2,8 +2,8 @@
 Thumbs.db
 
 # Editors
-.cursor/
-.idea/
+/.cursor/
+/.idea/
 *.swp
 *.swo
 *.swn
@@ -11,7 +11,7 @@ Thumbs.db
 *~
 *.bak
 
-.vscode/
+/.vscode/
 
 # Logs
 *.log
@@ -51,5 +51,13 @@ service-account*.json
 *-secret.json
 *.secrets
 
-# Claude Code working files
-.claude/
+# Local development workspaces
+/.agents/
+/.claude/
+/.codex/
+/.github/copilot-instructions.md
+/.github/instructions/
+/AGENTS.md
+/CLAUDE.md
+/GEMINI.md
+/prompts/

@@ -1,4 +1,3 @@
-/** Bridges Node 22 module-mock options without leaking compatibility logic into production code. */
 import { mock } from 'node:test';
 
 type MockModuleOptions = Parameters<typeof mock.module>[1];
