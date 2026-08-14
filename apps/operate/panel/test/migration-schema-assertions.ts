@@ -1,4 +1,3 @@
-/** Centralizes schema assertions so migration tests compare SQLite contracts consistently. */
 import assert from 'node:assert/strict';
 import type Database from 'better-sqlite3';
 

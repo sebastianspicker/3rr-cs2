@@ -1,20 +1,54 @@
-# 3RR - Provision
+# 3RR Provision Assets
 
-This module contains generic bootstrap assets for self-hosted CS2 server runtimes.
+This module provides bootstrap files and a startup wrapper for self-hosted CS2
+servers.
 
-It is intentionally not a shipping replacement for the archived egg. Its job is to provide
-clean, reviewable starting points:
+It includes:
 
-- environment templates
-- startup wrappers
-- plugin bootstrap
-- admin/bootstrap manifest generation
+- an environment-variable reference
+- an atomic writer for CounterStrikeSharp admin files
+- an atomic writer for plugin environment and list files
+- a startup wrapper that validates runtime values and keeps tokens and RCON
+  credentials out of the launched process environment
 
-Use the shared examples in `../../../configs/examples/` together with these scripts.
+It does not install CS2, SteamCMD, Metamod, CounterStrikeSharp, plugins, maps, or
+systemd units.
 
-Recommended flow:
+## Requirements
 
-1. Copy `env/server.env.example` to a local env file outside version control.
-2. Run `scripts/bootstrap-admins.sh ../../../configs/examples/compose/bootstrap`.
-3. Run `scripts/bootstrap-plugins.sh ../../../configs/examples/compose/bootstrap`.
-4. Start from `../../../configs/examples/compose/server-runtime.compose.yaml` or `../../../configs/examples/startup/server-start.sh`.
+- Bash
+- an existing CS2 installation or a reviewed container image
+- local values for the required server credentials
+
+## Usage
+
+Copy `env/server.env.example` to an untracked file and set the values required
+by your runtime. Write the bootstrap files:
+
+```bash
+cd apps/provision/bootstrap
+scripts/bootstrap-admins.sh ../../../configs/examples/compose/bootstrap
+scripts/bootstrap-plugins.sh ../../../configs/examples/compose/bootstrap
+```
+
+The writers create files with mode `0600` and replace existing regular files
+atomically. Review their reference contents before using them on a server.
+
+Start from
+`../../../configs/examples/compose/server-runtime.compose.yaml` or
+`../../../configs/examples/startup/server-start.sh`. The Compose example uses
+the external `cm2network/cs2` image and mounts
+`../../../configs/examples/compose/bootstrap` read-only at `/bootstrap`.
+
+The startup wrapper requires `RCON_PASSWORD`. `CS2_GSLT` is optional. It accepts
+ports from 1 through 65535 and player limits from 1 through 64.
+
+## Validation
+
+From the repository root:
+
+```bash
+bash apps/provision/bootstrap/tests/bootstrap-output-safety.test.sh
+bash apps/provision/bootstrap/tests/startup-wrapper-safety.test.sh
+./scripts/verify.sh
+```

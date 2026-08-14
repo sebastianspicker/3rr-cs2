@@ -144,73 +144,96 @@ export function showToast(msg: string, type: 'success' | 'error' | 'info'): void
   if (type !== 'error') setTimeout(dismiss, 3000);
 }
 
-export function showConfirm(message: string, confirmLabel = 'Confirm'): Promise<boolean> {
+interface ConfirmDialogElements {
+  overlay: HTMLDivElement;
+  cancelBtn: HTMLButtonElement;
+  confirmBtn: HTMLButtonElement;
+}
+
+interface ConfirmDialogSession {
+  elements: ConfirmDialogElements;
+  previouslyFocusedHTML: HTMLElement | null;
+  keyHandler: (event: KeyboardEvent) => void;
+  resolve: (result: boolean) => void;
+}
+
+function buildConfirmDialog(message: string, confirmLabel: string): ConfirmDialogElements {
+  const overlay = document.createElement('div');
+  overlay.className = 'cs-modal-overlay';
+  overlay.setAttribute('role', 'dialog');
+  overlay.setAttribute('aria-modal', 'true');
+  overlay.setAttribute('aria-labelledby', 'cs-modal-msg');
+
+  const modal = document.createElement('div');
+  modal.className = 'cs-modal';
+  const msgEl = document.createElement('p');
+  msgEl.className = 'cs-modal-message';
+  msgEl.id = 'cs-modal-msg';
+  msgEl.textContent = message;
+
+  const actions = document.createElement('div');
+  actions.className = 'cs-modal-actions';
+  const cancelBtn = document.createElement('button');
+  cancelBtn.className = 'btn btn-secondary cs-modal-cancel';
+  cancelBtn.textContent = 'Cancel';
+  const confirmBtn = document.createElement('button');
+  confirmBtn.className = 'btn btn-danger cs-modal-confirm';
+  confirmBtn.textContent = confirmLabel;
+
+  actions.append(cancelBtn, confirmBtn);
+  modal.append(msgEl, actions);
+  overlay.appendChild(modal);
+  return { overlay, cancelBtn, confirmBtn };
+}
+
+function cleanupConfirmDialog(session: ConfirmDialogSession, result: boolean): void {
+  session.elements.cancelBtn.disabled = true;
+  session.elements.confirmBtn.disabled = true;
+  document.removeEventListener('keydown', session.keyHandler);
+  session.elements.overlay.remove();
+  session.previouslyFocusedHTML?.focus();
+  session.resolve(result);
+}
+
+function waitForConfirmResult(
+  elements: ConfirmDialogElements,
+  previouslyFocusedHTML: HTMLElement | null
+): Promise<boolean> {
   return new Promise((resolve) => {
-    const overlay = document.createElement('div');
-    overlay.className = 'cs-modal-overlay';
-
-    const modal = document.createElement('div');
-    modal.className = 'cs-modal';
-
-    const msgEl = document.createElement('p');
-    msgEl.className = 'cs-modal-message';
-    msgEl.textContent = message;
-
-    const actions = document.createElement('div');
-    actions.className = 'cs-modal-actions';
-
-    const cancelBtn = document.createElement('button');
-    cancelBtn.className = 'btn btn-secondary cs-modal-cancel';
-    cancelBtn.textContent = 'Cancel';
-
-    const confirmBtn = document.createElement('button');
-    confirmBtn.className = 'btn btn-danger cs-modal-confirm';
-    confirmBtn.textContent = confirmLabel;
-
-    actions.append(cancelBtn, confirmBtn);
-    modal.append(msgEl, actions);
-    overlay.appendChild(modal);
-    document.body.appendChild(overlay);
-
-    overlay.setAttribute('role', 'dialog');
-    overlay.setAttribute('aria-modal', 'true');
-    overlay.setAttribute('aria-labelledby', 'cs-modal-msg');
-    msgEl.id = 'cs-modal-msg';
-    const previouslyFocusedHTML = document.activeElement as HTMLElement | null;
-    cancelBtn.focus();
-
-    const focusableButtons: HTMLButtonElement[] = [cancelBtn, confirmBtn];
-    const keyHandler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
+    const focusableButtons = [elements.cancelBtn, elements.confirmBtn];
+    const session: ConfirmDialogSession = {
+      elements,
+      previouslyFocusedHTML,
+      resolve,
+      keyHandler: () => {},
+    };
+    const cleanup = (result: boolean) => cleanupConfirmDialog(session, result);
+    session.keyHandler = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
         cleanup(false);
-      } else if (e.key === 'Tab') {
-        e.preventDefault();
-        const idx = document.activeElement === cancelBtn ? 0 : 1;
-        const next = e.shiftKey
-          ? (idx - 1 + focusableButtons.length) % focusableButtons.length
-          : (idx + 1) % focusableButtons.length;
+      } else if (event.key === 'Tab') {
+        event.preventDefault();
+        const index = document.activeElement === elements.cancelBtn ? 0 : 1;
+        const next = event.shiftKey
+          ? (index - 1 + focusableButtons.length) % focusableButtons.length
+          : (index + 1) % focusableButtons.length;
         focusableButtons.at(next)?.focus();
       }
     };
 
-    const cleanup = (result: boolean) => {
-      cancelBtn.disabled = true;
-      confirmBtn.disabled = true;
-      document.removeEventListener('keydown', keyHandler);
-      overlay.remove();
-      previouslyFocusedHTML?.focus();
-      resolve(result);
-    };
-
-    cancelBtn.addEventListener('click', () => {
-      cleanup(false);
+    elements.cancelBtn.addEventListener('click', () => cleanup(false));
+    elements.confirmBtn.addEventListener('click', () => cleanup(true));
+    elements.overlay.addEventListener('click', (event) => {
+      if (event.target === elements.overlay) cleanup(false);
     });
-    confirmBtn.addEventListener('click', () => {
-      cleanup(true);
-    });
-    overlay.addEventListener('click', (e) => {
-      if (e.target === overlay) cleanup(false);
-    });
-    document.addEventListener('keydown', keyHandler);
+    document.addEventListener('keydown', session.keyHandler);
   });
+}
+
+export function showConfirm(message: string, confirmLabel = 'Confirm'): Promise<boolean> {
+  const elements = buildConfirmDialog(message, confirmLabel);
+  const previouslyFocusedHTML = document.activeElement as HTMLElement | null;
+  document.body.appendChild(elements.overlay);
+  elements.cancelBtn.focus();
+  return waitForConfirmResult(elements, previouslyFocusedHTML);
 }

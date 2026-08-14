@@ -1,33 +1,32 @@
-# 3RR Screenshot Capture Manifest
+# Panel screenshot manifest
 
-The README tour was regenerated on 2026-07-23 for the local freeze candidate
-tagged `v1.1.0-alpha.1`, with Node 22.23.1, Playwright 1.59.1, and Chromium.
-Captures use the bundled `panel.css` and the default Night Desk dark theme
-(theme boot does not force light; Settings Appearance is visible on
-`05-settings.png`).
+Run the following command from `apps/operate/panel`:
 
-Run `npm run screenshots` from `apps/operate/panel` to recapture from the exact
-tagged commit before publishing a GitHub prerelease. The command uses an
-isolated database and documentation-only fixture values:
+```bash
+npm run screenshots
+```
 
-1. `01-login.png` - signed-out login state with no real account or deployment details.
-2. `02-servers.png` - server inventory using documentation-only hostnames and addresses.
-3. `03-add-server.png` - add-server form with the reserved `203.0.113.10` address and an empty
-   RCON password.
-4. `04-manage.png` - authenticated management surface with truth rail, observed status,
-   and safe non-production fixture data.
-5. `05-settings.png` - password form and Appearance theme control (Night Desk / Daylight).
-6. `06-users.png` - administrator access table and user-creation form.
-7. `07-manage-tablet.png` - management workspace at 900 x 1024.
-8. `08-manage-mobile.png` - management workspace at 390 x 844.
+The command builds the panel, starts it with an isolated SQLite database, uses
+documentation-only fixture values, and writes these files:
 
-The current 1536 x 1024 desktop captures were reviewed for clipping, readable
-status labels, empty/error truthfulness, truth-rail visibility, and the absence
-of real usernames, credentials, tokens, hosts, IP inventories, and browser chrome.
-The capture command also fails on browser errors or horizontal overflow and
-verifies the first keyboard focus target and every route at 900 x 1024 and
-390 x 844.
+| File                   | Dimensions  | View                              |
+| ---------------------- | ----------- | --------------------------------- |
+| `01-login.png`         | 1536 x 1024 | Signed-out login                  |
+| `02-servers.png`       | 1536 x 1024 | Server inventory                  |
+| `03-add-server.png`    | 1536 x 1024 | Add-server form                   |
+| `04-manage.png`        | 1536 x 1024 | Server management                 |
+| `05-settings.png`      | 1536 x 1024 | Password and appearance settings  |
+| `06-users.png`         | 1536 x 1024 | Administrator user management     |
+| `07-manage-tablet.png` | 900 x 1024  | Server management at tablet width |
+| `08-manage-mobile.png` | 390 x 844   | Server management at mobile width |
 
-Do not copy an image from a different commit or reconstruct the UI in an image
-editor. Record the candidate commit and capture command in `RELEASE_STATUS.md`
-when the gallery is regenerated for a published release.
+The fixture uses reserved documentation hosts and addresses, leaves RCON
+credentials empty in public views, and does not connect to a live server.
+Management views use fixed local HTTP responses for status, players, and RCON
+history. The capture script checks browser errors, horizontal overflow,
+clipping, the first keyboard focus target, and all six routes at desktop,
+tablet, and mobile widths.
+
+Before a release, rerun the command from the exact candidate commit and review
+every image for credentials, tokens, real hosts, operator names, browser chrome,
+clipping, and incorrect status labels. Do not edit screenshots by hand.

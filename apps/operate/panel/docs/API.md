@@ -16,6 +16,10 @@ Protected requests revalidate the session user against SQLite. Deleted users are
 rejected, and admin-only routes use the current stored admin flag rather than a
 stale session copy.
 
+Protected requests revalidate the session user against SQLite. Deleted users are
+rejected, and admin-only routes use the current stored admin flag rather than a
+stale session copy.
+
 ## Auth
 
 | Method | Path           | Auth | CSRF | Rate Limit |
@@ -65,6 +69,10 @@ but RCON cleanup fails, the response is non-2xx and includes
 | POST   | `/api/setup-game`                             | Yes  | Yes  | Deploy match (map, teams, game type/mode) |
 | GET    | `/api/game-types/:type/game-modes`            | Yes  | -    | List game modes for type                  |
 | GET    | `/api/game-types/:type/game-modes/:mode/maps` | Yes  | -    | List maps for mode                        |
+
+`POST /api/setup-game` records the last requested setup selection for the manage
+page. It does not claim the live server map or mode was observed. Success
+includes `setup_state: "requested"`, `observed: false`, and `requested_setup`.
 
 `POST /api/setup-game` records the last requested setup selection for the manage
 page. It does not claim the live server map or mode was observed. Success
@@ -183,7 +191,7 @@ with `backup_state: "unknown"`, `"malformed_response"`, or
 
 | Method | Path                           | Auth | CSRF | Description                        |
 | ------ | ------------------------------ | ---- | ---- | ---------------------------------- |
-| POST   | `/api/rcon`                    | Yes  | Yes  | Execute RCON command (allowlisted) |
+| POST   | `/api/rcon`                    | Yes  | Yes  | Execute one validated RCON command |
 | POST   | `/api/say-admin`               | Yes  | Yes  | Broadcast message to server        |
 | GET    | `/api/rcon/history/:server_id` | Yes  | -    | List sent RCON commands            |
 | DELETE | `/api/rcon/history/:server_id` | Yes  | Yes  | Clear sent RCON command history    |
@@ -192,6 +200,11 @@ with `backup_state: "unknown"`, `"malformed_response"`, or
 successful dispatch returns `command_sent: true`; `history_recorded: false` and
 `partial: true` mean the RCON command was sent but the post-command history write
 failed.
+
+The free-form console is not an allowlist. It accepts one printable ASCII
+command up to the protocol length limit, rejects command separators, and blocks
+specific command verbs that can alter process, credential, logging, plugin, or
+RCON configuration.
 
 RCON history is sent-command history, not proof that commands changed server
 state. History list failures return `history_state: "unavailable"` instead of
@@ -257,7 +270,8 @@ Login attempts are limited to 20 per 15 minutes. API requests are limited to
 limit. Limited requests return `429`. `/api/health` returns `503` when SQLite
 or configured Redis is unhealthy.
 
-**Auth routes:** use the same `{ "message": "..." }` success shape as other success responses.
+Auth routes use the same `{ "message": "..." }` success shape as other success
+responses.
 
 ## Request Body Format
 

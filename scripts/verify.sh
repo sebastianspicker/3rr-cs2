@@ -29,14 +29,6 @@ have() {
   command -v "$1" >/dev/null 2>&1
 }
 
-file_mode() {
-  if stat -c '%a' "$1" >/dev/null 2>&1; then
-    stat -c '%a' "$1"
-  else
-    stat -f '%Lp' "$1"
-  fi
-}
-
 install_playwright_chromium() {
   # Root and CI images need browser OS dependencies; developer machines usually do not.
   if [[ "${CI:-}" == "true" ]] || [[ "$(id -u)" == "0" ]]; then
@@ -98,73 +90,12 @@ panel_surface_probe() {
   PANEL_PROBE_CID=""
 }
 
-startup_secret_probe() {
-  local install_dir argv_file secret_cfg secret_victim rcon_probe gslt_probe admins_source groups_source admins_target groups_target
-  install_dir="${tmpdir}/cs2"
-  argv_file="${tmpdir}/cs2-argv.txt"
-  secret_cfg="${install_dir}/game/csgo/cfg/3rr-secrets.cfg"
-  secret_victim="${tmpdir}/secret-victim.txt"
-  rcon_probe="probe-rcon-$(date +%s)-value"
-  gslt_probe="probe-gslt-$(date +%s)-value"
-  admins_source="${tmpdir}/admins.json"
-  groups_source="${tmpdir}/admin_groups.json"
-  admins_target="${install_dir}/game/csgo/addons/counterstrikesharp/configs/admins.json"
-  groups_target="${install_dir}/game/csgo/addons/counterstrikesharp/configs/admin_groups.json"
-
-  mkdir -p "${install_dir}/game"
-  cat >"${install_dir}/game/cs2.sh" <<'EOF'
-#!/usr/bin/env bash
-set -euo pipefail
-if [[ "${RCON_PASSWORD+x}" == "x" || "${CS2_GSLT+x}" == "x" ]]; then
-  printf 'Startup secrets remained in the CS2 process environment\n' >&2
-  exit 1
-fi
-printf '%s\n' "$@" > "${CS2_ARGV_FILE:?}"
-EOF
-  chmod +x "${install_dir}/game/cs2.sh"
-  printf '{}\n' >"${admins_source}"
-  printf '{"groups":[]}\n' >"${groups_source}"
-  mkdir -p "$(dirname -- "${secret_cfg}")"
-  printf 'unchanged victim\n' >"${secret_victim}"
-  ln -s "${secret_victim}" "${secret_cfg}"
-
-  (
-    cd "${tmpdir}"
-    RCON_PASSWORD="${rcon_probe}" \
-      CS2_GSLT="${gslt_probe}" \
-      CS2_INSTALL_DIR="${install_dir}" \
-      CS2_ARGV_FILE="${argv_file}" \
-      CSS_ADMINS_FILE="admins.json" \
-      CSS_GROUPS_FILE="admin_groups.json" \
-      "${ROOT}/configs/examples/startup/server-start.sh"
-  )
-
-  if grep -Fq "${rcon_probe}" "${argv_file}"; then
-    printf 'RCON password leaked into startup argv\n' >&2
-    exit 1
-  fi
-  if grep -Fq "${gslt_probe}" "${argv_file}"; then
-    printf 'GSLT leaked into startup argv\n' >&2
-    exit 1
-  fi
-  grep -Fq '+exec' "${argv_file}"
-  grep -Fq '3rr-secrets.cfg' "${argv_file}"
-  grep -Fq "rcon_password \"${rcon_probe}\"" "${secret_cfg}"
-  grep -Fq "sv_setsteamaccount \"${gslt_probe}\"" "${secret_cfg}"
-  grep -Fxq 'unchanged victim' "${secret_victim}"
-  [[ -f "${secret_cfg}" && ! -L "${secret_cfg}" ]]
-  [[ "$(file_mode "${secret_cfg}")" == "600" ]]
-  cmp -s "${admins_source}" "${admins_target}"
-  cmp -s "${groups_source}" "${groups_target}"
-}
-
 require_cmd make
 require_cmd shellcheck
 require_cmd shfmt
 require_cmd jq
 require_cmd ruby
 require_cmd curl
-require_cmd cmp
 
 tmpdir="$(mktemp -d)"
 trap cleanup EXIT
@@ -174,15 +105,19 @@ trap 'cleanup; exit 143' TERM
 log "shared shell and config checks"
 run shellcheck \
   "${ROOT}/scripts/verify.sh" \
-  "${ROOT}/scripts/validate.sh" \
   "${ROOT}/apps/provision/bootstrap/scripts/bootstrap-admins.sh" \
+  "${ROOT}/apps/provision/bootstrap/scripts/bootstrap-output.sh" \
   "${ROOT}/apps/provision/bootstrap/scripts/bootstrap-plugins.sh" \
+  "${ROOT}/apps/provision/bootstrap/tests/bootstrap-output-safety.test.sh" \
+  "${ROOT}/apps/provision/bootstrap/tests/startup-wrapper-safety.test.sh" \
   "${ROOT}/configs/examples/startup/server-start.sh"
 run shfmt -d -i 2 -bn -ci \
   "${ROOT}/scripts/verify.sh" \
-  "${ROOT}/scripts/validate.sh" \
   "${ROOT}/apps/provision/bootstrap/scripts/bootstrap-admins.sh" \
+  "${ROOT}/apps/provision/bootstrap/scripts/bootstrap-output.sh" \
   "${ROOT}/apps/provision/bootstrap/scripts/bootstrap-plugins.sh" \
+  "${ROOT}/apps/provision/bootstrap/tests/bootstrap-output-safety.test.sh" \
+  "${ROOT}/apps/provision/bootstrap/tests/startup-wrapper-safety.test.sh" \
   "${ROOT}/configs/examples/startup/server-start.sh"
 run ruby -ryaml -e "YAML.safe_load(File.read('${ROOT}/configs/examples/compose/panel.compose.yaml'), aliases: false, filename: '${ROOT}/configs/examples/compose/panel.compose.yaml')" >/dev/null
 run ruby -ryaml -e "YAML.safe_load(File.read('${ROOT}/configs/examples/compose/server-runtime.compose.yaml'), aliases: false, filename: '${ROOT}/configs/examples/compose/server-runtime.compose.yaml')" >/dev/null
@@ -217,7 +152,7 @@ fi
 npm run format:check
 npm run lint
 npm run typecheck
-npm test
+npm run test:coverage
 npm run test:e2e
 npm run build'
 
@@ -234,7 +169,7 @@ if [[ "${node_major}" == "22" ]]; then
   run npm run format:check
   run npm run lint
   run npm run typecheck
-  run npm test
+  run npm run test:coverage
   run npm run test:e2e
   run npm run build
 else
@@ -265,8 +200,8 @@ run make ci
 log "provision module"
 cd "${ROOT}"
 run apps/provision/bootstrap/tests/bootstrap-output-safety.test.sh
+run bash apps/provision/bootstrap/tests/startup-wrapper-safety.test.sh
 run apps/provision/bootstrap/scripts/bootstrap-admins.sh "${tmpdir}/provision"
 run apps/provision/bootstrap/scripts/bootstrap-plugins.sh "${tmpdir}/provision"
-run startup_secret_probe
 
 log "verification complete"

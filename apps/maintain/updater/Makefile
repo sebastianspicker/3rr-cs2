@@ -19,4 +19,4 @@ security: ## Secret scan and dependency-manifest guard
 ci: lint test security ## Full CI pipeline (lint + test + security)
 
 clean: ## Remove temp and cache files
-	rm -rf .cache/ tmp.* tests/tmp.*
+	rm -rf .cache/ tmp.*

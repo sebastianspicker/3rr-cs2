@@ -1,13 +1,13 @@
-# Security Policy
+# Maintain updater security
 
-## Reporting a Vulnerability
+The component follows the repository release policy. There is no supported
+stable release line.
 
-Please report security issues through a private
-[GitHub security advisory](https://github.com/sebastianspicker/cs2-server-ops/security/advisories/new)
-rather than a public issue.
+Report vulnerabilities through a private
+[GitHub security advisory](https://github.com/sebastianspicker/3rr/security/advisories/new),
+not a public issue.
 
-## Supported Versions
-
-This component tracks one active line. There is no supported stable umbrella
-release during the public-alpha phase. Security fixes target `main` and
-subsequent alpha candidates.
+The updater normally runs as root and controls systemd, SteamCMD, the CS2
+installation, and a root-owned log path. Treat configuration paths, command
+construction, lock handling, signal handling, service restoration, and
+ownership checks as security boundaries.

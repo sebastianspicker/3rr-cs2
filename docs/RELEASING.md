@@ -1,54 +1,55 @@
-# Releasing A Public Alpha
+# Releasing a public alpha
 
-This repository uses umbrella prerelease tags such as `v1.1.0-alpha.1`. The
-panel package is private, but its version and lockfile remain aligned with the
-umbrella candidate. The updater keeps its own script version and changelog.
+Umbrella prerelease tags use a form such as `v1.1.0-alpha.1`. The panel package
+is private, but its package and lockfile versions must match the repository
+candidate. The updater has its own script version and changelog.
 
-`RELEASE_STATUS.md` is the authoritative evidence ledger for the next candidate. A green local
-subset is useful development evidence, but it does not authorize a tag or GitHub release.
+`RELEASE_STATUS.md` records the current candidate, completed checks, blocked
+checks, and remaining work. A partial local run does not authorize a tag.
 
-## Alpha Scope
+## Release scope
 
-The public alpha covers:
+A repository release can include:
 
-- static bootstrap examples for a self-hosted CS2 runtime;
-- the host/systemd updater with bounded SteamCMD execution; and
-- the authenticated panel for inventory, status, and RCON-backed operations.
+- provision examples and startup files
+- the Linux/systemd updater
+- the authenticated operate panel
 
-It does not claim hosted operation, automatic host provisioning, Pterodactyl runtime support,
-or production readiness for untested network and deployment topologies.
+It does not imply hosted operation, automatic host provisioning, Pterodactyl
+runtime support, or support for untested network and deployment topologies.
 
-## Candidate Checklist
+## Candidate procedure
 
-1. Reconcile the release branch with `main` and freeze one clean candidate commit.
-2. Verify badges, advisory links, and clone instructions against the canonical
-   `sebastianspicker/cs2-server-ops` repository.
-3. Align the proposed tag, root changelog, panel package and lock version, updater version, module changelogs, and
-   `RELEASE_STATUS.md`.
-4. Confirm public docs describe the implementation and that every view in the panel's
-   [screenshot capture manifest](../apps/operate/panel/docs/screenshots/README.md) is a sanitized
-   capture from the exact candidate.
-5. Run `./scripts/verify.sh` with Node 22, the documented shell tools, loopback networking, and
-   a working Docker daemon.
-6. Exercise one production-like CS2/RCON deployment, updater dry-run and supervised update,
-   container health/readiness, graceful shutdown, and recovery flow.
-7. Review the tracked file list for credentials, local paths, generated tool state, internal
-   ledgers, and unreviewed images.
-8. Build source and container artifacts from the exact commit and record an
-   SBOM, checksums, supported platforms, known limitations, and rollback
+1. Select one clean candidate commit from `main`.
+2. Verify badge links, advisory links, and clone instructions against
+   `sebastianspicker/3rr`.
+3. Align the proposed tag, package and lockfile version, updater version,
+   changelogs, and `RELEASE_STATUS.md`.
+4. Run `./scripts/verify.sh` with Node 22, the documented shell tools, loopback
+   networking, and a working Docker daemon.
+5. Test one representative CS2 and RCON deployment, updater dry run and
+   supervised update, container health, graceful shutdown, backup, and restore.
+6. Run `npm run screenshots` from `apps/operate/panel` at the candidate commit.
+   Review every image using the
+   [screenshot manifest](../apps/operate/panel/docs/screenshots/README.md).
+7. Review tracked files for credentials, tokens, local paths, databases,
+   temporary files, and private host details.
+8. Build source and container artifacts from the selected commit. Record
+   checksums, an SBOM, supported platforms, known limitations, and rollback
    instructions. Do not publish the private panel package to npm.
-9. Draft the GitHub prerelease notes from the changelogs. Create the tag and publish only after
-   owner approval and all required evidence is attached.
+9. Prepare GitHub prerelease notes from the changelogs. Create the tag and
+   publish only after owner approval.
 
-## Verification Record
+## Verification record
 
-Record exact commands, versions, test totals, skipped checks, environmental blockers, and the
-candidate commit in `RELEASE_STATUS.md`. Do not generalize a focused test result to the full
-repository or substitute remote CI from a different commit.
+Record exact commands, tool versions, test totals, skipped checks,
+environmental blockers, and the candidate commit in `RELEASE_STATUS.md`. Do not
+apply results from another commit or a smaller test subset to the candidate.
 
 ## Rollback
 
-Keep the previous verified image/source artifact and database backup available. For the panel,
-stop the new container, restore the previous image and compatible SQLite backup, then verify
-`GET /api/health` and one authenticated read-only server-status flow. For updater changes,
-restore the previous script/config/unit files before re-enabling the timer.
+Keep the previous source or image artifact and a compatible database backup.
+For the panel, stop the new container, restore the previous image and SQLite
+backup, then verify `/api/health` and an authenticated read-only status request.
+For the updater, restore the previous script, configuration, and unit files
+before enabling the timer.

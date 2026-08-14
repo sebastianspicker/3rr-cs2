@@ -1,12 +1,12 @@
-# Server Setup
+# CS2 server requirements
 
-This document covers the runtime prerequisites that must exist on the CS2 server side for the panel’s controls to work.
+The panel sends RCON commands to an existing CS2 server. Controls succeed only
+when their corresponding maps, CFG files, and plugins exist on that server.
 
-## CFG Files
+## CFG files
 
-The panel expects the mode CFG files from `cfg/` to be available in the game server’s `game/csgo/cfg/` directory.
-
-Important examples:
+Copy the required files from `apps/operate/panel/cfg` into the server's
+`game/csgo/cfg` directory. Available presets include:
 
 - `warmup.cfg`
 - `knife.cfg`
@@ -26,30 +26,35 @@ Important examples:
 - `rtd_on.cfg`
 - `rtd_off.cfg`
 
-MatchZy live-match controls execute `live.cfg`. This repository stores a
-reference copy at `cfg/server-provided/live.cfg`; copy it to the game server's
-runtime config directory as `live.cfg`, or provide an equivalent server-local
-`live.cfg`.
+MatchZy live-match controls execute `live.cfg`. A reference file is stored at
+`apps/operate/panel/cfg/server-provided/live.cfg`. Copy it to
+`game/csgo/cfg/live.cfg` or supply an equivalent server-local file.
 
-Keep provider-specific upload mechanics outside this repo. The requirement is only that the files exist in the runtime config directory.
+Verify each enabled preset through RCON:
+
+```text
+exec warmup.cfg
+exec live.cfg
+```
 
 ## Plugins
 
-Some game modes depend on CounterStrikeSharp plugins. Install the required plugins in the server runtime before exposing those controls through the panel.
+Several controls assume Metamod, CounterStrikeSharp, MatchZy, or a
+mode-specific plugin. CFG files configure base server rules but do not provide
+plugin or map-script behavior.
 
-CTF, deathrun, OITC, and 1v1 arenas are plugin-backed or map-script-backed
-modes on typical CS2 servers. Their CFG files set the base server rules, but
-the server must still provide the corresponding plugin or map behavior.
+Before exposing a control to operators:
 
-Recommended checks:
+1. Install the required server-side plugin or map.
+2. Run `css_plugins list` and confirm the plugin loaded.
+3. Execute the corresponding CFG or command over RCON.
+4. Confirm the result on the server.
 
-- Metamod:Source is installed
-- CounterStrikeSharp is installed
-- each plugin required by the selected mode is installed
-- `css_plugins list` confirms the plugin loaded successfully
-- RCON `exec <cfg>` succeeds for each enabled mode, including `exec live.cfg`
-  when MatchZy live controls are enabled
+CTF, deathrun, OITC, 1v1 arenas, Roll the Dice, and MatchZy controls require
+server-side support not installed by this repository.
 
-## Operational Rule
+## Network access
 
-Panel actions should only expose controls that the underlying server runtime actually supports. If a plugin or CFG is missing, fix the server runtime first instead of patching the panel around it.
+Use a distinct RCON password, restrict the RCON port to the panel host, and do
+not expose it to the public internet. Add the server to the panel only after
+RCON authentication succeeds from the panel's network.

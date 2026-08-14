@@ -26,7 +26,7 @@ failures = []
 Dir.glob(ROOT.join("**/*.md")).sort.each do |filename|
   path = Pathname.new(filename)
   relative_parts = path.relative_path_from(ROOT).each_filename.to_a
-  next if (relative_parts & %w[.git node_modules dist coverage]).any?
+  next if (relative_parts & %w[.git .internal node_modules dist coverage]).any?
 
   in_fence = false
 

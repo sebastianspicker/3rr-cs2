@@ -2,53 +2,50 @@
 
 ## Scope
 
-Keep changes inside one module whenever possible:
+Keep changes within one module when possible:
 
 - `apps/provision/bootstrap`
 - `apps/maintain/updater`
 - `apps/operate/panel`
 
-Shared documentation, examples, and CI belong at the repository root only when
-they affect more than one module.
+Change root documentation, shared examples, or repository scripts only when the
+change affects more than one module or a shared contract.
 
-## Standards
+Do not add production dependencies without maintainer approval. Do not include
+credentials, local databases, environment files, machine-specific paths,
+temporary notes, or local tool state.
 
-- TypeScript: Node 22, strict types, no `any`
-- Bash: `set -euo pipefail`, ShellCheck-clean
-- Public documentation: no machine-specific paths, local harness guidance, or
-  private workflow notes
+## Development standards
+
+- TypeScript targets Node 22 and uses strict type checking.
+- Bash scripts use `set -euo pipefail` and must pass ShellCheck and shfmt.
+- Runtime behavior changes require focused tests.
+- Public HTTP, environment, storage, and RCON contracts must be updated with
+  their implementation.
 
 ## Verification
 
-Run the full repository check before requesting review:
+Run the focused module checks first. Then run:
 
 ```bash
 ./scripts/verify.sh
 ```
 
-If you touch only one module, run its focused checks first and the full
-repository gate before release.
+The full script requires the documented shell tools and a working Docker
+daemon. If an environmental limitation prevents a check, record the exact
+command and failure instead of treating a partial run as complete.
 
-Use the pull request template to record focused checks, environment-blocked checks, and
-public documentation impact. Do not convert a partial local run into a release-readiness
-claim; update `RELEASE_STATUS.md` only with reproducible evidence.
+Panel contributors should also read
+[apps/operate/panel/CONTRIBUTING.md](apps/operate/panel/CONTRIBUTING.md).
+Updater contributors should read
+[apps/maintain/updater/CONTRIBUTING.md](apps/maintain/updater/CONTRIBUTING.md).
 
-## Issues And Security
+## Pull requests
 
-- Use the repository issue templates for reproducible bugs and bounded feature proposals.
-- Report vulnerabilities through a private
-  [GitHub security advisory](https://github.com/sebastianspicker/cs2-server-ops/security/advisories/new),
-  never a public issue.
+Describe the behavior change, affected module, compatibility impact, and
+verification results. Use the pull request template and include relevant logs
+with secrets removed.
 
-## Commits
-
-Prefer small logical commit blocks that preserve the module split:
-
-1. shared docs and contracts
-2. operate changes
-3. maintain changes
-4. provision changes
-5. CI and verification updates
-
-Do not include local agent state, audit packets, remediation ledgers, generated screenshots,
-credentials, or machine-specific paths in a public change.
+Use the issue templates for reproducible defects and bounded feature requests.
+Report vulnerabilities through a private
+[GitHub security advisory](https://github.com/sebastianspicker/3rr/security/advisories/new).

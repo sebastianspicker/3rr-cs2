@@ -19,10 +19,6 @@ export function displayLivePlayers(data: LiveStatusResponse): string {
   }
 }
 
-export function displayLiveState(data: LiveStatusResponse): string {
-  return liveStatusIndicator(data).label;
-}
-
 export interface LiveStatusIndicator {
   dotClass: 'online' | 'offline' | 'unknown';
   badgeClass: 'badge-connected' | 'badge-disconnected' | 'badge-unknown';

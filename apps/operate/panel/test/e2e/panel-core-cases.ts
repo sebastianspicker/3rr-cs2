@@ -178,6 +178,14 @@ export function registerCoreCases(): void {
     const sendButton = page.locator('#rconInputBtn');
     const sendClick = sendButton.click();
     await expect(sendButton).toBeDisabled();
+    await expect
+      .poll(() =>
+        sendButton.evaluate((button) => {
+          const window = button.ownerDocument.defaultView;
+          return window ? window.getComputedStyle(button).color : null;
+        })
+      )
+      .toBe('rgba(0, 0, 0, 0)');
     await expect.poll(() => rconBody?.command).toBe('status');
     expect(rconBody).toMatchObject({ server_id: String(serverId), command: 'status' });
     const release = rconGate.release;
@@ -267,5 +275,44 @@ export function registerCoreCases(): void {
     await confirmModal(page, 'Clear sent RCON command history for this server?');
     await expect.poll(() => clearedHistory).toBe(true);
     await expect(historyList).toContainText('No sent RCON commands yet.');
+  });
+
+  test('RCON history clear cancellations do not delete history and restore trigger focus', async ({
+    page,
+  }) => {
+    await login(page);
+    const serverId = seedManageServer();
+    let deleteRequestCount = 0;
+
+    await page.route(`**/api/rcon/history/${serverId}`, async (route) => {
+      if (route.request().method() === 'DELETE') deleteRequestCount += 1;
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          commands: [],
+          history_state: 'available',
+          message: 'Sent-command history cleared.',
+        }),
+      });
+    });
+
+    await page.goto(`/manage/${serverId}`);
+    const clearButton = page.locator('#rconHistoryClearBtn');
+    const cancellations = [
+      () => page.getByRole('button', { name: 'Cancel' }).click(),
+      () => page.keyboard.press('Escape'),
+      () => page.locator('.cs-modal-overlay').click({ position: { x: 1, y: 1 } }),
+    ];
+
+    for (const cancel of cancellations) {
+      await clearButton.click();
+      const dialog = page.getByRole('dialog');
+      await expect(dialog).toContainText('Clear sent RCON command history for this server?');
+      await cancel();
+      await expect(dialog).toHaveCount(0);
+      await expect(clearButton).toBeFocused();
+      expect(deleteRequestCount).toBe(0);
+    }
   });
 }

@@ -1,26 +1,5 @@
-/** Loopback-only HTTP helpers shared by route integration tests. */
 import assert from 'node:assert/strict';
 import { request as httpRequest } from 'node:http';
-
-interface PanelTestEnvironment {
-  username: string;
-  password: string;
-  sessionSecret: string;
-  enableLegacyE2ERouteFlag?: boolean;
-}
-
-/** Applies the common non-production environment contract used by panel integration fixtures. */
-export function configurePanelTestEnvironment(dbPath: string, options: PanelTestEnvironment): void {
-  process.env.NODE_ENV = 'test';
-  process.env.DB_PATH = dbPath;
-  process.env.DEFAULT_USERNAME = options.username;
-  process.env.DEFAULT_PASSWORD = options.password;
-  process.env.ALLOW_DEFAULT_CREDENTIALS = 'true';
-  process.env.SESSION_SECRET = options.sessionSecret;
-  if (options.enableLegacyE2ERouteFlag !== undefined) {
-    process.env.ENABLE_E2E_TEST_ROUTES = String(options.enableLegacyE2ERouteFlag);
-  }
-}
 
 export function loopbackFetch(urlValue: string, init: RequestInit = {}): Promise<Response> {
   const url = new URL(urlValue);

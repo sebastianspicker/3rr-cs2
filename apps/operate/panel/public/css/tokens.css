@@ -16,30 +16,30 @@
 
 /* Night Desk (default). Explicit dark mirrors :root for completeness. */
 :root,
-html[data-theme="dark"] {
+[data-theme="dark"] {
   color-scheme: dark;
-  --canvas: #0c1016;
-  --shell: #121820;
-  --surface: #171e28;
-  --surface-subtle: #1d2632;
-  --surface-strong: #243040;
-  --ink: #e8edf4;
-  --ink-raised: #121820;
-  --text: #c5cedb;
-  --muted: #8b97a8;
-  --muted-strong: #a8b3c2;
-  --line: #2a3544;
-  --line-strong: #3a4a5e;
-  --action: #5b7cfa;
-  --action-hover: #7290ff;
-  --action-soft: #1a2440;
-  --observed: #3dba8c;
-  --observed-soft: #122820;
-  --danger: #e05a52;
-  --danger-soft: #2a1616;
-  --warn: #d4a017;
-  --warn-soft: #2a2210;
-  --focus: #8eb0ff;
+  --canvas: rgb(12 16 22);
+  --shell: rgb(18 24 32);
+  --surface: rgb(23 30 40);
+  --surface-subtle: rgb(29 38 50);
+  --surface-strong: rgb(36 48 64);
+  --ink: rgb(232 237 244);
+  --ink-raised: rgb(18 24 32);
+  --text: rgb(197 206 219);
+  --muted: rgb(139 151 168);
+  --muted-strong: rgb(168 179 194);
+  --line: rgb(42 53 68);
+  --line-strong: rgb(58 74 94);
+  --action: rgb(91 124 250);
+  --action-hover: rgb(114 144 255);
+  --action-soft: rgb(26 36 64);
+  --observed: rgb(61 186 140);
+  --observed-soft: rgb(18 40 32);
+  --danger: rgb(224 90 82);
+  --danger-soft: rgb(42 22 22);
+  --warn: rgb(212 160 23);
+  --warn-soft: rgb(42 34 16);
+  --focus: rgb(142 176 255);
   --row-hover: rgb(29 38 50 / 55%);
   --overlay: rgb(12 16 22 / 72%);
   --glow-primary: rgb(91 124 250 / 10%);
@@ -51,7 +51,7 @@ html[data-theme="dark"] {
   --green: var(--observed);
   --green-soft: var(--observed-soft);
   --coral: var(--danger);
-  --coral-hover: #c44b44;
+  --coral-hover: rgb(196 75 68);
   --coral-soft: var(--danger-soft);
   --amber: var(--warn);
   --amber-soft: var(--warn-soft);
@@ -74,32 +74,32 @@ html[data-theme="dark"] {
   --content-max: 1480px;
 }
 
-/* Daylight Control Desk — opt-in only via html[data-theme="light"].
+/* Daylight Control Desk is opt-in only via html[data-theme="light"].
    Does not auto-switch on prefers-color-scheme; night remains the product default. */
-html[data-theme="light"] {
+[data-theme="light"] {
   color-scheme: light;
-  --canvas: #f4f6f9;
-  --shell: #121820;
-  --surface: #ffffff;
-  --surface-subtle: #f8fafc;
-  --surface-strong: #eef2f7;
-  --ink: #12171f;
-  --ink-raised: #1a212b;
-  --text: #202833;
-  --muted: #657180;
-  --muted-strong: #4d5968;
-  --line: #d8dee7;
-  --line-strong: #bdc7d3;
-  --action: #5b7cfa;
-  --action-hover: #4a6ce8;
-  --action-soft: #edf3ff;
-  --observed: #087f63;
-  --observed-soft: #e8f6f1;
-  --danger: #c93632;
-  --danger-soft: #fff0ef;
-  --warn: #8a5a00;
-  --warn-soft: #fff6dd;
-  --focus: #79a7ff;
+  --canvas: rgb(244 246 249);
+  --shell: rgb(18 24 32);
+  --surface: rgb(255 255 255);
+  --surface-subtle: rgb(248 250 252);
+  --surface-strong: rgb(238 242 247);
+  --ink: rgb(18 23 31);
+  --ink-raised: rgb(26 33 43);
+  --text: rgb(32 40 51);
+  --muted: rgb(101 113 128);
+  --muted-strong: rgb(77 89 104);
+  --line: rgb(216 222 231);
+  --line-strong: rgb(189 199 211);
+  --action: rgb(91 124 250);
+  --action-hover: rgb(74 108 232);
+  --action-soft: rgb(237 243 255);
+  --observed: rgb(8 127 99);
+  --observed-soft: rgb(232 246 241);
+  --danger: rgb(201 54 50);
+  --danger-soft: rgb(255 240 239);
+  --warn: rgb(138 90 0);
+  --warn-soft: rgb(255 246 221);
+  --focus: rgb(121 167 255);
   --row-hover: color-mix(in srgb, var(--surface-strong) 70%, transparent);
   --overlay: color-mix(in srgb, var(--canvas) 28%, rgb(18 24 32 / 55%));
   --glow-primary: rgb(91 124 250 / 8%);
@@ -111,7 +111,7 @@ html[data-theme="light"] {
   --green: var(--observed);
   --green-soft: var(--observed-soft);
   --coral: var(--danger);
-  --coral-hover: #b02e2b;
+  --coral-hover: rgb(176 46 43);
   --coral-soft: var(--danger-soft);
   --amber: var(--warn);
   --amber-soft: var(--warn-soft);

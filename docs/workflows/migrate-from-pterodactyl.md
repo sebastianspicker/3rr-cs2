@@ -1,11 +1,23 @@
-# Migrate From Pterodactyl-Style Setups
+# Migrate from a Pterodactyl-style deployment
 
-This repository does not treat Pterodactyl as the primary deployment model.
+3RR does not provide a Pterodactyl egg or treat Pterodactyl as its default
+runtime.
 
-Migration path:
+1. Record the existing CS2 installation path, startup arguments, ports, player
+   limit, map, CFG file, Game Server Login Token, and RCON password.
+2. Export server CFG files, maps, plugins, CounterStrikeSharp data, and any
+   persistent volumes.
+3. Map applicable values to
+   `apps/provision/bootstrap/env/server.env.example`.
+4. Choose
+   `configs/examples/compose/server-runtime.compose.yaml` or
+   `configs/examples/startup/server-start.sh` and adapt storage paths to the
+   target host.
+5. Start the server without the panel or updater. Confirm map loading and RCON
+   authentication.
+6. Install the updater only on a Linux/systemd host where it can control the
+   selected CS2 service.
+7. Connect the panel after the server runtime is stable.
 
-1. Export the effective startup arguments and server secrets from the old setup.
-2. Map them into `apps/provision/bootstrap/env/server.env.example`.
-3. Choose either the compose example or a host-level startup command.
-4. Install `apps/maintain/updater` for updates.
-5. Attach `apps/operate/panel` only if you want a web control plane.
+Keep the old deployment stopped and recoverable until the new runtime,
+configuration, data, and RCON access have been verified.
