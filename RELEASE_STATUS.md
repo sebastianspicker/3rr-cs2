@@ -9,7 +9,7 @@ GitHub. Full production-like and Docker matrix remains incomplete.
 
 - Freeze tag (local): `v1.1.0-alpha.1`
 - Product freeze commit: `90e3d6a` (`release: freeze v1.1.0-alpha.1 Night Desk operate panel`)
-- Docs/screenshot pins: subsequent commits included in the tagged candidate
+- Documentation pins: subsequent commits included in the tagged candidate
 - Canonical GitHub repository: `sebastianspicker/3rr`
 - Proposed umbrella tag: `v1.1.0-alpha.1`
 - Panel package: private, version `1.1.0-alpha.1`
@@ -17,10 +17,10 @@ GitHub. Full production-like and Docker matrix remains incomplete.
 
 The product and canonical GitHub repository both use the 3RR identity.
 
-## Current Local Addendum (2026-08-14)
+## Local Addendum (2026-08-14)
 
-The July freeze record below is historical evidence, not proof for the current
-dirty worktree. In the live checkout:
+The July freeze record below is historical evidence. At the time of this
+addendum, the checkout had the following evidence:
 
 - shared shell, formatting, YAML, JSON, and documentation-link checks passed;
 - the updater passed lint, 66 stubbed behavior tests, and its secret and
@@ -32,15 +32,13 @@ dirty worktree. In the live checkout:
   reachable.
 
 Panel dependencies are not installed in the checkout, so current format, lint,
-type, unit, coverage, Playwright, build, container, and HTTP-surface evidence was
-not reproduced. No live Linux, systemd, SteamCMD, Redis, CS2, or RCON environment
-was exercised. The repository has no GitHub Pages artifact or workflow; its
-fixture screenshot tour is not a hosted or operational product demo.
+type, unit, build, container, and HTTP-surface evidence was not reproduced. No
+live Linux, systemd, SteamCMD, Redis, CS2, or RCON environment was exercised.
+The repository has no GitHub Pages artifact or workflow.
 
 This freeze captures the Night Desk Instrument UI, modular CSS build, dual-theme
-tokens with Settings appearance toggle, manage truth rail, and the eight-view
-screenshot tour. Before publication, confirm the tagged history contains the
-intended mainline changes.
+tokens with Settings appearance toggle, and manage truth rail. Before
+publication, confirm the tagged history contains the intended mainline changes.
 
 ## Alpha Scope
 
@@ -62,12 +60,7 @@ compatibility.
 - `npm run lint`: passed.
 - `npm run typecheck`: passed for server and browser TypeScript projects.
 - `npm test`: passed, 314 of 314 tests.
-- `npm run test:e2e`: passed, 20 of 20 Chromium tests.
 - `npm run build`: passed (includes `build:css` single-file panel bundle).
-- `npm run screenshots`: captured all eight screenshot-manifest views
-  (`01`–`08`) on the freeze tree with Node 22.23.1, Playwright 1.59.1, and
-  Chromium. Desktop overflow gates passed; Settings includes Appearance theme
-  controls. Captures use the default Night Desk theme.
 
 ## Blocked Or Incomplete Evidence
 

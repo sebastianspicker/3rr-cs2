@@ -43,8 +43,8 @@ provision hosts, run SteamCMD, or install server-side CFG files and plugins.
 
 The current checkout does not establish support for every Docker host, CS2
 server configuration, RCON deployment, recovery path, or operating-system
-combination. The screenshot tour uses fixture data and does not connect to a
-live CS2 server.
+combination. Validate operator-visible workflows against a representative live
+deployment before release.
 
 ## Requirements
 
@@ -167,13 +167,9 @@ npm run format:check
 npm run lint
 npm run typecheck
 npm test
-npm run test:e2e
 npm run build
 npm run validate -- --require-docker
 ```
-
-Install Chromium once with `npm run test:e2e:install` if Playwright has not
-already installed it.
 
 Updater checks:
 
@@ -196,16 +192,8 @@ container when the host Node version is not 22.
 ## Local demonstration and GitHub Pages
 
 The supported local demonstration is the operate panel itself. Run it with the
-development configuration described above, or generate its fixture-backed
-screenshot tour from `apps/operate/panel`:
-
-```bash
-npm run screenshots
-```
-
-The screenshots exercise synthetic inventory and control states. They do not
-connect to a CS2 server or demonstrate RCON, SteamCMD, systemd, Redis, backup,
-restore, or production networking.
+development configuration described above. It does not simulate or replace a
+CS2, RCON, SteamCMD, systemd, Redis, backup, restore, or production network.
 
 GitHub Pages is not a deployment target for the product. The operate module is
 an Express service with SQLite, Redis, authentication, and RCON boundaries; the

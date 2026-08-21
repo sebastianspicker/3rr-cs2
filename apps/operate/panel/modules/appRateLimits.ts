@@ -1,6 +1,19 @@
+import { isIP } from 'node:net';
 import type { Express } from 'express';
-import rateLimit from 'express-rate-limit';
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import { makeRateLimitStore } from '../utils/redis';
+
+const INVALID_CLIENT_IP_KEY = 'invalid-client-ip';
+
+/**
+ * Keep malformed proxy input in one bounded rate-limit bucket. Express's
+ * request IP is still used unchanged for valid direct and forwarded clients.
+ */
+export function rateLimitClientKey(request: { ip?: string }): string {
+  return typeof request.ip === 'string' && isIP(request.ip) !== 0
+    ? ipKeyGenerator(request.ip)
+    : INVALID_CLIENT_IP_KEY;
+}
 
 function normalizeHealthPath(value: string): string {
   const normalized = value.replace(/\/+$/, '');
@@ -17,6 +30,7 @@ export function configureRateLimits(app: Express, nodeEnv: string): void {
       message: { error: 'Too many login attempts; try again later.' },
       standardHeaders: true,
       legacyHeaders: false,
+      keyGenerator: rateLimitClientKey,
       store: sharedStore,
     })
   );
@@ -28,6 +42,7 @@ export function configureRateLimits(app: Express, nodeEnv: string): void {
       message: { error: 'Too many requests; slow down.' },
       standardHeaders: true,
       legacyHeaders: false,
+      keyGenerator: rateLimitClientKey,
       skip: (req) => {
         const pathName = normalizeHealthPath(req.path);
         const originalUrl = normalizeHealthPath(req.originalUrl.split('?')[0] || req.originalUrl);
@@ -44,6 +59,7 @@ export function configureRateLimits(app: Express, nodeEnv: string): void {
       message: { error: 'Too many RCON commands; slow down.' },
       standardHeaders: true,
       legacyHeaders: false,
+      keyGenerator: rateLimitClientKey,
       store: sharedStore ? makeRateLimitStore() : undefined,
     })
   );

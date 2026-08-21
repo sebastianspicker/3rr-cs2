@@ -1,8 +1,8 @@
 /** Opens the panel SQLite database and enforces connection-level safety prerequisites. */
-import fs from 'node:fs';
 import path from 'node:path';
-import Database from 'better-sqlite3';
+import type Database from 'better-sqlite3';
 import logger from './utils/logger';
+import { openSecureDatabase } from './utils/databaseFile';
 import { hasRconSecretKey } from './utils/rconSecret';
 
 export function openPanelDatabase(): Database.Database {
@@ -14,7 +14,7 @@ export function openPanelDatabase(): Database.Database {
 
   let db: Database.Database;
   try {
-    db = openDb(preferredPath);
+    db = openSecureDatabase(preferredPath, nodeEnv);
   } catch (error) {
     const allowFallback = !configuredPath && nodeEnv !== 'production';
     const message = error instanceof Error ? error.message : String(error);
@@ -27,7 +27,7 @@ export function openPanelDatabase(): Database.Database {
       '[db] Failed to open DB, falling back'
     );
     try {
-      db = openDb(fallbackPath);
+      db = openSecureDatabase(fallbackPath, nodeEnv);
     } catch (fallbackError) {
       const fallbackMessage =
         fallbackError instanceof Error ? fallbackError.message : String(fallbackError);
@@ -44,9 +44,4 @@ export function openPanelDatabase(): Database.Database {
   }
   db.exec(`PRAGMA foreign_keys = ON`);
   return db;
-}
-
-function openDb(filePath: string): Database.Database {
-  fs.mkdirSync(path.dirname(filePath), { recursive: true });
-  return new Database(filePath);
 }

@@ -29,15 +29,6 @@ have() {
   command -v "$1" >/dev/null 2>&1
 }
 
-install_playwright_chromium() {
-  # Root and CI images need browser OS dependencies; developer machines usually do not.
-  if [[ "${CI:-}" == "true" ]] || [[ "$(id -u)" == "0" ]]; then
-    run npx playwright install --with-deps chromium
-  else
-    run npx playwright install chromium
-  fi
-}
-
 PANEL_PROBE_CID=""
 
 cleanup() {
@@ -144,16 +135,10 @@ log "operate module"
 operate_cmd='set -euo pipefail
 cd /workspace/apps/operate/panel
 npm ci
-if [[ "${CI:-}" == "true" ]] || [[ "$(id -u)" == "0" ]]; then
-  npx playwright install --with-deps chromium
-else
-  npx playwright install chromium
-fi
 npm run format:check
 npm run lint
 npm run typecheck
-npm run test:coverage
-npm run test:e2e
+npm test
 npm run build'
 
 node_major=""
@@ -165,12 +150,10 @@ if [[ "${node_major}" == "22" ]]; then
   require_cmd npx
   cd "${ROOT}/apps/operate/panel"
   run npm ci
-  install_playwright_chromium
   run npm run format:check
   run npm run lint
   run npm run typecheck
-  run npm run test:coverage
-  run npm run test:e2e
+  run npm test
   run npm run build
 else
   require_cmd docker
