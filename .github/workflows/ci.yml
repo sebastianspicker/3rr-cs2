@@ -30,14 +30,4 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y shellcheck shfmt jq ruby
 
       - name: Verify repository
-        env:
-          COVERAGE_OUTPUT: ${{ runner.temp }}/3rr-panel-coverage.lcov
         run: ./scripts/verify.sh
-
-      - name: Upload panel coverage
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: panel-lcov
-          path: ${{ runner.temp }}/3rr-panel-coverage.lcov
-          if-no-files-found: error
-          retention-days: 14

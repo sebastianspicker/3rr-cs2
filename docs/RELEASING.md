@@ -29,10 +29,7 @@ runtime support, or support for untested network and deployment topologies.
    networking, and a working Docker daemon.
 5. Test one representative CS2 and RCON deployment, updater dry run and
    supervised update, container health, graceful shutdown, backup, and restore.
-6. Run `npm run screenshots` from `apps/operate/panel` at the candidate commit.
-   Review every image using the
-   [screenshot manifest](../apps/operate/panel/docs/screenshots/README.md).
-7. Review tracked files for credentials, tokens, local paths, databases,
+6. Review tracked files for credentials, tokens, local paths, databases,
    temporary files, and private host details.
 8. Build source and container artifacts from the selected commit. Record
    checksums, an SBOM, supported platforms, known limitations, and rollback

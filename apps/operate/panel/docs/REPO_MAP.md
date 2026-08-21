@@ -31,15 +31,13 @@
 - `Dockerfile`: two-stage Node 22 image
 - `docker-compose.yaml`: panel and Redis deployment
 - `.env.example`: configuration names and safe empty secret values
-- `scripts/`: build, validation, screenshot, and utility scripts
+- `scripts/`: build, validation, and utility scripts
 
 ## Tests and documentation
 
 - `test/*.test.ts`: Node test entry files
-- `test/support/`: shared Node test fixtures, builders, and helpers
-- `test/e2e/`: Chromium Playwright spec, case groups, and fixtures
+- `test/support/`: the narrow RCON DNS-pinning mock seam
 - `docs/API.md`: HTTP contract
 - `docs/FRONTEND.md`: browser architecture and behavior
 - `docs/RUNBOOK.md`: deployment and operation
 - `docs/SERVER-SETUP.md`: CS2-side prerequisites
-- `docs/screenshots/`: documented panel views and capture manifest

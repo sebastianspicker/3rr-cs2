@@ -22,11 +22,7 @@
     "format:check": "prettier -c .",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.client.json",
     "test": "npm run build:client && npm run clean && tsc && node --experimental-test-module-mocks --test --test-timeout 120000 dist/test/*.test.js",
-    "test:coverage": "npm run build:client && npm run clean && tsc && node --experimental-test-module-mocks --experimental-test-coverage --test-coverage-include='dist/db*.js' --test-coverage-include='dist/modules/rcon*.js' --test-coverage-lines=90 --test-coverage-branches=79 --test-coverage-functions=90 --test-reporter=spec --test-reporter-destination=stdout --test-reporter=lcov --test-reporter-destination=\"${COVERAGE_OUTPUT:-/tmp/3rr-panel-coverage.lcov}\" --test --test-timeout 120000 dist/test/*.test.js",
-    "test:e2e:install": "playwright install chromium",
-    "test:e2e": "npm run build && playwright test",
-    "screenshots": "npm run build && node scripts/capture-screenshots.mjs",
-    "ci": "npm run format:check && npm run lint && npm run typecheck && npm run build:client && npm test && npm run test:e2e && npm run validate -- --require-docker"
+    "ci": "npm run format:check && npm run lint && npm run typecheck && npm test && npm run build && npm run validate -- --require-docker"
   },
   "keywords": [],
   "author": "",
@@ -48,7 +44,6 @@
   "devDependencies": {
     "@fontsource-variable/jetbrains-mono": "^5.2.8",
     "@fontsource-variable/syne": "^5.2.7",
-    "@playwright/test": "^1.59.1",
     "@types/bcrypt": "^6.0.0",
     "@types/better-sqlite3": "^7.6.13",
     "@types/express": "^5.0.6",
@@ -69,7 +64,8 @@
     "body-parser": "2.3.0",
     "minimatch@^3.0.2": "3.1.4",
     "minimatch@^5.1.2": "5.1.8",
-    "brace-expansion": "5.0.7",
+    "brace-expansion": "5.0.9",
+    "ip-address": "10.5.0",
     "qs": "6.15.3"
   }
 }

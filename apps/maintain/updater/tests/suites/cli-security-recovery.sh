@@ -284,6 +284,7 @@ CONFEOF
 
     # Stale lock without PID file recovery
     prepare_stale_lock_no_pid() {
+        # shellcheck disable=SC2317 # Invoked indirectly by run_lock_case.
         mkdir -p "$tmpdir/lock"
     }
     run_lock_case "lock-without-pid-fails-closed" "prepare_stale_lock_no_pid" 1 "refusing automatic recovery"
