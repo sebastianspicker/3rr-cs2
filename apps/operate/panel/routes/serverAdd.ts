@@ -3,6 +3,7 @@ import express from 'express';
 import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
 import { better_sqlite_client } from '../db';
+import { rateLimitClientKey } from '../modules/appRateLimits';
 import isAuthenticated from '../modules/middleware';
 import rcon from '../modules/rcon';
 import logger from '../utils/logger';
@@ -52,6 +53,7 @@ const addServerLimiter = rateLimit({
   message: { error: 'Too many servers added; try again later.' },
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: rateLimitClientKey,
   store: makeRateLimitStore(),
 });
 

@@ -22,6 +22,11 @@ committed examples document names and defaults; they are not usable credentials.
 | `HEALTHCHECK_VERBOSE` | No | `false` | Allows detailed unauthenticated health responses |
 | `LOG_LEVEL` | No | Application default | Pino log level |
 
+In production, the `DB_PATH` parent directory must be owned by the panel user
+or root and must not be group- or world-writable. The database must be a regular
+single-link file owned by the panel user or root with mode `0600`; a new database
+is created with that mode. Symlinked and hard-linked database files are rejected.
+
 First-administrator variables apply only to an empty database:
 
 | Variable | Required | Default | Notes |

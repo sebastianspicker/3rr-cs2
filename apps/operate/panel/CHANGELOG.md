@@ -13,8 +13,6 @@
   alpha tag. The package is not intended for npm publication.
 - Added Redis to the maintained Compose deployment and bound the published
   panel port to `127.0.0.1` by default.
-- Moved screenshot-capture state to an isolated operating-system temporary
-  directory. Playwright run state remains under the ignored `.e2e/` directory.
 
 ### Security
 

@@ -58,9 +58,7 @@ The implementation includes landmarks, headings, a skip link, visible focus,
 native validation, non-color state labels, live feedback, keyboard-contained
 dialogs, reduced-motion handling, and narrow-screen controls sized for touch.
 
-The automated browser suite covers Chromium. It does not include Firefox,
-WebKit, axe, or a screen reader. Those environments are not verified by the
-current test matrix.
+Browser and assistive-technology validation remains a manual release activity.
 
 ## Development and validation
 
@@ -71,9 +69,4 @@ npm run format:check
 npm run lint
 npm run typecheck
 npm test
-npm run test:e2e
 ```
-
-`npm run screenshots` captures the eight files in
-[screenshots/README.md](screenshots/README.md). The fixture tests do not verify
-behavior against a live CS2 or RCON server.

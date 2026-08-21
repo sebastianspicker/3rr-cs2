@@ -105,10 +105,8 @@ See the complete shared contract in
 | `npm run lint`                         | Run ESLint                                               |
 | `npm run typecheck`                    | Check server and browser TypeScript                      |
 | `npm test`                             | Compile and run the Node test suite                      |
-| `npm run test:e2e`                     | Build and run Chromium Playwright tests                  |
 | `npm run validate`                     | Check shell, JSON, and YAML; run available Docker checks |
 | `npm run validate -- --require-docker` | Require all Docker validation                            |
-| `npm run screenshots`                  | Capture the documented panel views                       |
 
 ## Testing
 
@@ -117,14 +115,9 @@ npm run format:check
 npm run lint
 npm run typecheck
 npm test
-npm run test:e2e
 npm run build
 npm run validate -- --require-docker
 ```
-
-Install the Playwright Chromium binary once with
-`npm run test:e2e:install`. The browser suite starts the built application on
-`127.0.0.1:3210` with an isolated SQLite database under `.e2e/`.
 
 ## Deployment
 
@@ -146,33 +139,6 @@ shutdown details. The HTTP contract is in [docs/API.md](docs/API.md).
 Frontend source and browser behavior are described in
 [docs/FRONTEND.md](docs/FRONTEND.md). The maintained file map is in
 [docs/REPO_MAP.md](docs/REPO_MAP.md).
-
-## Panel tour
-
-The screenshots use an isolated SQLite database, the reserved documentation
-address `203.0.113.10`, and empty public credential fields. They do not connect
-to a live RCON server. The inventory shows the initial unknown state, while the
-management captures use fixed local HTTP responses for status, players, and
-history.
-
-### Login
-
-![3RR operator login](docs/screenshots/01-login.png)
-
-### Server inventory
-
-![3RR server inventory](docs/screenshots/02-servers.png)
-
-### Add a server
-
-![3RR add-server form](docs/screenshots/03-add-server.png)
-
-### Manage a server
-
-![3RR server management page](docs/screenshots/04-manage.png)
-
-The [screenshot manifest](docs/screenshots/README.md) lists all eight files,
-their dimensions, and the capture command.
 
 ## Security
 
