@@ -3,7 +3,7 @@
 Keep deployment values in untracked environment files or a secret store. The
 committed examples document names and defaults; they are not usable credentials.
 
-## Operate panel
+## Control plane
 
 | Variable | Required | Default | Notes |
 | --- | --- | --- | --- |
@@ -27,6 +27,10 @@ or root and must not be group- or world-writable. The database must be a regular
 single-link file owned by the panel user or root with mode `0600`; a new database
 is created with that mode. Symlinked and hard-linked database files are rejected.
 
+When `RCON_SECRET_KEY` is configured, stored RCON passwords use the `enc:v1`
+format. Production requires the key; do not rotate or remove it without a
+validated credential migration and backup plan.
+
 First-administrator variables apply only to an empty database:
 
 | Variable | Required | Default | Notes |
@@ -39,10 +43,10 @@ After the administrator exists, remove `DEFAULT_USERNAME` and
 `DEFAULT_PASSWORD` and set `ALLOW_DEFAULT_CREDENTIALS=false`.
 
 `PANEL_BIND_ADDRESS` is read by
-`apps/operate/panel/docker-compose.yaml`, not by the Node process. It defaults
-to `127.0.0.1`.
+`deploy/compose/control-plane.compose.yaml`, not by the Node process. It
+defaults to `127.0.0.1`.
 
-## CS2 runtime and provision assets
+## CS2 runtime and server bootstrap
 
 | Variable | Required | Default | Notes |
 | --- | --- | --- | --- |
@@ -60,7 +64,7 @@ to `127.0.0.1`.
 The startup wrapper removes `CS2_GSLT` and `RCON_PASSWORD` from the environment
 before executing the server.
 
-## Maintain updater
+## Host updater
 
 The updater reads these keys from `3rr-update.conf`:
 

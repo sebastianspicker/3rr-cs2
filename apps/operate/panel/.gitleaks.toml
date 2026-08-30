@@ -1,7 +1,0 @@
-title = "3rr-operate-panel"
-
-[allowlist]
-description = "Allow sample default credentials used for local dev/tests."
-stopwords = [
-  "v67ic55x4ghvjfj",
-]

@@ -3,254 +3,111 @@
 [![CI](https://github.com/sebastianspicker/3rr/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/sebastianspicker/3rr/actions/workflows/ci.yml)
 [![Secret Scan](https://github.com/sebastianspicker/3rr/actions/workflows/secret-scan.yml/badge.svg?branch=main)](https://github.com/sebastianspicker/3rr/actions/workflows/secret-scan.yml)
 
-3RR contains three independent modules for self-hosted Counter-Strike 2
-servers:
-
-- `provision` provides bootstrap file writers, a startup wrapper, and reference
-  deployment configuration.
-- `maintain` updates an existing Linux-hosted server through SteamCMD and
-  systemd.
-- `operate` is an authenticated web panel for inventory, status, and
-  RCON-backed server controls.
-
-The modules share configuration conventions but do not depend on one another at
-runtime.
+3RR is a modular operations stack for self-hosted Counter-Strike 2 servers.
+Its control plane, host updater, and bootstrap assets share configuration and
+documentation, but they are independently deployable and do not call one
+another at runtime.
 
 > [!WARNING]
-> The repository is under alpha development. Configuration names, default
-> paths, HTTP contracts, and SQLite migrations may change between prereleases.
-> Review [RELEASE_STATUS.md](RELEASE_STATUS.md) before evaluating a release
-> candidate.
+> This repository is alpha software. Review the
+> [release requirements](docs/RELEASING.md) and validate workflows in a
+> representative deployment before relying on it.
 
-## Capabilities and limitations
+## Modules
 
-The provision module writes CounterStrikeSharp admin files and plugin lists,
-then starts a CS2 runtime with validated port, player-count, CFG, token, and
-RCON settings. It does not install CS2, plugins, maps, or host services.
+| Path | Purpose | Does not do |
+| --- | --- | --- |
+| [`control-plane/`](control-plane/README.md) | Node 22 Express/TypeScript web and API control plane with SQLite, Redis, EJS, and RCON | Install CS2, run SteamCMD, or execute host commands |
+| [`host-updater/`](host-updater/README.md) | Linux/systemd/SteamCMD update transaction for an existing CS2 host | Provide a web UI or operate RCON |
+| [`server-bootstrap/`](server-bootstrap/README.md) | Static CFG assets, administrator bootstrap output, startup wrapper, and capability manifest | Install CS2, plugins, maps, SteamCMD, or systemd units |
+| [`deploy/`](deploy/) | Compose examples and updater systemd units | Replace local secrets or deployment review |
 
-The maintain module compares local and remote Steam build IDs. It stops the
-configured systemd service only when both IDs are known and differ, runs a
-bounded SteamCMD update, restarts the service, and verifies that the service is
-active. It requires Linux, systemd, SteamCMD, GNU `timeout`, and a CS2 service
-account named `steam`.
+The control plane authenticates operators and controls running servers over
+RCON. The host updater performs a bounded transaction only after confirming a
+new Steam build. Server bootstrap writes and links server-owned assets without
+turning them into a background service.
 
-The operate module stores users, server inventory, access grants, Workshop
-favorites, and RCON command history in SQLite. It provides authenticated pages,
-fixed operator controls, and a single-command RCON console with separator,
-character, length, and blocked-command checks. Production sessions and rate
-limits require Redis. The panel controls an existing server and does not
-provision hosts, run SteamCMD, or install server-side CFG files and plugins.
+## Quick start
 
-The current checkout does not establish support for every Docker host, CS2
-server configuration, RCON deployment, recovery path, or operating-system
-combination. Validate operator-visible workflows against a representative live
-deployment before release.
-
-## Requirements
-
-Repository development and the full verification script require:
-
-- Node.js 22
-- Docker with Compose
-- `make`, `shellcheck`, `shfmt`, `jq`, `ruby`, and `curl`
-
-The panel uses the npm version supplied with the selected Node 22 installation.
-The updater and provision modules have separate runtime requirements in their
-module READMEs.
-
-## Installation and usage
-
-### Operate panel
+### Control plane
 
 ```bash
-cd apps/operate/panel
+cd control-plane
 npm ci
 cp .env.example .env
-```
-
-Edit `.env`. For a local non-production start, set `SESSION_SECRET` and
-`RCON_SECRET_KEY`, then run:
-
-```bash
+# Set SESSION_SECRET and RCON_SECRET_KEY in .env.
 npm run build
-node --env-file=.env dist/app.js
+node --env-file=.env dist/src/main.js
 ```
 
-Open `http://localhost:3000`.
+Open `http://localhost:3000`. For an empty database, set
+`ALLOW_DEFAULT_CREDENTIALS=true`, `DEFAULT_USERNAME`, and a 12-character-or-
+longer `DEFAULT_PASSWORD` only long enough to create the first administrator.
+Remove those bootstrap values afterwards.
 
-To create the first administrator in an empty database, set
-`ALLOW_DEFAULT_CREDENTIALS=true`, `DEFAULT_USERNAME`, and a
-`DEFAULT_PASSWORD` of at least 12 characters. After the account exists, remove
-the bootstrap credentials and restore `ALLOW_DEFAULT_CREDENTIALS=false`.
-
-The included Compose deployment starts the panel and Redis:
+To run the supplied panel-and-Redis deployment, start from the copied local env
+file rather than committing secrets:
 
 ```bash
-cd apps/operate/panel
-docker compose up --build
+docker compose --env-file ./panel.env -f deploy/compose/control-plane.compose.yaml up --build
 ```
 
-`npm start` runs the built panel with variables already present in the process
-environment. It does not load `.env` itself.
+The Compose example binds to loopback by default and does not terminate TLS.
 
-It publishes the panel on `127.0.0.1:3000` by default. It does not terminate
-TLS. See the [panel runbook](apps/operate/panel/docs/RUNBOOK.md) before exposing
-it through a reverse proxy.
+### Host updater
 
-### Maintain updater
+Follow [host-updater/README.md](host-updater/README.md). Its installed layout
+remains `/opt/3rr/apps/maintain/updater`; run a dry run and one supervised
+update before enabling `3rr-update.timer`.
 
-Install and configure the updater using
-[apps/maintain/updater/README.md](apps/maintain/updater/README.md). Run a dry
-run and one supervised update before enabling its systemd timer.
+### Server bootstrap
 
-### Provision assets
+Follow [server-bootstrap/README.md](server-bootstrap/README.md) and
+[the provisioning workflow](docs/workflows/provision-server.md). Keep runtime
+environment files, administrator identities, tokens, and generated output out
+of version control.
 
-Start with
-[apps/provision/bootstrap/README.md](apps/provision/bootstrap/README.md) and the
-[server provisioning workflow](docs/workflows/provision-server.md). Keep local
-environment files, credentials, tokens, and runtime output outside version
-control.
+## Architecture and contracts
 
-## Configuration
-
-- [Environment variables and secrets](docs/reference/env.md)
+- [Architecture](docs/architecture.md)
+- [Environment variables](docs/reference/env.md)
 - [Deployment topology](docs/reference/topology.md)
-- [Module architecture](docs/architecture.md)
-- [Panel HTTP API](apps/operate/panel/docs/API.md)
-- [Panel server prerequisites](apps/operate/panel/docs/SERVER-SETUP.md)
+- [Control-plane API](control-plane/docs/API.md)
+- [Control-plane runbook](control-plane/docs/RUNBOOK.md)
+- [CS2-side requirements](control-plane/docs/SERVER-SETUP.md)
 - [Updater workflow](docs/workflows/update-server.md)
-- [Pterodactyl migration](docs/workflows/migrate-from-pterodactyl.md)
-- [Disaster recovery](docs/workflows/disaster-recovery.md)
-- [Operate workflow](docs/workflows/operate-server.md)
-- [Release procedure](docs/RELEASING.md)
+- [Operation workflow](docs/workflows/operate-server.md)
+- [Recovery](docs/workflows/disaster-recovery.md)
+- [Pterodactyl-style migration](docs/workflows/migrate-from-pterodactyl.md)
 
-## Repository structure
+## Development and verification
 
-```text
-apps/
-  provision/bootstrap/   Bootstrap writers, startup wrapper, and env example
-  maintain/updater/      SteamCMD and systemd updater
-  operate/panel/         Express, SQLite, Redis, RCON, EJS, and browser code
-configs/examples/        Compose, startup, and systemd examples
-docs/                     Architecture and release documentation
-docs/reference/           Environment, topology, and provenance contracts
-docs/workflows/          Operator procedures
-scripts/                 Repository verification scripts
-```
-
-Each module keeps its tests beside the module: panel tests under
-`apps/operate/panel/test`, updater tests under
-`apps/maintain/updater/tests`, and provision tests under
-`apps/provision/bootstrap/tests`.
-
-## Development workflow
-
-Install the panel dependencies from its lockfile:
+The root verifier requires Node 22 or Docker, plus `make`, `shellcheck`,
+`shfmt`, `jq`, `ruby`, and `curl`.
 
 ```bash
-cd apps/operate/panel
-npm ci
-```
-
-Use `npm run dev` for the TypeScript watch server. Run focused checks in the
-module being changed, then run the repository gate before requesting review.
-See [CONTRIBUTING.md](CONTRIBUTING.md) for module boundaries and review
-requirements.
-
-## Testing
-
-Panel checks:
-
-```bash
-cd apps/operate/panel
-npm run format:check
-npm run lint
-npm run typecheck
-npm test
-npm run build
-npm run validate -- --require-docker
-```
-
-Updater checks:
-
-```bash
-cd apps/maintain/updater
-make ci
-```
-
-The full repository gate is:
-
-```bash
+cd control-plane && npm ci && npm run check
+cd control-plane && npm run validate -- --require-docker
+cd host-updater && make ci
 ./scripts/verify.sh
 ```
 
-The script checks shell formatting, shell lint, documentation links, JSON,
-Compose files, the panel build and tests, the panel container, updater tests,
-bootstrap output safety, and startup secret handling. It uses a Node 22
-container when the host Node version is not 22.
+`./scripts/verify.sh` checks documentation links, configuration and Compose
+syntax, the control plane, the built container surface, updater tests, and
+bootstrap safety. It does not prove a live CS2, RCON, SteamCMD, systemd, Redis,
+backup, or production-network deployment.
 
-## Local demonstration and GitHub Pages
+## Security
 
-The supported local demonstration is the operate panel itself. Run it with the
-development configuration described above. It does not simulate or replace a
-CS2, RCON, SteamCMD, systemd, Redis, backup, restore, or production network.
+Do not commit session secrets, RCON encryption keys or passwords, CS2 tokens,
+administrator files, or local environment files. Keep the control plane behind
+TLS, set `TRUST_PROXY` only for proxy hops you operate, and restrict RCON to
+the control-plane network.
 
-GitHub Pages is not a deployment target for the product. The operate module is
-an Express service with SQLite, Redis, authentication, and RCON boundaries; the
-maintain and provision modules are host-side scripts. A static Pages site could
-only present documentation or a clearly simulated walkthrough, and this
-repository does not currently include or deploy such an artifact.
+RCON console input is intentionally one printable ASCII command with separator
+and dangerous-command checks. Do not weaken this boundary without a threat
+model and focused regression tests.
 
-## Deployment and operation
-
-Use the included Compose file for the panel and Redis. Keep its loopback bind
-unless a TLS-terminating reverse proxy and explicit access controls are in
-place. Back up the SQLite database before upgrades.
-
-Install the updater as a root-run systemd oneshot and timer only after validating
-its paths, service name, SteamCMD location, disk-space threshold, dry-run
-output, and one supervised update.
-
-The example CS2 Compose runtime uses the external `cm2network/cs2` image. Review
-that image and pin an appropriate version before relying on it in an
-environment you operate.
-
-## Troubleshooting
-
-- `REDIS_URL is required in production`: configure a reachable Redis service.
-  The included panel Compose file supplies `redis://redis:6379`.
-- The browser returns to the login page over local HTTP: production cookies are
-  secure by default. Use HTTPS, or set `SESSION_COOKIE_SECURE=false` only for
-  local HTTP testing.
-- The updater reports an unknown remote build: inspect SteamCMD connectivity
-  and output. The updater leaves the server service running when it cannot
-  establish the remote build ID.
-- `./scripts/verify.sh` stops before panel checks: install Node 22 or start a
-  Docker daemon so the script can use its Node 22 container fallback.
-- A panel control fails after connection: confirm that the corresponding CFG,
-  map, or plugin is installed on the CS2 server. See
-  [SERVER-SETUP.md](apps/operate/panel/docs/SERVER-SETUP.md).
-
-## Security considerations
-
-Do not commit panel session secrets, RCON encryption keys, RCON passwords, Steam
-tokens, administrator files, or local environment files. Keep the panel behind
-TLS, configure `TRUST_PROXY` only for known proxy hops, and restrict RCON
-network access.
-
-RCON console input is intentionally limited to one ASCII command. Do not weaken
-the separator, control-byte, or non-ASCII validation without a threat model and
-focused regression tests.
-
-Report vulnerabilities through the private process in
-[SECURITY.md](SECURITY.md), not a public issue.
-
-## Contributing
-
-Read [CONTRIBUTING.md](CONTRIBUTING.md), run the focused module checks, and run
-`./scripts/verify.sh` before requesting review. Keep changes within one module
-unless they alter a shared contract.
-
-The repository is distributed under the [MIT License](LICENSE). Module origin
-and retained license boundaries are listed in
-[docs/reference/provenance.md](docs/reference/provenance.md).
+Read [CONTRIBUTING.md](CONTRIBUTING.md) before changing shared contracts. See
+[docs/reference/provenance.md](docs/reference/provenance.md) for origin and
+license context.
