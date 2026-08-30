@@ -1,0 +1,156 @@
+#!/usr/bin/env bash
+# Starts a CS2 runtime while keeping RCON and GSLT values out of process arguments.
+set -euo pipefail
+
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+: "${CS2_INSTALL_DIR:=${SCRIPT_DIR}}"
+: "${CS2_MAP:=de_dust2}"
+: "${CS2_PORT:=27015}"
+: "${CS2_MAXPLAYERS:=16}"
+: "${CS2_CFG_FILE:=server.cfg}"
+: "${RCON_PASSWORD:?RCON_PASSWORD must be set}"
+
+cfg_quote() {
+  # Config values are written into a Source-engine file, not passed on argv.
+  local value
+  value="$1"
+  value="${value//$'\r'/}"
+  value="${value//$'\n'/}"
+  value="${value//\\/\\\\}"
+  value="${value//\"/\\\"}"
+  printf '"%s"' "$value"
+}
+
+require_integer_in_range() {
+  local value name min max
+  value="$1"
+  name="$2"
+  min="$3"
+  max="$4"
+
+  if [[ ! "$value" =~ ^[0-9]+$ ]] || ((value < min || value > max)); then
+    printf '%s must be an integer between %s and %s\n' "$name" "$min" "$max" >&2
+    exit 1
+  fi
+}
+
+link_if_present() {
+  local source_path source_dir target_path
+  source_path="$1"
+  target_path="$2"
+
+  if [[ -z "$source_path" ]]; then
+    return 0
+  fi
+  if [[ ! -f "$source_path" ]]; then
+    printf 'Expected file not found: %s\n' "$source_path" >&2
+    exit 1
+  fi
+
+  # Resolve relative paths before changing directory so the mount target stays stable.
+  if [[ "$source_path" != /* ]]; then
+    source_dir="$(cd -- "$(dirname -- "$source_path")" && pwd -P)"
+    source_path="${source_dir}/$(basename -- "$source_path")"
+  fi
+
+  mkdir -p "$(dirname -- "$target_path")"
+  if [[ -d "$target_path" ]]; then
+    printf 'Link destination must not be a directory: %s\n' "$target_path" >&2
+    exit 1
+  fi
+  ln -sfn -- "$source_path" "$target_path"
+}
+
+install_shipped_cfg_bundle() {
+  local bundle_dir cfg_path source_path target_path
+  local -a shipped_cfg_paths=(
+    1v1arenas.cfg bhop.cfg ctf.cfg deathmatch.cfg deathrun.cfg gungame.cfg
+    knife.cfg live_wingman.cfg oitc.cfg random_rounds_off.cfg
+    random_rounds_on.cfg rtd_off.cfg rtd_on.cfg scoutzknivez.cfg surf.cfg
+    warmup.cfg wingman.cfg
+  )
+
+  bundle_dir="$1"
+  if [[ -z "${bundle_dir}" ]]; then
+    return 0
+  fi
+  if [[ ! -d "${bundle_dir}" ]]; then
+    printf 'Shipped CFG bundle directory not found: %s\n' "${bundle_dir}" >&2
+    exit 1
+  fi
+
+  for cfg_path in "${shipped_cfg_paths[@]}"; do
+    source_path="${bundle_dir}/${cfg_path}"
+    target_path="${CS2_INSTALL_DIR}/game/csgo/cfg/${cfg_path}"
+    if [[ ! -f "${source_path}" ]]; then
+      printf 'Required shipped CFG not found: %s\n' "${source_path}" >&2
+      exit 1
+    fi
+    if [[ -d "${target_path}" ]]; then
+      printf 'Shipped CFG destination must not be a directory: %s\n' "${target_path}" >&2
+      exit 1
+    fi
+    mkdir -p "$(dirname -- "${target_path}")"
+    ln -sfn -- "${source_path}" "${target_path}"
+  done
+}
+
+SECRET_CFG_TMP=""
+cleanup_secret_cfg_tmp() {
+  if [[ -n "$SECRET_CFG_TMP" ]]; then
+    rm -f -- "$SECRET_CFG_TMP"
+  fi
+}
+trap cleanup_secret_cfg_tmp EXIT
+
+require_integer_in_range "$CS2_PORT" CS2_PORT 1 65535
+require_integer_in_range "$CS2_MAXPLAYERS" CS2_MAXPLAYERS 1 64
+
+CS2_BIN="${CS2_INSTALL_DIR}/game/cs2.sh"
+if [[ ! -x "$CS2_BIN" ]]; then
+  printf 'CS2 binary not found or not executable: %s\n' "$CS2_BIN" >&2
+  exit 1
+fi
+
+link_if_present "${CSS_ADMINS_FILE:-}" "${CS2_INSTALL_DIR}/game/csgo/addons/counterstrikesharp/configs/admins.json"
+link_if_present "${CSS_GROUPS_FILE:-}" "${CS2_INSTALL_DIR}/game/csgo/addons/counterstrikesharp/configs/admin_groups.json"
+install_shipped_cfg_bundle "${CS2_CFG_BUNDLE_DIR:-}"
+
+SECRET_CFG_DIR="${CS2_INSTALL_DIR}/game/csgo/cfg"
+SECRET_CFG_FILE="${SECRET_CFG_DIR}/3rr-secrets.cfg"
+mkdir -p "$SECRET_CFG_DIR"
+if [[ -d "$SECRET_CFG_FILE" ]]; then
+  printf 'Secret config destination must not be a directory: %s\n' "$SECRET_CFG_FILE" >&2
+  exit 1
+fi
+umask 077
+# Write and rename the secret config atomically with owner-only permissions.
+SECRET_CFG_TMP="$(mktemp "${SECRET_CFG_DIR}/.3rr-secrets.cfg.XXXXXX")"
+{
+  printf 'rcon_password %s\n' "$(cfg_quote "$RCON_PASSWORD")"
+  if [[ -n "${CS2_GSLT:-}" ]]; then
+    printf 'sv_setsteamaccount %s\n' "$(cfg_quote "$CS2_GSLT")"
+  fi
+} >"$SECRET_CFG_TMP"
+chmod 0600 "$SECRET_CFG_TMP"
+mv -f -- "$SECRET_CFG_TMP" "$SECRET_CFG_FILE"
+SECRET_CFG_TMP=""
+
+args=(
+  -dedicated
+  +map "${CS2_MAP}"
+  +game_type 0
+  +game_mode 1
+  -maxplayers_override "${CS2_MAXPLAYERS}"
+  -port "${CS2_PORT}"
+  +exec "${CS2_CFG_FILE}"
+  +exec "$(basename -- "$SECRET_CFG_FILE")"
+)
+
+if [[ -n "${CS2_HOSTNAME:-}" ]]; then
+  args+=(+hostname "${CS2_HOSTNAME}")
+fi
+
+# Do not leave credentials available to the long-lived game process.
+unset RCON_PASSWORD CS2_GSLT
+exec "$CS2_BIN" "${args[@]}"

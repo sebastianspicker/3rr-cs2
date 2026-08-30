@@ -49,14 +49,14 @@ panel_surface_probe() {
 
   # This probe verifies the built container can start and serve its public
   # health endpoint. The host port is allocated dynamically to avoid conflicts
-  # with a developer's local panel or another verification run.
+  # with a local control-plane instance or another verification run.
   PANEL_PROBE_CID="$(docker run -d \
     -p 127.0.0.1::3000 \
     -e NODE_ENV=development \
     -e DB_PATH=/tmp/3rr.db \
     -e SESSION_SECRET="${session_secret}" \
     -e RCON_SECRET_KEY="${rcon_secret}" \
-    3rr-operate-panel:local)"
+    3rr-control-plane:local)"
 
   if ! port_line="$(docker port "${PANEL_PROBE_CID}" 3000/tcp)"; then
     exit 1
@@ -96,50 +96,47 @@ trap 'cleanup; exit 143' TERM
 log "shared shell and config checks"
 run shellcheck \
   "${ROOT}/scripts/verify.sh" \
-  "${ROOT}/apps/provision/bootstrap/scripts/bootstrap-admins.sh" \
-  "${ROOT}/apps/provision/bootstrap/scripts/bootstrap-output.sh" \
-  "${ROOT}/apps/provision/bootstrap/scripts/bootstrap-plugins.sh" \
-  "${ROOT}/apps/provision/bootstrap/tests/bootstrap-output-safety.test.sh" \
-  "${ROOT}/apps/provision/bootstrap/tests/startup-wrapper-safety.test.sh" \
-  "${ROOT}/configs/examples/startup/server-start.sh"
+  "${ROOT}/server-bootstrap/scripts/bootstrap-admins.sh" \
+  "${ROOT}/server-bootstrap/scripts/bootstrap-output.sh" \
+  "${ROOT}/server-bootstrap/scripts/server-start.sh" \
+  "${ROOT}/server-bootstrap/tests/bootstrap-output-safety.test.sh" \
+  "${ROOT}/server-bootstrap/tests/capabilities-contract.test.sh" \
+  "${ROOT}/server-bootstrap/tests/startup-wrapper-safety.test.sh"
 run shfmt -d -i 2 -bn -ci \
   "${ROOT}/scripts/verify.sh" \
-  "${ROOT}/apps/provision/bootstrap/scripts/bootstrap-admins.sh" \
-  "${ROOT}/apps/provision/bootstrap/scripts/bootstrap-output.sh" \
-  "${ROOT}/apps/provision/bootstrap/scripts/bootstrap-plugins.sh" \
-  "${ROOT}/apps/provision/bootstrap/tests/bootstrap-output-safety.test.sh" \
-  "${ROOT}/apps/provision/bootstrap/tests/startup-wrapper-safety.test.sh" \
-  "${ROOT}/configs/examples/startup/server-start.sh"
-run ruby -ryaml -e "YAML.safe_load(File.read('${ROOT}/configs/examples/compose/panel.compose.yaml'), aliases: false, filename: '${ROOT}/configs/examples/compose/panel.compose.yaml')" >/dev/null
-run ruby -ryaml -e "YAML.safe_load(File.read('${ROOT}/configs/examples/compose/server-runtime.compose.yaml'), aliases: false, filename: '${ROOT}/configs/examples/compose/server-runtime.compose.yaml')" >/dev/null
+  "${ROOT}/server-bootstrap/scripts/bootstrap-admins.sh" \
+  "${ROOT}/server-bootstrap/scripts/bootstrap-output.sh" \
+  "${ROOT}/server-bootstrap/scripts/server-start.sh" \
+  "${ROOT}/server-bootstrap/tests/bootstrap-output-safety.test.sh" \
+  "${ROOT}/server-bootstrap/tests/capabilities-contract.test.sh" \
+  "${ROOT}/server-bootstrap/tests/startup-wrapper-safety.test.sh"
+run ruby -ryaml -e "YAML.safe_load(File.read('${ROOT}/deploy/compose/control-plane.compose.yaml'), aliases: false, filename: '${ROOT}/deploy/compose/control-plane.compose.yaml')" >/dev/null
+run ruby -ryaml -e "YAML.safe_load(File.read('${ROOT}/deploy/compose/server-runtime.compose.yaml'), aliases: false, filename: '${ROOT}/deploy/compose/server-runtime.compose.yaml')" >/dev/null
 run ruby "${ROOT}/scripts/check-doc-links.rb"
 for github_yaml in "${ROOT}"/.github/ISSUE_TEMPLATE/*.yml "${ROOT}"/.github/workflows/*.yml; do
   run ruby -ryaml -e "YAML.safe_load(File.read(ARGV.fetch(0)), aliases: false, filename: ARGV.fetch(0))" "${github_yaml}" >/dev/null
 done
-grep -Fq "TRUST_PROXY: \${TRUST_PROXY:-false}" "${ROOT}/configs/examples/compose/panel.compose.yaml"
-if grep -Fq "TRUST_PROXY: \${TRUST_PROXY:-1}" "${ROOT}/configs/examples/compose/panel.compose.yaml"; then
+grep -Fq "TRUST_PROXY: \${TRUST_PROXY:-false}" "${ROOT}/deploy/compose/control-plane.compose.yaml"
+if grep -Fq "TRUST_PROXY: \${TRUST_PROXY:-1}" "${ROOT}/deploy/compose/control-plane.compose.yaml"; then
   printf 'Panel Compose must not trust proxy headers by default\n' >&2
   exit 1
 fi
-grep -Fq "REDIS_URL: \${REDIS_URL:-redis://redis:6379}" "${ROOT}/configs/examples/compose/panel.compose.yaml"
-grep -Fq "\"\${PANEL_BIND_ADDRESS:-127.0.0.1}:3000:3000\"" "${ROOT}/configs/examples/compose/panel.compose.yaml"
-grep -Fq "\"\${CS2_PORT:-27015}:\${CS2_PORT:-27015}/udp\"" "${ROOT}/configs/examples/compose/server-runtime.compose.yaml"
-grep -Fq "\"\${CS2_PORT:-27015}:\${CS2_PORT:-27015}/tcp\"" "${ROOT}/configs/examples/compose/server-runtime.compose.yaml"
-run jq . "${ROOT}/apps/operate/panel/package.json" >/dev/null
-run jq . "${ROOT}/apps/operate/panel/package-lock.json" >/dev/null
-run jq . "${ROOT}/apps/operate/panel/cfg/maps.json" >/dev/null
+grep -Fq "REDIS_URL: \${REDIS_URL:-redis://redis:6379}" "${ROOT}/deploy/compose/control-plane.compose.yaml"
+grep -Fq "\"\${PANEL_BIND_ADDRESS:-127.0.0.1}:3000:3000\"" "${ROOT}/deploy/compose/control-plane.compose.yaml"
+grep -Fq "\"\${CS2_PORT:-27015}:\${CS2_PORT:-27015}/udp\"" "${ROOT}/deploy/compose/server-runtime.compose.yaml"
+grep -Fq "\"\${CS2_PORT:-27015}:\${CS2_PORT:-27015}/tcp\"" "${ROOT}/deploy/compose/server-runtime.compose.yaml"
+run jq . "${ROOT}/control-plane/package.json" >/dev/null
+run jq . "${ROOT}/control-plane/package-lock.json" >/dev/null
+run jq . "${ROOT}/control-plane/src/features/game-catalog/maps.json" >/dev/null
+run jq . "${ROOT}/server-bootstrap/capabilities.json" >/dev/null
 
-log "operate module"
+log "control plane"
 # Expanded inside the Node 22 container, not by this host-side verifier.
 # shellcheck disable=SC2016
-operate_cmd='set -euo pipefail
-cd /workspace/apps/operate/panel
+control_plane_cmd='set -euo pipefail
+cd /workspace/control-plane
 npm ci
-npm run format:check
-npm run lint
-npm run typecheck
-npm test
-npm run build'
+npm run check'
 
 node_major=""
 if have node; then
@@ -148,43 +145,39 @@ fi
 if [[ "${node_major}" == "22" ]]; then
   require_cmd npm
   require_cmd npx
-  cd "${ROOT}/apps/operate/panel"
+  cd "${ROOT}/control-plane"
   run npm ci
-  run npm run format:check
-  run npm run lint
-  run npm run typecheck
-  run npm test
-  run npm run build
+  run npm run check
 else
   require_cmd docker
-  # The panel requires Node 22 because better-sqlite3 ships native bindings and
+  # The control plane requires Node 22 because better-sqlite3 ships native bindings and
   # the project pins its runtime engine. Use Docker as the stable fallback when
   # the host Node version is absent or not in range.
   run docker run --rm \
     -v "${ROOT}:/workspace" \
-    -v /workspace/apps/operate/panel/node_modules \
+    -v /workspace/control-plane/node_modules \
     -w /workspace \
     node:22-bookworm-slim \
-    bash -lc "apt-get update >/dev/null && apt-get install -y git python3 make g++ jq ruby shellcheck shfmt >/dev/null && ${operate_cmd}"
+    bash -lc "apt-get update >/dev/null && apt-get install -y git python3 make g++ jq ruby shellcheck shfmt >/dev/null && ${control_plane_cmd}"
 fi
 
-log "operate docker validation"
+log "control-plane docker validation"
 require_cmd docker
-cd "${ROOT}/apps/operate/panel"
+cd "${ROOT}/control-plane"
 run scripts/validate.sh --require-docker
 
-log "operate surface probe"
+log "control-plane surface probe"
 panel_surface_probe
 
-log "maintain module"
-cd "${ROOT}/apps/maintain/updater"
+log "host updater"
+cd "${ROOT}/host-updater"
 run make ci
 
-log "provision module"
+log "server bootstrap"
 cd "${ROOT}"
-run apps/provision/bootstrap/tests/bootstrap-output-safety.test.sh
-run bash apps/provision/bootstrap/tests/startup-wrapper-safety.test.sh
-run apps/provision/bootstrap/scripts/bootstrap-admins.sh "${tmpdir}/provision"
-run apps/provision/bootstrap/scripts/bootstrap-plugins.sh "${tmpdir}/provision"
+run server-bootstrap/tests/bootstrap-output-safety.test.sh
+run server-bootstrap/tests/capabilities-contract.test.sh
+run bash server-bootstrap/tests/startup-wrapper-safety.test.sh
+run server-bootstrap/scripts/bootstrap-admins.sh "${tmpdir}/provision"
 
 log "verification complete"

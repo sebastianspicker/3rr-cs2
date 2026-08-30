@@ -1,0 +1,268 @@
+@font-face {
+  font-family: 'Syne';
+  src: url('/fonts/syne-latin-wght-normal.woff2') format('woff2');
+  font-display: swap;
+  font-style: normal;
+  font-weight: 400 800;
+}
+
+@font-face {
+  font-family: 'JetBrains Mono';
+  src: url('/fonts/jetbrains-mono-latin-wght-normal.woff2') format('woff2');
+  font-display: swap;
+  font-style: normal;
+  font-weight: 100 800;
+}
+
+/* Night Desk (default). Explicit dark mirrors :root for completeness. */
+:root,
+[data-theme='dark'] {
+  color-scheme: dark;
+  --canvas: rgb(12 16 22);
+  --shell: rgb(18 24 32);
+  --surface: rgb(23 30 40);
+  --surface-subtle: rgb(29 38 50);
+  --surface-strong: rgb(36 48 64);
+  --ink: rgb(232 237 244);
+  --ink-raised: rgb(18 24 32);
+  --text: rgb(197 206 219);
+  --muted: rgb(139 151 168);
+  --muted-strong: rgb(168 179 194);
+  --line: rgb(42 53 68);
+  --line-strong: rgb(58 74 94);
+  --action: rgb(91 124 250);
+  --action-hover: rgb(114 144 255);
+  --action-soft: rgb(26 36 64);
+  --observed: rgb(61 186 140);
+  --observed-soft: rgb(18 40 32);
+  --danger: rgb(224 90 82);
+  --danger-soft: rgb(42 22 22);
+  --warn: rgb(212 160 23);
+  --warn-soft: rgb(42 34 16);
+  --focus: rgb(142 176 255);
+  --row-hover: rgb(29 38 50 / 55%);
+  --overlay: rgb(12 16 22 / 72%);
+  --glow-primary: rgb(91 124 250 / 10%);
+  --glow-observed: rgb(61 186 140 / 7%);
+  /* legacy aliases */
+  --blue: var(--action);
+  --blue-hover: var(--action-hover);
+  --blue-soft: var(--action-soft);
+  --green: var(--observed);
+  --green-soft: var(--observed-soft);
+  --coral: var(--danger);
+  --coral-hover: rgb(196 75 68);
+  --coral-soft: var(--danger-soft);
+  --amber: var(--warn);
+  --amber-soft: var(--warn-soft);
+  --font-body:
+    Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI Variable', 'Segoe UI',
+    sans-serif;
+  --font-display: 'Syne', var(--font-body);
+  --font-mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --radius-sm: 4px;
+  --radius: 6px;
+  --radius-lg: 8px;
+  --shadow-float: 0 18px 50px rgb(0 0 0 / 40%);
+  --content-max: 1480px;
+}
+
+/* Daylight Control Desk is opt-in only via html[data-theme="light"].
+   Does not auto-switch on prefers-color-scheme; night remains the product default. */
+[data-theme='light'] {
+  color-scheme: light;
+  --canvas: rgb(244 246 249);
+  --shell: rgb(18 24 32);
+  --surface: rgb(255 255 255);
+  --surface-subtle: rgb(248 250 252);
+  --surface-strong: rgb(238 242 247);
+  --ink: rgb(18 23 31);
+  --ink-raised: rgb(26 33 43);
+  --text: rgb(32 40 51);
+  --muted: rgb(101 113 128);
+  --muted-strong: rgb(77 89 104);
+  --line: rgb(216 222 231);
+  --line-strong: rgb(189 199 211);
+  --action: rgb(91 124 250);
+  --action-hover: rgb(74 108 232);
+  --action-soft: rgb(237 243 255);
+  --observed: rgb(8 127 99);
+  --observed-soft: rgb(232 246 241);
+  --danger: rgb(201 54 50);
+  --danger-soft: rgb(255 240 239);
+  --warn: rgb(138 90 0);
+  --warn-soft: rgb(255 246 221);
+  --focus: rgb(121 167 255);
+  --row-hover: color-mix(in srgb, var(--surface-strong) 70%, transparent);
+  --overlay: color-mix(in srgb, var(--canvas) 28%, rgb(18 24 32 / 55%));
+  --glow-primary: rgb(91 124 250 / 8%);
+  --glow-observed: rgb(8 127 99 / 6%);
+  /* legacy aliases */
+  --blue: var(--action);
+  --blue-hover: var(--action-hover);
+  --blue-soft: var(--action-soft);
+  --green: var(--observed);
+  --green-soft: var(--observed-soft);
+  --coral: var(--danger);
+  --coral-hover: rgb(176 46 43);
+  --coral-soft: var(--danger-soft);
+  --amber: var(--warn);
+  --amber-soft: var(--warn-soft);
+  --shadow-float: 0 18px 50px rgb(18 24 32 / 12%);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--canvas);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.5;
+  min-width: 320px;
+  scroll-behavior: smooth;
+}
+
+body {
+  background:
+    radial-gradient(1200px 500px at 12% -10%, var(--glow-primary), transparent 55%),
+    radial-gradient(900px 420px at 88% 0%, var(--glow-observed), transparent 50%), var(--canvas);
+  color: var(--text);
+  margin: 0;
+  min-height: 100vh;
+  text-rendering: optimizeLegibility;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+body::selection,
+::selection {
+  background: color-mix(in srgb, var(--action) 35%, transparent);
+  color: var(--ink);
+}
+
+a {
+  color: var(--action-hover);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.18em;
+}
+
+a:hover {
+  color: var(--action-hover);
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button,
+summary,
+a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button {
+  cursor: pointer;
+}
+
+button:disabled,
+input:disabled,
+select:disabled,
+textarea:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin-block-start: 0;
+}
+
+h1,
+h2,
+h3 {
+  color: var(--ink);
+  letter-spacing: -0.025em;
+}
+
+h1 {
+  font-family: var(--font-display);
+  font-size: clamp(1.65rem, 2.3vw, 2.35rem);
+  line-height: 1.08;
+  margin-bottom: var(--space-2);
+}
+
+h2 {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  line-height: 1.25;
+  margin-bottom: 0;
+}
+
+h3 {
+  font-size: 0.95rem;
+  margin-bottom: var(--space-2);
+}
+
+code,
+pre,
+.manage-endpoint,
+.server-address-cell,
+.data-value,
+.truth-time,
+.compact-row-meta,
+.player-meta {
+  font-family: var(--font-mono);
+}
+
+.skip-link {
+  background: var(--surface);
+  border: 2px solid var(--action);
+  color: var(--ink);
+  font-weight: 700;
+  left: var(--space-4);
+  padding: var(--space-2) var(--space-4);
+  position: fixed;
+  top: var(--space-3);
+  transform: translateY(-160%);
+  transition: transform 120ms ease;
+  z-index: 1000;
+}
+
+.skip-link:focus {
+  transform: translateY(0);
+}
+
+.visually-hidden {
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  height: 1px;
+  overflow: hidden;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
+}

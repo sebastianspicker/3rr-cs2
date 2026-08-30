@@ -1,0 +1,7 @@
+node_modules
+data
+web/generated
+src/features/game-catalog/maps.json
+package-lock.json
+# Environment templates use key=value syntax and are validated as deployment contracts.
+.env.example

@@ -1,4 +1,4 @@
-# Feature requests must preserve the provision, maintain, and operate boundaries.
+# Feature requests must preserve the module boundaries.
 name: Feature request
 description: Propose a bounded operator-facing improvement.
 title: "[Feature]: "
@@ -8,9 +8,9 @@ body:
     attributes:
       label: Intended module
       options:
-        - operate panel
-        - maintain updater
-        - provision bootstrap
+        - control plane
+        - host updater
+        - server bootstrap
         - shared configuration or documentation
     validations:
       required: true
@@ -38,5 +38,5 @@ body:
     attributes:
       label: Scope check
       options:
-        - label: The proposal does not require the panel to shell into hosts or run SteamCMD.
+        - label: The proposal does not require the control plane to run host commands or SteamCMD.
           required: true

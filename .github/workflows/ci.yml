@@ -24,7 +24,7 @@ jobs:
         with:
           node-version: 22.23.1
           cache: npm
-          cache-dependency-path: apps/operate/panel/package-lock.json
+          cache-dependency-path: control-plane/package-lock.json
 
       - name: Install shell tooling
         run: sudo apt-get update && sudo apt-get install -y shellcheck shfmt jq ruby

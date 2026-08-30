@@ -1,52 +1,48 @@
-# Releasing a public alpha
+# Releasing
 
-Umbrella prerelease tags use a form such as `v1.1.0-alpha.1`. The panel package
-is private, but its package and lockfile versions must match the repository
-candidate. The updater has its own script version and changelog.
+3RR prerelease tags use a form such as `v1.1.0-alpha.1`. The control-plane
+package is private and must not be published to npm. Its package and lockfile
+versions must match the repository release; the host updater keeps its own
+script version and changelog.
 
-`RELEASE_STATUS.md` records the current candidate, completed checks, blocked
-checks, and remaining work. A partial local run does not authorize a tag.
+## Scope
 
-## Release scope
-
-A repository release can include:
-
-- provision examples and startup files
-- the Linux/systemd updater
-- the authenticated operate panel
-
-It does not imply hosted operation, automatic host provisioning, Pterodactyl
-runtime support, or support for untested network and deployment topologies.
+A repository release can include the control plane, server-bootstrap assets,
+the Linux/systemd updater, and deployment examples. It does not imply hosted
+operation, automatic host provisioning, Pterodactyl compatibility, or support
+for untested network and deployment topologies.
 
 ## Candidate procedure
 
 1. Select one clean candidate commit from `main`.
-2. Verify badge links, advisory links, and clone instructions against
-   `sebastianspicker/3rr`.
-3. Align the proposed tag, package and lockfile version, updater version,
-   changelogs, and `RELEASE_STATUS.md`.
-4. Run `./scripts/verify.sh` with Node 22, the documented shell tools, loopback
-   networking, and a working Docker daemon.
-5. Test one representative CS2 and RCON deployment, updater dry run and
-   supervised update, container health, graceful shutdown, backup, and restore.
-6. Review tracked files for credentials, tokens, local paths, databases,
-   temporary files, and private host details.
-8. Build source and container artifacts from the selected commit. Record
+2. Align the tag, package and lockfile versions, updater version, and
+   changelogs.
+3. Run `./scripts/verify.sh` with Node 22, the documented shell tools,
+   loopback networking, and a working Docker daemon.
+4. Test a representative CS2/RCON deployment, including login, a
+   CSRF-protected write, one read-only observation, and one controlled
+   state-changing operation.
+5. Run an updater dry run and supervised update on a Linux/systemd/SteamCMD
+   host.
+6. Verify SQLite backup and restore, container health, graceful shutdown, and
+   rollback with the candidate artifacts.
+7. Review the tracked tree and release artifacts for credentials, local paths,
+   databases, temporary files, and private host details.
+8. Build source and container artifacts from the candidate commit. Record
    checksums, an SBOM, supported platforms, known limitations, and rollback
-   instructions. Do not publish the private panel package to npm.
-9. Prepare GitHub prerelease notes from the changelogs. Create the tag and
-   publish only after owner approval.
+   instructions with the release.
+9. Prepare release notes from the changelogs, create the tag, and publish the
+   prerelease.
 
-## Verification record
-
-Record exact commands, tool versions, test totals, skipped checks,
-environmental blockers, and the candidate commit in `RELEASE_STATUS.md`. Do not
-apply results from another commit or a smaller test subset to the candidate.
+Do not reuse evidence from another commit or a smaller test subset. List exact
+commands, tool versions, skipped checks, and environmental blockers in the
+release record. Local source checks do not substitute for Docker, CS2, RCON,
+SteamCMD, systemd, Redis, or production-network validation.
 
 ## Rollback
 
 Keep the previous source or image artifact and a compatible database backup.
-For the panel, stop the new container, restore the previous image and SQLite
-backup, then verify `/api/health` and an authenticated read-only status request.
-For the updater, restore the previous script, configuration, and unit files
-before enabling the timer.
+For the control plane, stop the new container, restore the previous image and
+SQLite backup, then verify `/api/health` and an authenticated read-only status
+request. For the updater, restore the previous script, configuration, and unit
+files before enabling its timer.

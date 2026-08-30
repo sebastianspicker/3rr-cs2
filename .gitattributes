@@ -23,4 +23,4 @@
 *.yml text eol=lf
 Dockerfile text eol=lf
 LICENSE text eol=lf
-apps/maintain/updater/tests/bin/* text eol=lf
+host-updater/tests/bin/* text eol=lf

@@ -1,51 +1,50 @@
 # Contributing
 
-## Scope
+Keep changes inside one module where possible:
 
-Keep changes within one module when possible:
+- `control-plane/`
+- `host-updater/`
+- `server-bootstrap/`
+- `deploy/`, `docs/`, and `scripts/` only for shared contracts
 
-- `apps/provision/bootstrap`
-- `apps/maintain/updater`
-- `apps/operate/panel`
-
-Change root documentation, shared examples, or repository scripts only when the
-change affects more than one module or a shared contract.
-
-Do not add production dependencies without maintainer approval. Do not include
+Do not add production dependencies without maintainer approval. Never commit
 credentials, local databases, environment files, machine-specific paths,
-temporary notes, or local tool state.
+temporary evidence, or tool state.
 
 ## Development standards
 
-- TypeScript targets Node 22 and uses strict type checking.
-- Bash scripts use `set -euo pipefail` and must pass ShellCheck and shfmt.
-- Runtime behavior changes require focused tests.
-- Public HTTP, environment, storage, and RCON contracts must be updated with
-  their implementation.
+- Control-plane TypeScript targets Node 22 and must preserve the dependency
+  direction enforced by `npm run check:architecture`.
+- Bash uses `set -euo pipefail` and must pass ShellCheck and shfmt.
+- Runtime behavior changes need focused tests.
+- Keep public HTTP/API, environment, SQLite, RCON, updater CLI/config/install,
+  and bootstrap capability-manifest contracts in sync with their documentation.
+- Treat `web/generated` as build output; edit `web/client`, `web/assets`, or
+  `web/views` instead.
 
 ## Verification
 
-Run the focused module checks first. Then run:
+Run the narrowest relevant module checks first:
 
 ```bash
-./scripts/verify.sh
+cd control-plane && npm run check
+cd control-plane && npm run validate -- --require-docker
+cd host-updater && make ci
+bash server-bootstrap/tests/bootstrap-output-safety.test.sh
+bash server-bootstrap/tests/capabilities-contract.test.sh
+bash server-bootstrap/tests/startup-wrapper-safety.test.sh
 ```
 
-The full script requires the documented shell tools and a working Docker
-daemon. If an environmental limitation prevents a check, record the exact
-command and failure instead of treating a partial run as complete.
-
-Panel contributors should also read
-[apps/operate/panel/CONTRIBUTING.md](apps/operate/panel/CONTRIBUTING.md).
-Updater contributors should read
-[apps/maintain/updater/CONTRIBUTING.md](apps/maintain/updater/CONTRIBUTING.md).
+Then run `./scripts/verify.sh` when the change crosses modules or release
+contracts. If a required environment is unavailable, record the exact skipped
+command and blocker; partial local verification is not release evidence.
 
 ## Pull requests
 
-Describe the behavior change, affected module, compatibility impact, and
-verification results. Use the pull request template and include relevant logs
-with secrets removed.
+Describe behavior, affected module, compatibility impact, and commands run.
+Call out changes to CSRF/session/RCON safety, SQLite migrations or `enc:v1`,
+environment names, updater installation and systemd integration, or deployment
+examples. Remove secrets from any attached logs.
 
-Use the issue templates for reproducible defects and bounded feature requests.
-Report vulnerabilities through a private
+Report vulnerabilities through the private
 [GitHub security advisory](https://github.com/sebastianspicker/3rr/security/advisories/new).
