@@ -1,9 +1,9 @@
 # Maintainer review protects runtime, release, and trust-boundary changes.
 * @sebastianspicker
 
-/apps/operate/panel/ @sebastianspicker
-/apps/maintain/updater/ @sebastianspicker
-/apps/provision/bootstrap/ @sebastianspicker
-/configs/ @sebastianspicker
+/control-plane/ @sebastianspicker
+/host-updater/ @sebastianspicker
+/server-bootstrap/ @sebastianspicker
+/deploy/ @sebastianspicker
 /.github/ @sebastianspicker
 /scripts/ @sebastianspicker

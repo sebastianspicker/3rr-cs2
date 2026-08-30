@@ -13,11 +13,11 @@ private host details.
 
 ## Security boundaries
 
-- The operate panel handles authentication, sessions, CSRF, authorization,
+- The control plane handles authentication, sessions, CSRF, authorization,
   SQLite data, Redis state, and RCON credentials.
-- The maintain updater runs with host privileges and controls systemd and
+- The host updater runs with host privileges and controls systemd and
   SteamCMD.
-- The provision module writes credentials and administrator configuration and
+- Server bootstrap writes credentials and administrator configuration and
   constructs the CS2 startup command.
 
 RCON console input must remain one ASCII command. Reject separators, control

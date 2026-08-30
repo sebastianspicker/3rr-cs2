@@ -1,6 +1,6 @@
 # Structured fields keep public bug reports reproducible and free of credentials.
 name: Bug report
-description: Report a reproducible defect in provision, maintain, or operate.
+description: Report a reproducible defect in 3RR.
 title: "[Bug]: "
 body:
   - type: markdown
@@ -13,9 +13,9 @@ body:
     attributes:
       label: Affected module
       options:
-        - operate panel
-        - maintain updater
-        - provision bootstrap
+        - control plane
+        - host updater
+        - server bootstrap
         - shared configuration or documentation
     validations:
       required: true

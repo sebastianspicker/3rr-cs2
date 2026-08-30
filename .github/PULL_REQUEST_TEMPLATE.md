@@ -14,7 +14,7 @@
 
 - [ ] Focused tests cover the reason for the change.
 - [ ] `./scripts/verify.sh` passed, or every unavailable lane is listed below.
-- [ ] Documentation and screenshots reflect operator-visible behavior.
+- [ ] Documentation reflects operator-visible behavior.
 - [ ] No credentials, local paths, temporary tool state, or private work notes are included.
 
 Skipped or blocked checks:
