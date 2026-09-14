@@ -21,6 +21,7 @@
 # MAX_ATTEMPTS=5
 # SLEEP_SECS=5
 # STEAMCMD_TIMEOUT_SECS=1800
+# SYSTEMCTL_TIMEOUT_SECS=90
 
 # Optional: log level (quiet | normal)
 # LOG_LEVEL=normal

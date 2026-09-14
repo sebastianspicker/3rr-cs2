@@ -1,81 +1,88 @@
-/* Authentication surfaces. */
-
+/* Authentication and account forms use the shared control vocabulary. */
 .auth-page {
-  background: var(--canvas);
-  display: grid;
-  grid-template-columns: minmax(320px, 0.86fr) minmax(420px, 1.14fr);
-  min-height: 100vh;
-}
-
-.auth-brand {
-  background: var(--shell);
-  color: var(--text);
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  min-height: 100vh;
-  padding: clamp(var(--space-8), 7vw, 6rem);
-}
-
-.brand-lockup {
-  color: var(--ink);
-  font-size: clamp(3rem, 7vw, 6rem);
-  letter-spacing: -0.07em;
-}
-
-.restart-rule {
-  border-top: 1px solid var(--line-strong);
-  color: var(--observed);
-  margin-top: auto;
-  padding-top: var(--space-4);
-}
-
-.brand-descriptor {
-  font-size: 0.86rem;
-  margin: var(--space-5) 0 0;
-  max-width: 28rem;
-}
-
-.auth-card {
   align-items: center;
+  background: var(--canvas);
   display: flex;
   justify-content: center;
-  padding: clamp(var(--space-6), 7vw, 6rem);
+  min-height: calc(100vh - 40px);
+  padding: 40px 16px;
 }
-
-.auth-card .panel {
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
+.auth-card {
   max-width: 440px;
-  padding: var(--space-6);
   width: 100%;
 }
-
+.auth-card .panel {
+  padding: 32px;
+}
+.auth-brand {
+  margin-bottom: 24px;
+  text-align: center;
+}
+.brand-lockup {
+  align-items: baseline;
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  margin-bottom: 12px;
+}
+.brand-lockup .brand-name {
+  font-size: 2rem;
+}
+.brand-lockup .nav-product {
+  font-size: 1.3rem;
+  font-weight: 400;
+}
+.brand-descriptor {
+  color: var(--muted);
+  font-size: 0.86rem;
+  margin: 0;
+}
 .auth-title {
-  font-size: clamp(1.55rem, 3vw, 2.15rem);
-  margin-bottom: var(--space-3);
+  font-size: 1.4rem;
+  margin-bottom: 24px;
+  text-align: center;
 }
-
-.auth-rule {
-  border-top: 1px solid var(--line-strong);
-  color: var(--action);
-  margin-bottom: var(--space-8);
-}
-
-.auth-rule span {
-  background: var(--surface);
-  padding-right: var(--space-3);
-  position: relative;
-  top: -0.75em;
-}
-
 .btn-container {
   display: flex;
-  gap: var(--space-2);
-  margin-top: var(--space-5);
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 24px;
 }
-
-.btn-container .btn-primary {
-  flex: 1 1 auto;
+.auth-card .btn-container .btn-primary {
+  width: 100%;
+}
+.form-help {
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.6;
+  margin: 8px 0 0;
+}
+.form-guidance {
+  color: var(--muted);
+  font-size: 0.86rem;
+  padding-left: 20px;
+}
+.form-guidance li + li {
+  margin-top: 12px;
+}
+.settings-workspace {
+  grid-template-columns: minmax(0, 720px);
+}
+.settings-workspace .route-aside {
+  width: 100%;
+}
+@media (max-width: 680px) {
+  .auth-page {
+    display: flex;
+    padding: 24px 16px;
+  }
+  .auth-card {
+    padding: 0;
+  }
+  .auth-card .panel {
+    padding: 24px;
+  }
+  .auth-brand {
+    padding: 0;
+  }
 }

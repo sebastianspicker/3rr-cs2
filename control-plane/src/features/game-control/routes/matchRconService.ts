@@ -1,3 +1,4 @@
+import { currentExecutionOptions } from '../../../shared/executionContext';
 /** RCON command validation and partial-success handling for operator requests. */
 import type { RconManager } from '../../../integrations/rcon/rcon';
 import type { RconHistoryRepository } from '../../../integrations/rcon/rconHistory';
@@ -18,7 +19,7 @@ export function createRecordedCommandExecutor(
     userId: number,
     command: string
   ): Promise<Record<string, unknown>> {
-    const output = await rcon.executeCommand(serverId, command);
+    const output = await rcon.executeCommand(serverId, command, currentExecutionOptions());
     try {
       recordRconCommand(userId, serverId, command);
       return {

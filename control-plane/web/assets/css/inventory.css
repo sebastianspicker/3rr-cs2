@@ -5,15 +5,15 @@
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  overflow: hidden;
+  overflow: visible;
 }
 
 .server-list-head,
 .server-card {
   display: grid;
   grid-template-columns:
-    minmax(190px, 1.4fr) minmax(128px, 0.72fr) minmax(150px, 0.95fr) minmax(90px, 0.45fr)
-    minmax(240px, auto);
+    minmax(100px, 1fr) minmax(120px, 0.85fr) minmax(135px, 1fr) minmax(85px, 0.55fr)
+    minmax(170px, auto);
 }
 
 .server-list-head {
@@ -35,8 +35,12 @@
   border-bottom: 1px solid var(--line);
   border-radius: 0;
   margin: 0;
-  min-height: 75px;
+  min-height: 76px;
   padding: var(--space-3) var(--space-4);
+}
+
+.server-card.mb-3 {
+  margin-bottom: 0;
 }
 
 .server-card:last-child {
@@ -49,6 +53,7 @@
 
 .server-card .card-header {
   align-items: flex-start;
+  justify-content: center;
   flex-direction: column;
   gap: var(--space-1);
 }
@@ -70,7 +75,7 @@
 
 .server-address-cell {
   color: var(--muted-strong);
-  font-size: 0.76rem;
+  font-size: 0.8rem;
   overflow-wrap: anywhere;
 }
 
@@ -102,10 +107,10 @@
 .data-table th {
   background: var(--surface-strong);
   color: var(--muted-strong);
-  font-size: 0.68rem;
-  letter-spacing: 0.08em;
+  font-size: 0.8rem;
+  letter-spacing: 0;
   text-align: left;
-  text-transform: uppercase;
+  text-transform: none;
 }
 
 .data-table th,
@@ -121,4 +126,329 @@
 
 .data-table tbody tr:hover {
   background: var(--surface-subtle);
+}
+
+.fleet-stats {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  margin-bottom: 28px;
+}
+.fleet-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 20px;
+}
+.fleet-stat + .fleet-stat {
+  border-left: 1px solid var(--line);
+}
+.fleet-stat-value {
+  color: var(--ink);
+  font-size: 1.6rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  line-height: 1.2;
+}
+.fleet-stat-label {
+  color: var(--muted);
+  font-size: 0.86rem;
+  order: -1;
+}
+.fleet-stat-value.text-success {
+  color: var(--observed);
+}
+.fleet-stat-value.text-warning {
+  color: var(--warn);
+}
+.fleet-stat-value.text-danger {
+  color: var(--muted);
+}
+.fleet-toolbar {
+  align-items: center;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(200px, 1.4fr) minmax(170px, 0.9fr) 1fr auto;
+  margin-bottom: 20px;
+}
+.fleet-toolbar > button {
+  grid-column: 4;
+}
+.fleet-filter-summary {
+  color: var(--muted);
+  font-size: 0.86rem;
+  margin-top: 20px;
+}
+.route-shell--inventory .route-workspace {
+  gap: 0;
+}
+.server-actions-menu {
+  flex-shrink: 0;
+  position: relative;
+}
+.server-actions-menu > summary {
+  align-items: center;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  color: var(--muted);
+  cursor: pointer;
+  display: flex;
+  font-size: 0.8rem;
+  justify-content: center;
+  list-style: none;
+  min-height: 44px;
+  padding: 8px;
+}
+.server-actions-menu > summary::-webkit-details-marker {
+  display: none;
+}
+.server-actions-menu[open] > summary {
+  background: var(--surface-strong);
+  color: var(--ink);
+}
+.server-actions-menu > button,
+.server-actions-menu > .btn {
+  background: var(--surface);
+  border-color: var(--danger);
+  color: var(--danger);
+  box-shadow: var(--shadow-float);
+  min-width: 130px;
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: 20;
+}
+
+.server-status-cell > .status-dot {
+  display: none;
+}
+.server-card .card-title a {
+  color: var(--ink);
+  font-weight: 500;
+  text-decoration: none;
+}
+.server-card .card-title a:hover {
+  text-decoration: underline;
+}
+.fleet-stats .fleet-stat-value.text-danger {
+  color: var(--muted) !important;
+}
+
+/* Single-server selection is the first session step. */
+.server-choice-row {
+  display: block;
+  min-height: 70px;
+  padding: 0;
+  box-shadow: none;
+}
+.server-choice-row > .server-choice-grid,
+.server-choice-row > label {
+  align-items: center;
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(230px, 1.6fr) minmax(200px, 1fr) minmax(150px, 0.85fr) minmax(
+      130px,
+      0.7fr
+    );
+  min-height: 70px;
+  padding: 12px 20px;
+}
+.server-choice-row.is-selected,
+.server-choice-row:has(input:checked) {
+  background: var(--action-soft);
+  outline: 1px solid var(--action);
+  outline-offset: -1px;
+}
+.server-choice {
+  align-items: center;
+  display: flex;
+  gap: 24px;
+  min-width: 0;
+}
+.server-choice input {
+  accent-color: var(--action);
+  flex-shrink: 0;
+  height: 24px;
+  margin: 0;
+  width: 24px;
+}
+.server-choice strong {
+  font-size: 1.12rem;
+}
+.server-choice-endpoint {
+  font-size: 0.86rem;
+  overflow-wrap: anywhere;
+}
+.server-choice-status,
+.server-choice-time {
+  font-size: 0.95rem;
+}
+.server-overflow {
+  font-size: 0.85rem;
+  margin: 0 20px 10px;
+}
+.server-overflow > summary {
+  color: var(--muted);
+  cursor: pointer;
+}
+.server-overflow .btn {
+  margin-top: 8px;
+}
+.server-choice-head {
+  background: var(--surface);
+  grid-template-columns: minmax(230px, 1.6fr) minmax(200px, 1fr) minmax(150px, 0.85fr) minmax(
+      130px,
+      0.7fr
+    );
+  gap: 16px;
+  padding: 10px 20px;
+  text-transform: uppercase;
+}
+.server-choice-row {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(230px, 1.6fr) minmax(200px, 1fr) minmax(150px, 0.85fr) minmax(
+      130px,
+      0.7fr
+    );
+  padding: 12px 20px;
+}
+.server-choice-row .card-header.server-choice {
+  align-items: center;
+  flex-direction: row;
+  gap: 24px;
+  justify-content: flex-start;
+}
+.server-choice-label {
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.server-choice-label .card-title {
+  font-size: 1.12rem;
+  font-weight: 700;
+}
+.server-choice-fallback {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+.server-choice-row > .server-choice-time {
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 4px;
+  padding-right: 0;
+}
+.server-choice-time .server-overflow {
+  margin: 0;
+}
+.server-choice-time .server-overflow > summary {
+  border: 0;
+  font-size: 0.72rem;
+  min-height: 24px;
+  padding: 0;
+}
+.session-server-picker .fleet-head {
+  margin-bottom: 24px;
+}
+.session-server-picker .fleet-tools {
+  margin-block: 0 16px;
+}
+.session-server-picker .fleet-tools > summary {
+  color: var(--muted);
+  cursor: pointer;
+  padding-block: 8px;
+}
+.session-server-picker .fleet-stats {
+  background: transparent;
+  border: 0;
+  margin-bottom: 12px;
+}
+.session-server-picker .fleet-stat {
+  align-items: baseline;
+  flex-direction: row;
+  gap: 8px;
+  padding: 0 12px;
+}
+.session-server-picker .fleet-stat:first-child {
+  padding-left: 0;
+}
+.session-server-picker .fleet-stat-value {
+  font-size: 0.95rem;
+}
+.session-server-picker .fleet-stat-label {
+  font-size: 0.8rem;
+}
+.session-server-picker .fleet-toolbar {
+  grid-template-columns: minmax(180px, 1.6fr) minmax(160px, 1fr) auto;
+  margin-bottom: 16px;
+}
+.session-server-picker .fleet-toolbar > button {
+  grid-column: 3;
+}
+.session-server-picker .fleet-filter-summary {
+  font-size: 0.75rem;
+  margin: 10px 0 0;
+}
+/* Disclosed maintenance actions participate in layout instead of overlapping. */
+.server-overflow > .btn,
+.server-overflow > button {
+  box-shadow: none;
+  display: flex;
+  margin-top: 6px;
+  min-width: 130px;
+  position: static;
+  width: 100%;
+}
+.server-overflow > .server-player-count {
+  color: var(--muted);
+  display: block;
+  font-size: 0.8rem;
+  margin-top: 8px;
+}
+.server-overflow > .btn-primary {
+  background: var(--action-soft);
+  border-color: var(--action);
+  color: var(--action);
+}
+.server-overflow > .btn-secondary {
+  background: var(--surface-subtle);
+  border-color: var(--line-strong);
+  color: var(--ink);
+}
+.session-server-picker #serverList {
+  max-height: 240px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-color: var(--line-strong) var(--surface);
+  scrollbar-gutter: stable;
+}
+.server-overflow-menu {
+  display: grid;
+  gap: 6px;
+  padding-block: 8px;
+}
+.server-overflow-menu .btn {
+  box-shadow: none;
+  margin: 0;
+  min-width: 0;
+  position: static;
+  width: 100%;
+}
+.server-overflow-players {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+.session-server-picker #serverList::-webkit-scrollbar {
+  width: 12px;
+}
+.session-server-picker #serverList::-webkit-scrollbar-track {
+  background: var(--surface);
+  border-left: 1px solid var(--line);
+}
+.session-server-picker #serverList::-webkit-scrollbar-thumb {
+  background: var(--surface-strong);
+  border: 1px solid var(--line-strong);
 }

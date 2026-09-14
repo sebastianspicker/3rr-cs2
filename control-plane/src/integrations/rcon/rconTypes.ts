@@ -31,7 +31,34 @@ export interface RconManagerOptions {
   heartbeatTimeoutMs?: number;
   disconnectTimeoutMs?: number;
   forceDisconnectTimeoutMs?: number;
+  totalDeadlineMs?: number;
+  maxQueuedPerServer?: number;
+  maxQueuedGlobal?: number;
+  startupConcurrency?: number;
 }
+
+export type RconTaskClassification = 'mutation' | 'observation' | 'heartbeat';
+
+export interface RconExecutionOptions {
+  deadlineAt?: number;
+  signal?: AbortSignal;
+  classification?: RconTaskClassification;
+}
+
+export type RconObservedCommand = 'hostname' | 'status' | 'sv_visiblemaxplayers' | 'users';
+
+export interface RconObservationOptions {
+  refresh?: boolean;
+  deadlineAt?: number;
+  signal?: AbortSignal;
+}
+
+export interface RconObservation {
+  value: string;
+  observedAt: string;
+}
+
+export type RconExecutionOutcome = 'not_sent' | 'unknown';
 
 export interface RconInitError {
   server_id?: string;

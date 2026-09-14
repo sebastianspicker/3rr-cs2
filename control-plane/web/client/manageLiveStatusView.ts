@@ -1,4 +1,5 @@
 /** Applies formatted live status to the DOM while preserving unknown states. */
+import { recordSessionObservation } from './sessionFlow';
 import type { LiveStatusResponse } from './manageShared';
 import { formatLiveStatus } from './manageLiveStatusFormat';
 import {
@@ -16,4 +17,5 @@ export function renderLiveStatus(data: LiveStatusResponse): void {
   renderTruthRail(data, view);
   renderStatusIndicators(data, view);
   renderPageTitle(view);
+  recordSessionObservation(data);
 }

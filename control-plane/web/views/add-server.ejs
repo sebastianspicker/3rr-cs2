@@ -13,17 +13,19 @@
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to main content</a>
-  <%- include('partials/navbar') %>
-  <main class="container form-page route-shell route-shell--form" id="main">
+  <div class="shell ops-shell">
+    <%- include('partials/navbar') %>
+  <main class="container main workbench form-page route-shell route-shell--form" id="main">
     <div class="page-header route-header">
       <div>
-        <p class="route-kicker">Fleet</p>
+        <nav class="breadcrumbs" aria-label="Breadcrumb"><a href="/servers">Fleet</a><span aria-hidden="true">/</span><span>Add server</span></nav>
         <h1>Add server</h1>
-        <p>Verify RCON access before saving the endpoint</p>
+        <p>Connect an existing CS2 server to your fleet.</p>
       </div>
     </div>
     <div class="form-shell route-workspace route-workspace--split">
       <div class="panel route-main">
+        <div class="panel-header"><h2>Connection details</h2></div>
         <form id="add-server-form">
           <div class="mb-3">
             <label for="serverIP" class="form-label">Server address</label>
@@ -32,12 +34,16 @@
               id="serverIP"
               name="server_ip"
               class="form-control"
-              inputmode="decimal"
+              inputmode="url"
+              autocapitalize="none"
+              spellcheck="false"
+              aria-describedby="server-address-help"
               autocomplete="off"
               placeholder="cs2.example.net"
               required
               maxlength="253"
             >
+            <p class="form-help" id="server-address-help">IP address or hostname, without a protocol or port.</p>
           </div>
           <div class="mb-3">
             <label for="serverPort" class="form-label">RCON port</label>
@@ -51,9 +57,11 @@
               max="65535"
               step="1"
               autocomplete="off"
-              placeholder="27015"
+              value="27015"
+              aria-describedby="server-port-help"
               required
             >
+            <p class="form-help" id="server-port-help">Usually the game server port.</p>
           </div>
           <div class="mb-3">
             <label for="rconPassword" class="form-label">RCON password</label>
@@ -61,33 +69,42 @@
               type="password"
               id="rconPassword"
               name="rcon_password"
+              aria-describedby="server-password-help"
               class="form-control"
               autocomplete="off"
               required
               maxlength="512"
             >
+            <p class="form-help" id="server-password-help">Use the password configured on this server.</p>
           </div>
           <div class="btn-container">
-            <button id="submitButton" type="submit" class="btn btn-primary">Add server</button>
-            <button type="reset" class="btn btn-secondary">Clear</button>
+            <button id="submitButton" type="submit" class="btn btn-primary">Verify and add server</button>
+            <a href="/servers" id="add-server-cancel" class="btn btn-ghost">Cancel</a>
           </div>
-          <div id="add-server-status" class="alert mt-sm" role="status" aria-live="polite" hidden></div>
+          <div id="add-server-status" class="alert mt-sm" role="status" aria-live="polite" tabindex="-1" hidden></div>
         </form>
       </div>
       <aside class="route-aside" aria-label="RCON verification">
-        <h2>Verification</h2>
-        <p>The endpoint is saved only after the panel verifies RCON access.</p>
+        <h2>Before you connect</h2>
+        <ul class="form-guidance"><li>RCON must be enabled.</li><li>The endpoint must be reachable from the control plane.</li><li>Credentials are checked before the server is saved.</li></ul>
       </aside>
     </div>
   </main>
+  </div>
 
   <script src="/js/toast-inline.js"></script>
+  <script src="/js/console.js"></script>
   <script nonce="<%= cspNonce %>">
     document.addEventListener('DOMContentLoaded', function () {
       var csrfToken = document.querySelector('meta[name="csrf-token"]').content;
       var form = document.getElementById('add-server-form');
+      var cancel = document.getElementById('add-server-cancel');
+      cancel.addEventListener('click', function (event) {
+        if (form.getAttribute('aria-busy') === 'true') event.preventDefault();
+      });
       form.addEventListener('submit', function (e) {
         e.preventDefault();
+        if (form.getAttribute('aria-busy') === 'true') return;
         var submitButton = document.getElementById('submitButton');
         var status = document.getElementById('add-server-status');
         var server_ip = document.getElementById('serverIP').value;
@@ -99,7 +116,13 @@
           status.hidden = false;
           return;
         }
-        status.hidden = true;
+        status.textContent = 'Connecting to the server and verifying RCON credentials…';
+        status.className = 'alert alert-secondary mt-sm';
+        status.hidden = false;
+        form.setAttribute('aria-busy', 'true');
+        cancel.setAttribute('aria-disabled', 'true');
+        cancel.tabIndex = -1;
+        form.querySelectorAll('input').forEach(function (input) { input.readOnly = true; });
         submitButton.disabled = true;
         submitButton.textContent = 'Verifying RCON…';
         fetch('/api/add-server', {
@@ -119,13 +142,20 @@
             window.location.assign('/servers');
           })
           .catch(function (err) {
-            status.textContent = err.message || 'The server could not be added. Check the endpoint and try again.';
+            status.textContent = err instanceof TypeError
+              ? 'The result could not be confirmed. Check the fleet before adding this server again.'
+              : err.message || 'The server could not be added. Check the endpoint and credentials.';
             status.className = 'alert alert-danger mt-sm';
             status.hidden = false;
+            status.focus();
           })
           .finally(function () {
+            form.setAttribute('aria-busy', 'false');
+            cancel.removeAttribute('aria-disabled');
+            cancel.removeAttribute('tabindex');
+            form.querySelectorAll('input').forEach(function (input) { input.readOnly = false; });
             submitButton.disabled = false;
-            submitButton.textContent = 'Add server';
+            submitButton.textContent = 'Verify and add server';
           });
       });
     });

@@ -14,6 +14,20 @@ run_validation_config_suite() {
     run_validation_test "reject invalid NO_SLEEP" 1 "NO_SLEEP must be 0 or 1" NO_SLEEP="yes"
     run_validation_test "reject invalid DRY_RUN" 1 "DRY_RUN must be 0 or 1" DRY_RUN="maybe"
     run_validation_test "reject STEAMCMD_TIMEOUT_SECS=0" 1 "STEAMCMD_TIMEOUT_SECS must be a positive integer" STEAMCMD_TIMEOUT_SECS="0"
+    run_validation_test "reject SYSTEMCTL_TIMEOUT_SECS=0" 1 "SYSTEMCTL_TIMEOUT_SECS must be a positive integer" SYSTEMCTL_TIMEOUT_SECS="0"
+    run_validation_test "reject SYSTEMCTL_TIMEOUT_SECS > 3600" 1 "SYSTEMCTL_TIMEOUT_SECS must be at most 3600" SYSTEMCTL_TIMEOUT_SECS="3601"
+
+    cat > "$tmpdir/timeout" << 'EOF'
+#!/usr/bin/env bash
+if [[ "${1:-}" == "--version" ]]; then
+    echo "BusyBox timeout"
+    exit 0
+fi
+exit 99
+EOF
+    chmod +x "$tmpdir/timeout"
+    run_validation_test "reject non-GNU timeout" 1 "GNU coreutils timeout is required"
+    rm -f "$tmpdir/timeout"
 
     run_validation_test "reject LOGFILE=/" 1 "LOGFILE must not be root" LOGFILE="/" SLEEP_SECS="0"
     run_validation_test "reject LOGFILE non-regular" 1 "LOGFILE must be a regular file path" LOGFILE="/dev/null"

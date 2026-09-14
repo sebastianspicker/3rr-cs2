@@ -118,7 +118,7 @@ test('the relocated login view and generated browser assets are served', async (
   const port = (server.address() as AddressInfo).port;
   const page = await request(port, '/');
   assert.equal(page.status, 200);
-  assert.match(page.body, /<h2 class="auth-title">Operator login<\/h2>/);
+  assert.match(page.body, /<h2 class="auth-title">Sign in<\/h2>/);
 
   const asset = await request(port, '/3rr-mark.svg');
   assert.equal(asset.status, 200);

@@ -1,3 +1,4 @@
+import { currentExecutionOptions } from '../../shared/executionContext';
 /** Bounded RCON autocomplete cache for authenticated operator input. */
 import type { RconManager } from '../../integrations/rcon/rcon';
 import logger from '../../infrastructure/logging';
@@ -59,8 +60,14 @@ export function createAutocompleteLoader(rcon: RconManager) {
     const cached = cache.get(serverId);
     if (!refresh && cached && cached.expiresAt > Date.now()) return { entry: cached, cached: true };
     const results = await Promise.allSettled([
-      rcon.executeCommand(serverId, 'cmdlist'),
-      rcon.executeCommand(serverId, 'cvarlist'),
+      rcon.executeCommand(serverId, 'cmdlist', {
+        ...currentExecutionOptions(),
+        classification: 'observation',
+      }),
+      rcon.executeCommand(serverId, 'cvarlist', {
+        ...currentExecutionOptions(),
+        classification: 'observation',
+      }),
     ]);
     const outputs: string[] = [];
     const errors: string[] = [];

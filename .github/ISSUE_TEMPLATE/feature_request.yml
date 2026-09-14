@@ -1,12 +1,11 @@
-# Feature requests must preserve the module boundaries.
 name: Feature request
-description: Propose a bounded operator-facing improvement.
+description: Suggest an improvement to 3RR.
 title: "[Feature]: "
 body:
   - type: dropdown
     id: module
     attributes:
-      label: Intended module
+      label: Affected module
       options:
         - control plane
         - host updater
@@ -17,26 +16,26 @@ body:
   - type: textarea
     id: problem
     attributes:
-      label: Operator problem
-      description: Describe the problem without prescribing an implementation.
+      label: Problem to solve
+      description: Describe the task you are trying to complete and what gets in the way.
     validations:
       required: true
   - type: textarea
     id: outcome
     attributes:
-      label: Desired outcome
-      description: Explain how an operator would know the change works.
+      label: Proposed improvement
+      description: Explain what you would like to do and how the change would help.
     validations:
       required: true
   - type: textarea
     id: boundaries
     attributes:
-      label: Boundaries and risks
-      description: Note privilege, RCON, persistence, compatibility, and deployment implications.
+      label: Compatibility and deployment
+      description: If known, describe any changes to permissions, RCON access, stored data, or deployment.
   - type: checkboxes
     id: scope
     attributes:
-      label: Scope check
+      label: Before posting
       options:
         - label: The proposal does not require the control plane to run host commands or SteamCMD.
           required: true

@@ -1,3 +1,5 @@
+import { currentExecutionOptions } from '../../../shared/executionContext';
+import type { RconObservationOptions } from '../../../integrations/rcon/rconTypes';
 import express from 'express';
 import type Database from 'better-sqlite3';
 import type { RconManager } from '../../../integrations/rcon/rcon';
@@ -27,7 +29,7 @@ interface ServerListResult extends ServerListRow {
 }
 
 type HostnameProbeResult =
-  | { kind: 'value'; value: string | boolean }
+  | { kind: 'value'; value: string; observedAt: string }
   | { kind: 'error'; error: unknown }
   | { kind: 'timeout' };
 
@@ -71,19 +73,18 @@ export function createServerStatusRoutes(
     };
   }
 
-  async function probeHostname(serverId: string): Promise<HostnameProbeResult> {
-    let timeout: ReturnType<typeof setTimeout> | undefined;
-    const result = await Promise.race([
-      rcon.executeCommand(serverId, 'hostname').then(
-        (value) => ({ kind: 'value' as const, value }),
-        (error: unknown) => ({ kind: 'error' as const, error })
-      ),
-      new Promise<{ kind: 'timeout' }>((resolve) => {
-        timeout = setTimeout(() => resolve({ kind: 'timeout' }), 2000);
-      }),
-    ]);
-    if (timeout) clearTimeout(timeout);
-    return result;
+  async function probeHostname(
+    serverId: string,
+    options: RconObservationOptions
+  ): Promise<HostnameProbeResult> {
+    try {
+      const observation = await rcon.observeCommand(serverId, 'hostname', options);
+      return { kind: 'value', ...observation };
+    } catch (error) {
+      return error instanceof Error && error.name === 'RconDeadlineError'
+        ? { kind: 'timeout' }
+        : { kind: 'error', error };
+    }
   }
 
   function applyHostnameProbe(
@@ -108,25 +109,30 @@ export function createServerStatusRoutes(
       connected,
       authenticated,
       status: connected && authenticated ? 'connected' : 'disconnected',
-      observed_at: new Date().toISOString(),
+      observed_at: probe.observedAt,
     };
   }
 
-  async function serverListResult(server: ServerListRow): Promise<ServerListResult> {
+  async function serverListResult(
+    server: ServerListRow,
+    options: RconObservationOptions
+  ): Promise<ServerListResult> {
     const serverId = String(server.id);
     const result = initialServerListResult(server);
-    if (!rcon.hasConnection(serverId)) return result;
-    return applyHostnameProbe(
-      result,
-      rcon.getConnectionInfo(serverId),
-      await probeHostname(serverId)
-    );
+    const probe = await probeHostname(serverId, options);
+    return applyHostnameProbe(result, rcon.getConnectionInfo(serverId), probe);
   }
 
   router.get('/api/servers', isAuthenticated, async (req, res) => {
     try {
       const servers = selectAllServersStmt.all(req.session.user?.id) as ServerListRow[];
-      res.json({ servers: await Promise.all(servers.map(serverListResult)) });
+      const options = { ...currentExecutionOptions(), refresh: req.query.refresh === '1' };
+      res.json({
+        servers:
+          req.query.observe === '0'
+            ? servers.map(initialServerListResult)
+            : await Promise.all(servers.map((server) => serverListResult(server, options))),
+      });
     } catch (err) {
       logger.error({ err }, '[server] list-servers error');
       res.status(500).json({ error: 'An error occurred while fetching servers.' });

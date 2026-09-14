@@ -60,3 +60,12 @@ small {
     background-position: -200% 0;
   }
 }
+
+.site-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+  font-size: 0.7rem;
+  padding: 0 4px 24px;
+  width: calc(100% - 32px);
+}

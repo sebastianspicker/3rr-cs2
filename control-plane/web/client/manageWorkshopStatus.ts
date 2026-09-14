@@ -10,6 +10,7 @@ import {
   type WorkshopFavorite,
   type WorkshopFavoritesResponse,
 } from './manageShared';
+import { setSessionRefresh } from './sessionFlow';
 import { renderLiveStatus } from './manageLiveStatusView';
 import { validRestoreRound } from './manageWorkshopHelpers';
 import {
@@ -118,7 +119,7 @@ export function initWorkshopMap(serverId: string): void {
       const favoriteActions = [
         ['launch', 'Load', 'btn-primary'],
         ['edit', 'Edit', 'btn-secondary'],
-        ['delete', 'Delete', 'btn-warning'],
+        ['delete', 'Delete', 'btn-danger-outline'],
       ] as const;
       favoriteActions.forEach(([action, label, klass]) => {
         const button = document.createElement('button');
@@ -205,13 +206,38 @@ export function initWorkshopMap(serverId: string): void {
 export function initLiveStatus(serverId: string): void {
   let liveStatusInterval: ReturnType<typeof setInterval> | undefined;
   let liveStatusGeneration = 0;
+  let stopped = false;
+  let inFlight: Promise<LiveStatusResponse | undefined> | undefined;
+  let resumePending = false;
 
-  async function fetchLiveStatus(): Promise<void> {
+  function fetchLiveStatus(refresh = false): Promise<LiveStatusResponse | undefined> {
+    if (document.hidden || stopped) return Promise.resolve(undefined);
+    if (!inFlight) return startLiveStatusLoad(refresh);
+    return inFlight;
+  }
+
+  function startLiveStatusLoad(refresh: boolean): Promise<LiveStatusResponse | undefined> {
+    const promise = loadLiveStatus(refresh);
+    inFlight = promise;
+    void promise.finally(() => {
+      if (inFlight === promise) inFlight = undefined;
+      if (resumePending && !document.hidden && !stopped) {
+        resumePending = false;
+        void fetchLiveStatus();
+      }
+    });
+    return promise;
+  }
+
+  async function loadLiveStatus(refresh: boolean): Promise<LiveStatusResponse | undefined> {
     const generation = ++liveStatusGeneration;
     try {
-      const data = await fetchJson<LiveStatusResponse>(`/api/status/${serverId}`);
+      const data = await fetchJson<LiveStatusResponse>(
+        `/api/status/${serverId}${refresh ? '?refresh=1' : ''}`
+      );
       if (generation !== liveStatusGeneration) return;
       renderLiveStatus(data);
+      return data;
     } catch (err) {
       if (generation !== liveStatusGeneration) return;
       setText('live-status-state', 'RCON status stale');
@@ -223,22 +249,37 @@ export function initLiveStatus(serverId: string): void {
     }
   }
 
+  setSessionRefresh(async () => {
+    // A pre-mutation observation must finish before the explicit post-setup read.
+    while (inFlight) await inFlight;
+    return fetchLiveStatus(true);
+  });
   void fetchLiveStatus();
-  on('#refresh_status', 'click', () => {
-    void fetchLiveStatus();
+  const refreshButton = el<HTMLButtonElement>('#refresh_status');
+  refreshButton?.addEventListener('click', () => {
+    void fetchLiveStatus(true);
   });
   liveStatusInterval = setInterval(() => {
     void fetchLiveStatus();
   }, 30000);
   window.addEventListener('beforeunload', () => {
+    stopped = true;
+    resumePending = false;
+    ++liveStatusGeneration;
     clearInterval(liveStatusInterval);
   });
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) {
+      resumePending = false;
+      ++liveStatusGeneration;
       clearInterval(liveStatusInterval);
       liveStatusInterval = undefined;
     } else if (!liveStatusInterval) {
-      void fetchLiveStatus();
+      if (inFlight) resumePending = true;
+      else {
+        resumePending = false;
+        void fetchLiveStatus();
+      }
       liveStatusInterval = setInterval(() => {
         void fetchLiveStatus();
       }, 30000);

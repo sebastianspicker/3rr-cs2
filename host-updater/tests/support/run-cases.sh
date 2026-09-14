@@ -29,7 +29,10 @@ run_validation_test() {
     export STEAMCMD_APPINFO_EXIT="0"
     export STEAMCMD_UPDATE_BUILDID="100"
     export STEAMCMD_TIMEOUT_SECS="1800"
+    export SYSTEMCTL_TIMEOUT_SECS="90"
     export TIMEOUT_FORCE_APP_UPDATE="0"
+    export TIMEOUT_FORCE_SYSTEMCTL_ACTION=""
+    export TIMEOUT_CALLS_FILE="$tmpdir/timeout.calls"
     export STEAMCMD_CALLS_FILE="$tmpdir/steamcmd.calls"
     export STEAMCMD_FD_PROBE_FILE=""
     export SYSTEMCTL_CALLS_FILE="$tmpdir/systemctl.calls"
@@ -41,7 +44,7 @@ run_validation_test() {
     export SYSTEMCTL_START_EXIT="0"
     export SYSTEMCTL_START_STATE="active"
     unset_removed_config_env
-    rm -rf "$tmpdir/cs2" "$tmpdir/lock" "$tmpdir/log" "$tmpdir/systemctl.calls" "$tmpdir/systemctl.state" "$tmpdir/steamcmd.calls" "$tmpdir/events"
+    rm -rf "$tmpdir/cs2" "$tmpdir/lock" "$tmpdir/log" "$tmpdir/systemctl.calls" "$tmpdir/systemctl.state" "$tmpdir/steamcmd.calls" "$tmpdir/timeout.calls" "$tmpdir/events"
     setup_cs2_dir "100"
     echo "active" > "$SYSTEMCTL_STATE_FILE"
     for pair in "$@"; do
@@ -68,7 +71,7 @@ run_case() {
 
     echo "==> $name"
 
-    rm -rf "$tmpdir/cs2" "$tmpdir/lock" "$tmpdir/log" "$tmpdir/systemctl.calls" "$tmpdir/systemctl.state" "$tmpdir/steamcmd.calls" "$tmpdir/events"
+    rm -rf "$tmpdir/cs2" "$tmpdir/lock" "$tmpdir/log" "$tmpdir/systemctl.calls" "$tmpdir/systemctl.state" "$tmpdir/steamcmd.calls" "$tmpdir/timeout.calls" "$tmpdir/events"
     setup_cs2_dir "$local_build"
 
     export LOCKDIR="$tmpdir/lock"
@@ -89,7 +92,10 @@ run_case() {
     export STEAMCMD_APPINFO_EXIT="0"
     export STEAMCMD_UPDATE_BUILDID="$remote_build"
     export STEAMCMD_TIMEOUT_SECS="1800"
+    export SYSTEMCTL_TIMEOUT_SECS="90"
     export TIMEOUT_FORCE_APP_UPDATE="0"
+    export TIMEOUT_FORCE_SYSTEMCTL_ACTION=""
+    export TIMEOUT_CALLS_FILE="$tmpdir/timeout.calls"
     if [ "$name" = "update-timeout" ]; then
         export TIMEOUT_FORCE_APP_UPDATE="1"
     fi
@@ -110,6 +116,9 @@ run_case() {
     if [ "$name" = "stop-partial-failure" ]; then
         export SYSTEMCTL_STOP_EXIT="1"
         export SYSTEMCTL_STOP_CHANGES_STATE="1"
+    fi
+    if [ "$name" = "stop-timeout-after-state-change" ]; then
+        export TIMEOUT_FORCE_SYSTEMCTL_ACTION="stop"
     fi
     if [ "$name" = "signal-during-stop" ]; then
         export SYSTEMCTL_SIGNAL_DURING_STOP="TERM"
@@ -155,6 +164,8 @@ run_case() {
             assert_contains "stop" "$calls"
             assert_contains "start" "$calls"
             assert_ordered_events "buildid read" "steamcmd app_info_print" "systemctl stop" "steamcmd app_update" "buildid read" "systemctl start" "systemctl is-active"
+            [ "$(grep -c -- '--kill-after=10 1800 .*tests/bin/steamcmd' "$TIMEOUT_CALLS_FILE")" -eq 2 ] || fail "both SteamCMD calls must use the configured GNU timeout"
+            [ "$(grep -c -- '--kill-after=10 90 systemctl' "$TIMEOUT_CALLS_FILE")" -eq 4 ] || fail "every service operation and status check must use the configured GNU timeout"
             ;;
         "update-failed")
             [ "$rc" -ne 0 ] || fail "expected non-zero rc, got $rc"
@@ -178,6 +189,14 @@ run_case() {
             assert_ordered_events "systemctl is-active" "systemctl stop" "systemctl start" "systemctl is-active"
             assert_no_event "steamcmd app_update"
             [ "$(grep -c '^start$' "$SYSTEMCTL_CALLS_FILE")" -eq 1 ] || fail "partial stop failure must restore the service exactly once"
+            ;;
+        "stop-timeout-after-state-change")
+            [ "$rc" -ne 0 ] || fail "expected timed-out stop to fail"
+            assert_contains "Failed to stop $SERVICE_NAME" "$stdout"
+            assert_contains "active" "$(cat "$SYSTEMCTL_STATE_FILE")"
+            assert_ordered_events "systemctl is-active" "systemctl stop" "systemctl start" "systemctl is-active"
+            assert_no_event "steamcmd app_update"
+            [ "$(grep -c '^start$' "$SYSTEMCTL_CALLS_FILE")" -eq 1 ] || fail "timed-out stop must restore the service exactly once"
             ;;
         "signal-during-stop")
             [ "$rc" -eq 143 ] || fail "expected SIGTERM exit 143, got $rc"
@@ -238,7 +257,7 @@ run_with_args_case() {
 
     echo "==> $name"
 
-    rm -rf "$tmpdir/cs2" "$tmpdir/lock" "$tmpdir/log" "$tmpdir/systemctl.calls" "$tmpdir/systemctl.state" "$tmpdir/events"
+    rm -rf "$tmpdir/cs2" "$tmpdir/lock" "$tmpdir/log" "$tmpdir/systemctl.calls" "$tmpdir/systemctl.state" "$tmpdir/timeout.calls" "$tmpdir/events"
     setup_cs2_dir "100"
 
     export LOCKDIR="$tmpdir/lock"
@@ -258,7 +277,10 @@ run_with_args_case() {
     export STEAMCMD_APPINFO_EXIT="0"
     export STEAMCMD_UPDATE_BUILDID="200"
     export STEAMCMD_TIMEOUT_SECS="1800"
+    export SYSTEMCTL_TIMEOUT_SECS="90"
     export TIMEOUT_FORCE_APP_UPDATE="0"
+    export TIMEOUT_FORCE_SYSTEMCTL_ACTION=""
+    export TIMEOUT_CALLS_FILE="$tmpdir/timeout.calls"
     export STEAMCMD_CALLS_FILE="$tmpdir/steamcmd.calls"
     export STEAMCMD_FD_PROBE_FILE=""
     export SYSTEMCTL_CALLS_FILE="$tmpdir/systemctl.calls"
@@ -290,7 +312,7 @@ run_lock_case() {
 
     echo "==> $name"
 
-    rm -rf "$tmpdir/cs2" "$tmpdir/lock" "$tmpdir/log" "$tmpdir/systemctl.calls" "$tmpdir/systemctl.state" "$tmpdir/events"
+    rm -rf "$tmpdir/cs2" "$tmpdir/lock" "$tmpdir/log" "$tmpdir/systemctl.calls" "$tmpdir/systemctl.state" "$tmpdir/timeout.calls" "$tmpdir/events"
     setup_cs2_dir "100"
 
     export LOCKDIR="$tmpdir/lock"
@@ -310,7 +332,10 @@ run_lock_case() {
     export STEAMCMD_APPINFO_EXIT="0"
     export STEAMCMD_UPDATE_BUILDID="100"
     export STEAMCMD_TIMEOUT_SECS="1800"
+    export SYSTEMCTL_TIMEOUT_SECS="90"
     export TIMEOUT_FORCE_APP_UPDATE="0"
+    export TIMEOUT_FORCE_SYSTEMCTL_ACTION=""
+    export TIMEOUT_CALLS_FILE="$tmpdir/timeout.calls"
     export STEAMCMD_FD_PROBE_FILE=""
     export STEAMCMD_CALLS_FILE="$tmpdir/steamcmd.calls"
     export SYSTEMCTL_CALLS_FILE="$tmpdir/systemctl.calls"
