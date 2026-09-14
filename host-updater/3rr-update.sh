@@ -51,6 +51,7 @@ while [ $# -gt 0 ]; do
             echo "  MAX_ATTEMPTS         Retries for stop/start      [5]"
             echo "  SLEEP_SECS           Seconds between retries     [5]"
             echo "  STEAMCMD_TIMEOUT_SECS Max seconds per SteamCMD run [1800]"
+            echo "  SYSTEMCTL_TIMEOUT_SECS Max seconds per systemctl call [90]"
             echo "  LOG_LEVEL            quiet or normal             [normal]"
             echo ""
             echo "Examples:"
@@ -126,6 +127,7 @@ REQUIRED_SPACE="${REQUIRED_SPACE:-5000000}" # in KB (e.g., ~5GB)
 MAX_ATTEMPTS="${MAX_ATTEMPTS:-5}"
 SLEEP_SECS="${SLEEP_SECS:-5}"
 STEAMCMD_TIMEOUT_SECS="${STEAMCMD_TIMEOUT_SECS:-1800}"
+SYSTEMCTL_TIMEOUT_SECS="${SYSTEMCTL_TIMEOUT_SECS:-90}"
 
 # Testing helper: set to 1 to allow running as non-root (runs SteamCMD as the current user).
 ALLOW_NONROOT="${ALLOW_NONROOT:-0}"
@@ -133,8 +135,8 @@ NO_SLEEP="${NO_SLEEP:-0}"
 # quiet = only ERROR/WARNING; normal = all
 LOG_LEVEL="${LOG_LEVEL:-normal}"
 # Single source of truth for operator config-file keys and trimming.
-CONFIG_AND_TRIM_VARS="LOCKDIR LOGFILE CS2_DIR SERVICE_NAME STEAMCMD CS2_APP_ID REQUIRED_SPACE MAX_ATTEMPTS SLEEP_SECS STEAMCMD_TIMEOUT_SECS LOG_LEVEL DRY_RUN"
-CRITICAL_CONFIG_VARS="LOCKDIR LOGFILE CS2_DIR SERVICE_NAME STEAMCMD CS2_APP_ID REQUIRED_SPACE MAX_ATTEMPTS SLEEP_SECS STEAMCMD_TIMEOUT_SECS"
+CONFIG_AND_TRIM_VARS="LOCKDIR LOGFILE CS2_DIR SERVICE_NAME STEAMCMD CS2_APP_ID REQUIRED_SPACE MAX_ATTEMPTS SLEEP_SECS STEAMCMD_TIMEOUT_SECS SYSTEMCTL_TIMEOUT_SECS LOG_LEVEL DRY_RUN"
+CRITICAL_CONFIG_VARS="LOCKDIR LOGFILE CS2_DIR SERVICE_NAME STEAMCMD CS2_APP_ID REQUIRED_SPACE MAX_ATTEMPTS SLEEP_SECS STEAMCMD_TIMEOUT_SECS SYSTEMCTL_TIMEOUT_SECS"
 # Keep old keys visible to operators after feature removal. Warning is safer
 # than silently ignoring a config file copied from an older deployment.
 REMOVED_CONFIG_VARS="NOTIFY_WEBHOOK_URL NOTIFY_PLAYERS_MESSAGE RCON_CLI RCON_HOST RCON_PORT RCON_PASSWORD"
@@ -209,6 +211,7 @@ require_cmd awk
 require_cmd df
 require_cmd ps
 require_cmd timeout
+require_gnu_timeout
 
 if [ ! -x "$STEAMCMD" ]; then
     exit_with_error "SteamCMD not found or not executable at '$STEAMCMD'. Install it (apt install steamcmd) or set STEAMCMD=/path/to/steamcmd in your config."

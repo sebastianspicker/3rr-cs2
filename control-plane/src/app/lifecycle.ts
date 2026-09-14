@@ -40,7 +40,7 @@ async function closeRconConnections(rcon: RconManager): Promise<void> {
 }
 
 async function connectRedis(redisClient: RedisClient): Promise<void> {
-  if (!redisClient) return;
+  if (!redisClient || redisClient.isReady) return;
   try {
     await redisClient.connect();
   } catch (err) {

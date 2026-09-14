@@ -1,13 +1,12 @@
 
-        <!-- Quick Commands -->
-        <details class="panel advanced-panel match-panel" open>
-          <summary class="panel-header">
-            <h2 aria-label="Quick Commands"><span aria-hidden="true">Match controls</span></h2>
-          </summary>
+<section class="panel surface match-panel" aria-labelledby="match-controls-heading">
+          <div class="panel-header">
+            <h2 id="match-controls-heading" aria-label="Quick Commands">Match controls</h2>
+          </div>
 
           <div class="btn-grid cols-3 match-primary-grid">
-            <button id="pause_game"     class="btn btn-info">Pause</button>
-            <button id="unpause_game"   class="btn btn-success">Unpause</button>
+            <button id="pause_game"     class="btn btn-secondary">Pause</button>
+            <button id="unpause_game"   class="btn btn-secondary">Unpause</button>
             <button id="start_warmup"   class="btn btn-secondary">Warmup</button>
           </div>
           <button id="matchzy_match" class="btn btn-primary w-100 mt-sm">Start match</button>
@@ -18,12 +17,12 @@
             <div class="btn-grid cols-3">
               <button id="add_bot" class="btn btn-secondary">Add Bot</button>
               <button id="kill_bots" class="btn btn-secondary">Kill Bots</button>
-              <button id="kick_all_bots" class="btn btn-warning">Kick All</button>
+              <button id="kick_all_bots" class="btn btn-danger-outline">Kick All</button>
             </div>
 
             <div class="section-label">Match control</div>
             <div class="btn-grid cols-3">
-              <button id="scramble_teams" class="btn btn-warning">Scramble</button>
+              <button id="scramble_teams" class="btn btn-secondary">Scramble</button>
               <button id="knife_start" class="btn btn-secondary">Knife</button>
               <button id="swap_team" class="btn btn-secondary">Swap</button>
               <button id="matchzy_abort" class="btn btn-danger">Abort Match</button>
@@ -63,5 +62,4 @@
               <button id="restore_round_cancel" class="btn btn-secondary" aria-label="Cancel round restore">✕</button>
             </div>
           </details>
-        </details>
-
+</section>

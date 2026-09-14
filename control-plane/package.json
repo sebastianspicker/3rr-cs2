@@ -22,9 +22,11 @@
     "format": "prettier -w .",
     "format:check": "prettier -c .",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.client.json",
-    "test": "npm run clean && npm run build:web && tsc && node --experimental-test-module-mocks --test --test-timeout 120000 dist/test/unit/*.test.js dist/test/integration/*.test.js dist/test/contract/*.test.js",
-    "check": "npm run format:check && npm run lint && npm run check:architecture && npm run test:architecture && npm run typecheck && npm test && npm run build",
-    "ci": "npm run check && npm run validate -- --require-docker"
+    "test": "npm run build && npm run test:compiled && npm run test:browser",
+    "check": "npm run format:check && npm run lint && npm run check:architecture && npm run test:architecture && tsc --noEmit -p tsconfig.client.json && npm run build && npm run test:compiled && npm run test:browser",
+    "ci": "npm run check && npm run validate -- --require-docker",
+    "test:compiled": "node --experimental-test-module-mocks --test --test-timeout 120000 dist/test/unit/*.test.js dist/test/integration/*.test.js dist/test/contract/*.test.js",
+    "test:browser": "playwright test"
   },
   "keywords": [],
   "author": "",
@@ -44,13 +46,15 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@fontsource-variable/inter": "^5.3.0",
     "@fontsource-variable/jetbrains-mono": "^5.2.8",
     "@fontsource-variable/syne": "^5.2.7",
+    "@playwright/test": "1.63.0",
     "@types/bcrypt": "^6.0.0",
     "@types/better-sqlite3": "^7.6.13",
     "@types/express": "^5.0.6",
     "@types/express-session": "^1.18.2",
-    "@types/node": "^25.5.0",
+    "@types/node": "22.20.1",
     "esbuild": "^0.28.1",
     "eslint": "^10.1.0",
     "globals": "^17.4.0",

@@ -1,29 +1,33 @@
-# API Reference
+# API reference
 
-The public endpoints are `GET /` for the login page, `POST /auth/login`, and
-`GET /api/health`. All other page and API endpoints require authentication via
-a session cookie. State-changing authenticated requests require a CSRF token in
-the `X-CSRF-Token` header.
+Three endpoints are public: `GET /` serves the login page, `POST /auth/login`
+creates a session, and `GET /api/health` reports health. Every other page and
+API endpoint requires a session cookie. Authenticated requests that change
+state must also send a CSRF token in the `X-CSRF-Token` header.
 
-## Authentication Flow
+## Authentication flow
 
-1. `GET /` - renders login page, sets session cookie and CSRF token
-2. `POST /auth/login` - authenticate with username/password and the login page CSRF token
-3. Use session cookie + CSRF token for all subsequent requests
-4. `POST /auth/logout` - destroy session
+1. Request `GET /` to render the login page and receive a session cookie and
+   CSRF token.
+2. Send the username, password, and login-page CSRF token to
+   `POST /auth/login`.
+3. Include the session cookie on later requests and the CSRF token on requests
+   that change state.
+4. Send `POST /auth/logout` to destroy the session.
 
-Protected requests revalidate the session user against SQLite. Deleted users are
-rejected, and admin-only routes use the current stored admin flag rather than a
-stale session copy.
+On each protected request, the application reloads the session user from
+SQLite. A deleted user cannot continue using an old session, and admin routes
+use the current stored admin flag rather than the value present when the user
+signed in.
 
-## Auth
+## Authentication
 
 | Method | Path           | Auth | CSRF | Rate Limit |
 | ------ | -------------- | ---- | ---- | ---------- |
-| POST   | `/auth/login`  | No   | Yes  | 20/15min   |
+| POST   | `/auth/login`  | No   | Yes  | 20/15 min  |
 | POST   | `/auth/logout` | Yes  | Yes  | -          |
 
-## Server Management
+## Server management
 
 | Method | Path                    | Auth | CSRF | Description                              |
 | ------ | ----------------------- | ---- | ---- | ---------------------------------------- |
@@ -35,30 +39,33 @@ stale session copy.
 | POST   | `/api/delete-server`    | Yes  | Yes  | Delete server by server_id               |
 | POST   | `/api/reconnect-server` | Yes  | Yes  | Reconnect RCON for server_id             |
 
-`/api/add-server` first probes the supplied RCON credentials. If credentials
-probe successfully but the panel cannot establish an authenticated managed RCON
-connection after saving the server, it returns `502` with an error instead of a
-success response. `/api/reconnect-server` also returns `502` when no
-authenticated RCON connection exists after the reconnect attempt.
-If a stored encrypted RCON credential cannot be decrypted, reconnect and command
-paths report a local credential storage error with `credential_error` instead of
-claiming the remote server rejected authentication.
+`/api/add-server` tests the supplied RCON credentials before saving the server.
+If that test succeeds but the control plane cannot establish an authenticated,
+managed RCON connection after saving, the endpoint returns `502` with an error.
+`/api/reconnect-server` also returns `502` if the reconnect attempt does not
+produce an authenticated connection.
 
-`/api/servers` treats `status` as the canonical RCON status field:
+When the application cannot decrypt a stored RCON credential, reconnect and
+command endpoints return a local credential-storage error with
+`credential_error`. They do not report the problem as a rejection by the
+remote server.
+
+Use the `status` field from `/api/servers` to read RCON state:
 `connected`, `disconnected`, `unknown`, or `error`. Each row also includes
 `observed_at`, `status_source`, `timed_out`, and `error` so callers can separate
 unobserved, slow, and failed hostname probes from confirmed disconnection. The
 legacy `connected` and `authenticated` booleans remain for compatibility and
-must not be used alone to distinguish unknown from disconnected.
+cannot distinguish an unknown state from a confirmed disconnection on their
+own.
 
-`/api/delete-server` removes the caller's access first. If no users retain
-access, it deletes the server row and returns `server_deleted: true` with
+`/api/delete-server` first removes the caller's access. If no other user has
+access, it also deletes the server row and returns `server_deleted: true` with
 `rcon_cleanup: "completed"`. Shared-server access removal returns
 `server_deleted: false` and `rcon_cleanup: "not_needed"`. If the row is deleted
-but RCON cleanup fails, the response is non-2xx and includes
+but RCON cleanup fails, the endpoint returns a non-2xx response with
 `rcon_cleanup: "failed"`.
 
-## Game Setup
+## Game setup
 
 | Method | Path                                          | Auth | CSRF | Description                               |
 | ------ | --------------------------------------------- | ---- | ---- | ----------------------------------------- |
@@ -66,11 +73,12 @@ but RCON cleanup fails, the response is non-2xx and includes
 | GET    | `/api/game-types/:type/game-modes`            | Yes  | -    | List game modes for type                  |
 | GET    | `/api/game-types/:type/game-modes/:mode/maps` | Yes  | -    | List maps for mode                        |
 
-`POST /api/setup-game` records the last requested setup selection for the manage
-page. It does not claim the live server map or mode was observed. Success
-includes `setup_state: "requested"`, `observed: false`, and `requested_setup`.
+`POST /api/setup-game` stores the most recent setup requested from the manage
+page. This records what the operator asked for; it does not confirm the live
+map or game mode. A successful response includes
+`setup_state: "requested"`, `observed: false`, and `requested_setup`.
 
-## Match Control
+## Match control
 
 | Method | Path                  | Auth | CSRF | Description       |
 | ------ | --------------------- | ---- | ---- | ----------------- |
@@ -82,7 +90,7 @@ includes `setup_state: "requested"`, `observed: false`, and `requested_setup`.
 | POST   | `/api/swap-team`      | Yes  | Yes  | Swap teams        |
 | POST   | `/api/scramble-teams` | Yes  | Yes  | Scramble teams    |
 
-## Bot Control
+## Bot control
 
 | Method | Path                  | Auth | CSRF | Description              |
 | ------ | --------------------- | ---- | ---- | ------------------------ |
@@ -95,7 +103,7 @@ includes `setup_state: "requested"`, `observed: false`, and `requested_setup`.
 | POST   | `/api/bot-kick-t`     | Yes  | Yes  | Kick T bots              |
 | POST   | `/api/bot-difficulty` | Yes  | Yes  | Set bot difficulty (0-3) |
 
-## Game Settings
+## Game settings
 
 | Method | Path                             | Auth | CSRF | Description                                |
 | ------ | -------------------------------- | ---- | ---- | ------------------------------------------ |
@@ -119,15 +127,15 @@ includes `setup_state: "requested"`, `observed: false`, and `requested_setup`.
 | POST   | `/api/set-overtime`              | Yes  | Yes  | Configure overtime enable + rounds (3/5/6) |
 | POST   | `/api/give-weapon`               | Yes  | Yes  | Give utility weapon to all players         |
 
-Multi-command controls execute their RCON commands in order. If a later command
-fails after earlier commands were sent, the response is `500` with
+Controls that send several RCON commands run them in order. If a later command
+fails after earlier commands have been sent, the response is `500` with
 `partial: true`, `applied_commands`, `failed_command`, and
-`failed_command_index` so callers know the server may be partially updated.
+`failed_command_index`, indicating that the server may be partially updated.
 Numeric preset fields such as `value` and `ot_rounds` accept JSON integers or
 string integers only; malformed strings like `5abc` or `5.5` are rejected with
 `400`.
 
-## Practice Controls
+## Practice controls
 
 | Method | Path                        | Auth | CSRF | Description                               |
 | ------ | --------------------------- | ---- | ---- | ----------------------------------------- |
@@ -137,7 +145,7 @@ string integers only; malformed strings like `5abc` or `5.5` are rejected with
 | POST   | `/api/rtd-toggle`           | Yes  | Yes  | Toggle Roll the Dice plugin (cfg-based)   |
 | POST   | `/api/rtd-force-roll`       | Yes  | Yes  | Force a dice roll for all players         |
 
-## Map & Workshop
+## Maps and Workshop
 
 | Method | Path                       | Auth | CSRF | Description                                      |
 | ------ | -------------------------- | ---- | ---- | ------------------------------------------------ |
@@ -145,7 +153,7 @@ string integers only; malformed strings like `5abc` or `5.5` are rejected with
 | POST   | `/api/workshop-collection` | Yes  | Yes  | Load a Workshop collection by ID (5–20 digit id) |
 | POST   | `/api/set-mapgroup`        | Yes  | Yes  | Set active map group by id (from maps.json)      |
 
-## Player Management
+## Player management
 
 | Method | Path                 | Auth | CSRF | Body field | Description                                |
 | ------ | -------------------- | ---- | ---- | ---------- | ------------------------------------------ |
@@ -174,12 +182,13 @@ string integers only; malformed strings like `5abc` or `5.5` are rejected with
 | POST   | `/api/restore-round`         | Yes  | Yes  | Restore specific round (1-99) |
 | POST   | `/api/restore-latest-backup` | Yes  | Yes  | Restore latest backup         |
 
-Backup endpoints include `backup_state` when the server response can be
-classified. Empty, malformed, or unsafe latest-backup responses return non-2xx
-with `backup_state: "unknown"`, `"malformed_response"`, or
-`"unsafe_filename"` instead of claiming no backup exists.
+Backup endpoints include `backup_state` when they can classify the server's
+response. An empty, malformed, or unsafe response to the latest-backup request
+returns a non-2xx status and sets `backup_state` to `"unknown"`,
+`"malformed_response"`, or `"unsafe_filename"`. It is not reported as an empty
+backup list.
 
-## RCON & Chat
+## RCON and chat
 
 | Method | Path                           | Auth | CSRF | Description                        |
 | ------ | ------------------------------ | ---- | ---- | ---------------------------------- |
@@ -188,21 +197,21 @@ with `backup_state: "unknown"`, `"malformed_response"`, or
 | GET    | `/api/rcon/history/:server_id` | Yes  | -    | List sent RCON commands            |
 | DELETE | `/api/rcon/history/:server_id` | Yes  | Yes  | Clear sent RCON command history    |
 
-`/api/rcon` separates command dispatch from command-history persistence. A
-successful dispatch returns `command_sent: true`; `history_recorded: false` and
-`partial: true` mean the RCON command was sent but the post-command history write
-failed.
+`/api/rcon` reports command delivery separately from the history write. A
+successfully dispatched command returns `command_sent: true`. If the command
+was sent but its history entry could not be saved, the response also contains
+`history_recorded: false` and `partial: true`.
 
-The free-form console is not an allowlist. It accepts one printable ASCII
-command up to the protocol length limit, rejects command separators, and blocks
-specific command verbs that can alter process, credential, logging, plugin, or
-RCON configuration.
+The free-form console accepts one printable ASCII command up to the protocol
+length limit. It rejects command separators and blocks command verbs that can
+change process, credential, logging, plugin, or RCON configuration. This policy
+blocks dangerous commands rather than allowing only a fixed command list.
 
-RCON history is sent-command history, not proof that commands changed server
-state. History list failures return `history_state: "unavailable"` instead of
-being treated as an empty history.
+RCON history records commands that were sent; it does not prove that they
+changed server state. If history cannot be read, the endpoint returns
+`history_state: "unavailable"` rather than an empty list.
 
-## Operator Data
+## Operator data
 
 | Method | Path                                              | Auth | CSRF | Description                                  |
 | ------ | ------------------------------------------------- | ---- | ---- | -------------------------------------------- |
@@ -213,27 +222,28 @@ being treated as an empty history.
 | PATCH  | `/api/workshop-favorites/:server_id/:favorite_id` | Yes  | Yes  | Update a saved favorite                      |
 | DELETE | `/api/workshop-favorites/:server_id/:favorite_id` | Yes  | Yes  | Delete a saved favorite                      |
 
-`/api/players/:server_id` can return partial observations. It includes null
-unknown counts and an `error` field when either `users` or `status` is
-unavailable. Autocomplete accepts optional `q`, `limit`, and `refresh` query
-parameters; results include `cached`, `observed_at`, and an `error` field when
-one of its RCON sources is unavailable. A duplicate Workshop ID on a favorite
-update returns `409`.
+`/api/players/:server_id` may return partial observations. Unknown counts stay
+`null`, and the response includes an `error` field if either `users` or
+`status` is unavailable. The autocomplete endpoint accepts optional `q`,
+`limit`, and `refresh` query parameters. Its response includes `cached`,
+`observed_at`, and an `error` field when an RCON source is unavailable. Updating
+a favorite to a Workshop ID that already exists returns `409`.
 
-## Status & Health
+## Status and health
 
 | Method | Path                     | Auth | CSRF | Rate Limit | Description                                                                                                                                                                                  |
 | ------ | ------------------------ | ---- | ---- | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | GET    | `/api/status/:server_id` | Yes  | -    | 60/min     | Live server status                                                                                                                                                                           |
 | GET    | `/api/health`            | No   | -    | -          | Health check for load balancers; minimal payload includes liveness `ok` and readiness `ready`; includes DB/Redis/RCON details when `HEALTHCHECK_VERBOSE=true` or the caller is authenticated |
 
-`/api/status/:server_id` reports RCON connection/authentication separately from
-status data completeness. A response with some successful RCON observations and
-some failed observations has `partial: true`, `complete: false`, null unknown
-counts, and an `error` string naming unavailable observations. Unknown player
-counts remain `null`; clients must not coerce them to zero.
+`/api/status/:server_id` reports RCON connection and authentication separately
+from the completeness of the status data. When some RCON observations succeed
+and others fail, the response has `partial: true`, `complete: false`, `null` for
+unknown counts, and an `error` string that names the unavailable observations.
+Clients must preserve unknown player counts as `null` rather than converting
+them to zero.
 
-## User Management
+## User management
 
 | Method | Path                         | Auth | Admin | CSRF | Description                                         |
 | ------ | ---------------------------- | ---- | ----- | ---- | --------------------------------------------------- |
@@ -242,34 +252,69 @@ counts remain `null`; clients must not coerce them to zero.
 | GET    | `/api/users/list`            | Yes  | Yes   | -    | JSON list of all users (id, username, is_admin)     |
 | POST   | `/api/users/change-password` | Yes  | No    | Yes  | Change own password (currentPassword, newPassword)  |
 | POST   | `/api/users/add`             | Yes  | Yes   | Yes  | Create user (username, password, optional serverId) |
-| POST   | `/api/users/delete`          | Yes  | Yes   | Yes  | Delete user by id - cannot delete own account       |
+| POST   | `/api/users/delete`          | Yes  | Yes   | Yes  | Delete user by id; cannot delete own account        |
 
-`/api/users/delete` also removes servers that were accessible only to the
-deleted user; shared servers remain available to their other users. Successful
-responses include `user_deleted: true`, `deleted_server_ids`, and
+`/api/users/delete` also deletes servers that only the deleted user could
+access. Servers shared with other users remain available. A successful response
+includes `user_deleted: true`, `deleted_server_ids`, and
 `rcon_cleanup: "completed" | "not_needed"`. If database deletion commits but
 RCON cleanup fails, the response is non-2xx and includes
 `rcon_cleanup: "failed"` and `failed_server_ids`.
 
-## Common Response Formats
+## Common response formats
 
-Success response: `{ "message": "..." }` with HTTP 200/201
+Response bodies vary by endpoint. Successful state changes generally include a
+`message` and may include the fields described in the relevant section above.
+Creation endpoints use HTTP `201` where applicable; other successful endpoints
+use `200`.
 
-Error response: `{ "error": "..." }` with HTTP 400/401/403/404/409/429/500/502/503
+Error responses include `error` and may include details about the failed
+operation. These endpoints use HTTP `400`, `401`, `403`, `404`, `409`, `429`, `500`,
+`502`, `503`, or `504` depending on the failure.
 
 Login attempts are limited to 20 per 15 minutes. API requests are limited to
 60 per minute, and RCON console requests have an additional 15-per-minute
 limit. Limited requests return `429`. `/api/health` returns `503` when SQLite
 or configured Redis is unhealthy.
 
-Auth routes use the same `{ "message": "..." }` success shape as other success
-responses.
+Authentication endpoints use the same `{ "message": "..." }` success shape as
+other endpoints.
 
-## Request Body Format
+## Request body format
 
-All POST requests accept JSON (`Content-Type: application/json`).
+API POST requests accept JSON (`Content-Type: application/json`). The
+application also parses URL-encoded form bodies for browser form routes.
 
 Common fields:
 
-- `server_id` (string/number) - required for all game/server operations
-- `value` (number) - for toggle and preset routes (0/1 or allowlisted values)
+- `server_id` (string or number): required for game and server operations
+- `value` (integer or decimal integer string): used by toggle and preset routes
+  with route-specific allowed values
+
+## Observation caching and command outcomes
+
+`GET /api/servers`, `GET /api/status/:server_id`, and
+`GET /api/players/:server_id` reuse successful RCON observations for five
+seconds. `refresh=1` skips completed cache entries but joins matching work that
+is already in progress. `GET /api/servers?observe=0` returns the stored server
+list and connection state without sending RCON commands; the navigation rail
+uses this form. The application checks access before reading an observation.
+
+`observed_at` is the time of the original observation, even when the value came
+from the cache. A response assembled from several observations reports the
+oldest successful observation time. Partial responses keep their usual fields
+and HTTP success status, with unavailable values left unknown.
+
+Ordinary RCON work enters a FIFO queue with fixed capacity. A full queue returns HTTP `503`,
+and exhausting the total execution deadline returns HTTP `504`. Error responses
+add `code` and `outcome`: `not_sent` means the failed command was never
+dispatched, while `unknown` means it was dispatched but the result could not be
+confirmed.
+
+Investigate an unknown mutation outcome before sending another command.
+Cancelling a request cannot undo a command that has already been dispatched,
+and the application does not retransmit commands automatically. A failed
+multi-command sequence retains `partial`, `applied_commands`,
+`failed_command`, `failed_command_index`, and `failure_reason`; the outcome field
+describes the failed command, while earlier commands remain applied. One
+deadline covers the entire HTTP action, including every command in a sequence.

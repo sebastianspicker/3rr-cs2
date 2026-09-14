@@ -1,12 +1,14 @@
-        <details class="panel advanced-panel">
-          <summary class="panel-header">
-            <h2>Practice Controls</h2>
-          </summary>
+<section class="panel surface practice-panel" aria-labelledby="practice-controls-heading">
+          <div class="panel-header">
+            <h2 id="practice-controls-heading">Practice controls</h2>
+          </div>
 
-          <div class="section-label">MatchZy</div>
+          <div class="practice-groups">
+            <div class="practice-group">
+              <div class="section-label">MatchZy</div>
           <div class="btn-grid cols-3">
-            <button id="matchzy_practice" class="btn btn-info">Practice Mode</button>
-            <button id="matchzy_exitprac" class="btn btn-warning">Exit Practice</button>
+            <button id="matchzy_practice" class="btn btn-primary">Practice Mode</button>
+            <button id="matchzy_exitprac" class="btn btn-secondary">Exit Practice</button>
             <button id="matchzy_playout"  class="btn btn-secondary">Force Playout</button>
           </div>
           <div class="input-row mt-sm">
@@ -15,7 +17,9 @@
           </div>
           <small class="text-muted mb-sm">File must exist on the server</small>
 
-          <div class="section-label">Server Settings</div>
+            </div>
+            <div class="practice-group">
+              <div class="section-label">Server Settings</div>
           <div class="btn-grid cols-2">
             <div class="btn-pair" role="group" aria-label="Cheats">
               <button id="cheats_on"  data-toggle-group="cheats" data-toggle-val="1" aria-pressed="false" class="btn btn-info">Cheats On</button>
@@ -44,7 +48,9 @@
             <button id="inf_ammo_2" class="btn btn-secondary">Nades</button>
           </div>
 
-          <div class="section-label">Game Modifiers</div>
+            </div>
+            <div class="practice-group">
+              <div class="section-label">Game Modifiers</div>
           <div class="btn-grid cols-2">
             <div class="btn-pair" role="group" aria-label="Random rounds">
               <button id="random_rounds_on"  data-toggle-group="random_rounds" data-toggle-val="1" aria-pressed="false" class="btn btn-info">Random Rounds On</button>
@@ -55,9 +61,11 @@
               <button id="rtd_off" data-toggle-group="rtd" data-toggle-val="0" aria-pressed="false" class="btn btn-outline-info">Off</button>
             </div>
           </div>
-          <button id="rtd_force_roll" class="btn btn-warning w-100 mt-sm">Force Roll (RTD)</button>
+          <button id="rtd_force_roll" class="btn btn-secondary w-100 mt-sm">Force Roll (RTD)</button>
 
-          <div class="section-label">Visibility</div>
+            </div>
+            <div class="practice-group">
+              <div class="section-label">Visibility</div>
           <div class="btn-grid cols-2">
             <div class="btn-pair" role="group" aria-label="Grenade trajectory">
               <button id="grenade_trail_on"  data-toggle-group="grenade_trail" data-toggle-val="1" aria-pressed="false" class="btn btn-info">Nade Trail On</button>
@@ -69,7 +77,9 @@
             </div>
           </div>
 
-          <div class="section-label">Timing &amp; Economy</div>
+            </div>
+            <div class="practice-group">
+              <div class="section-label">Timing &amp; Economy</div>
           <div class="btn-grid cols-5" id="freezetime-presets">
             <button id="freezetime_0"  class="btn btn-secondary">0s</button>
             <button id="freezetime_5"  class="btn btn-secondary">5s</button>
@@ -84,7 +94,9 @@
             <button id="startmoney_3200"  class="btn btn-secondary">$3200</button>
             <button id="startmoney_16000" class="btn btn-secondary">$16k</button>
           </div>
-          <div class="section-label">Buy Time</div>
+            </div>
+            <div class="practice-group">
+              <div class="section-label">Buy Time</div>
           <div class="btn-grid cols-5" id="buytime-presets">
             <button id="buytime_10"  class="btn btn-secondary">10s</button>
             <button id="buytime_15"  class="btn btn-secondary">15s</button>
@@ -93,7 +105,9 @@
             <button id="buytime_90"  class="btn btn-secondary">90s</button>
           </div>
 
-          <div class="section-label">Bot Difficulty</div>
+            </div>
+            <div class="practice-group">
+              <div class="section-label">Bot Difficulty</div>
           <div class="btn-grid cols-4" id="bot-difficulty-presets">
             <button id="bot_difficulty_0" class="btn btn-secondary">Easy</button>
             <button id="bot_difficulty_1" class="btn btn-secondary">Normal</button>
@@ -101,7 +115,9 @@
             <button id="bot_difficulty_3" class="btn btn-secondary">Expert</button>
           </div>
 
-          <div class="section-label">Round Time</div>
+            </div>
+            <div class="practice-group">
+              <div class="section-label">Round Time</div>
           <div class="btn-grid cols-4" id="roundtime-presets">
             <button id="roundtime_1"  class="btn btn-secondary">1 min</button>
             <button id="roundtime_2"  class="btn btn-secondary">2 min</button>
@@ -109,25 +125,31 @@
             <button id="roundtime_60" class="btn btn-secondary">Unlimited</button>
           </div>
 
-          <div class="section-label">Team Bots</div>
+            </div>
+            <div class="practice-group">
+              <div class="section-label">Team Bots</div>
           <div class="btn-grid cols-2">
             <div class="btn-pair" role="group" aria-label="Counter-Terrorist bots">
               <button id="bot_add_ct"  class="btn btn-secondary">+ CT Bot</button>
-              <button id="bot_kick_ct" class="btn btn-warning">Kick CT</button>
+              <button id="bot_kick_ct" class="btn btn-danger-outline">Kick CT</button>
             </div>
             <div class="btn-pair" role="group" aria-label="Terrorist bots">
               <button id="bot_add_t"  class="btn btn-secondary">+ T Bot</button>
-              <button id="bot_kick_t" class="btn btn-warning">Kick T</button>
+              <button id="bot_kick_t" class="btn btn-danger-outline">Kick T</button>
             </div>
           </div>
 
-          <div class="section-label">Movement</div>
+            </div>
+            <div class="practice-group">
+              <div class="section-label">Movement</div>
           <div class="btn-grid cols-2">
             <button id="noclip_btn"       class="btn btn-secondary">Noclip</button>
             <button id="rethrow_nade_btn" class="btn btn-secondary">Rethrow Nade</button>
           </div>
 
-          <div class="section-label">Give Nade Kit</div>
+            </div>
+            <div class="practice-group">
+              <div class="section-label">Give Nade Kit</div>
           <div class="btn-grid cols-3">
             <button id="give_flash"   class="btn btn-secondary">Flash</button>
             <button id="give_smoke"   class="btn btn-secondary">Smoke</button>
@@ -136,4 +158,6 @@
             <button id="give_decoy"   class="btn btn-secondary">Decoy</button>
             <button id="give_incen"   class="btn btn-secondary">Incendiary</button>
           </div>
-        </details>
+            </div>
+          </div>
+</section>

@@ -5,18 +5,24 @@ import logger from '../../infrastructure/logging';
 import {
   createAuthenticatedRconConnection,
   type AuthenticatedRconConnection,
+  waitBeforeSend,
 } from './rconConnection';
 import { RconCommandExecutor } from './rconCommandExecutor';
 import * as limits from './rconConstants';
 import { RconHeartbeatSupervisor } from './rconHeartbeat';
 import { initializeRconConnections } from './rconInitialization';
-import { positiveInt } from './rconProviders';
+import { RconObservationCache } from './rconObservationCache';
+import { positiveInt, validatedManagerOption } from './rconProviders';
 import { RconSocketRegistry } from './rconSocketRegistry';
 import {
   emptyInitSummary,
   type RconDisconnectResult,
+  type RconExecutionOptions,
   type RconInitSummary,
   type RconManagerOptions,
+  type RconObservation,
+  type RconObservationOptions,
+  type RconObservedCommand,
   type RconShutdownSummary,
   type ServerInfo,
   type ServerRecord,
@@ -26,11 +32,14 @@ export class RconConnectionLifecycle {
   private readonly sockets: RconSocketRegistry;
   private readonly heartbeat: RconHeartbeatSupervisor;
   private readonly commands: RconCommandExecutor;
+  private readonly observations: RconObservationCache;
   private readonly servers = new Map<string, ServerInfo>();
   private readonly reconnecting = new Map<string, Promise<boolean>>();
   private readonly removedServers = new Set<string>();
   private readonly authTimeoutMs: number;
+  private readonly startupConcurrency: number;
   readonly commandTimeoutMs: number;
+  readonly totalDeadlineMs: number;
   readonly readyPromise: Promise<void>;
   private initSummary: RconInitSummary = emptyInitSummary();
   private shuttingDown = false;
@@ -45,22 +54,58 @@ export class RconConnectionLifecycle {
       options.commandTimeoutMs ?? process.env.RCON_COMMAND_TIMEOUT_MS,
       2000
     );
+    this.totalDeadlineMs = validatedManagerOption(
+      'totalDeadlineMs',
+      options.totalDeadlineMs,
+      limits.DEFAULT_TOTAL_DEADLINE_MS
+    );
+    this.startupConcurrency = validatedManagerOption(
+      'startupConcurrency',
+      options.startupConcurrency,
+      limits.DEFAULT_STARTUP_CONCURRENCY
+    );
     this.sockets = new RconSocketRegistry(
       positiveInt(options.disconnectTimeoutMs, limits.RCON_DISCONNECT_TIMEOUT_MS),
-      positiveInt(options.forceDisconnectTimeoutMs, limits.RCON_FORCE_DISCONNECT_TIMEOUT_MS)
+      positiveInt(options.forceDisconnectTimeoutMs, limits.RCON_FORCE_DISCONNECT_TIMEOUT_MS),
+      (serverId) => this.observations?.invalidateServer(serverId)
     );
     this.commands = new RconCommandExecutor({
       sockets: this.sockets,
       commandTimeoutMs: this.commandTimeoutMs,
-      getConnection: (serverId) => this.getCommandConnection(serverId),
+      maxQueuedPerServer: validatedManagerOption(
+        'maxQueuedPerServer',
+        options.maxQueuedPerServer,
+        limits.DEFAULT_MAX_QUEUED_PER_SERVER
+      ),
+      maxQueuedGlobal: validatedManagerOption(
+        'maxQueuedGlobal',
+        options.maxQueuedGlobal,
+        limits.DEFAULT_MAX_QUEUED_GLOBAL
+      ),
+      getConnection: (serverId, executionOptions) =>
+        this.getCommandConnection(serverId, executionOptions),
+      invalidate: (serverId) => this.observations.invalidateServer(serverId),
     });
-    this.heartbeat = new RconHeartbeatSupervisor(this.sockets, this.commands.chains, {
+    this.observations = new RconObservationCache(
+      (serverId, command, deadlineAt, signal, markSent) =>
+        this.commands.execute(
+          serverId,
+          command,
+          { deadlineAt, signal, classification: 'observation' },
+          markSent
+        ),
+      () => this.createDeadline(),
+      limits.OBSERVATION_CACHE_TTL_MS
+    );
+    this.heartbeat = new RconHeartbeatSupervisor(this.sockets, this.commands, {
       intervalMs: positiveInt(options.heartbeatIntervalMs, limits.HEARTBEAT_INTERVAL_MS),
       maxIntervalMs: positiveInt(options.maxHeartbeatIntervalMs, limits.MAX_HEARTBEAT_INTERVAL_MS),
       timeoutMs: positiveInt(options.heartbeatTimeoutMs, limits.HEARTBEAT_TIMEOUT_MS),
       isRemoved: (serverId) => this.removedServers.has(serverId),
       isShuttingDown: () => this.shuttingDown,
-      reconnect: (serverId, server) => this.reconnect(serverId, server),
+      createDeadline: () => this.createDeadline(),
+      reconnect: (serverId, server, executionOptions) =>
+        this.reconnect(serverId, server, executionOptions),
     });
     this.readyPromise = this.init();
   }
@@ -76,6 +121,7 @@ export class RconConnectionLifecycle {
       hasConnection: (serverId) => this.sockets.has(serverId),
       rememberServer: (server) => this.rememberServer(server),
       connect: (serverId, server) => this.connect(serverId, server),
+      concurrency: this.startupConcurrency,
     });
   }
 
@@ -110,17 +156,54 @@ export class RconConnectionLifecycle {
     }
   }
 
-  executeCommand(serverId: string, command: string): Promise<string> {
-    return this.commands.execute(serverId, command);
+  createDeadline(): number {
+    return Date.now() + this.totalDeadlineMs;
+  }
+
+  executeCommand(
+    serverId: string,
+    command: string,
+    options: RconExecutionOptions = {}
+  ): Promise<string> {
+    const classification = options.classification ?? 'mutation';
+    return this.commands.execute(serverId, command, {
+      deadlineAt: this.executionDeadline(options.deadlineAt),
+      signal: options.signal,
+      classification,
+    });
+  }
+
+  observeCommand(
+    serverId: string,
+    command: RconObservedCommand,
+    options: RconObservationOptions = {}
+  ): Promise<RconObservation> {
+    return this.observations.observe(serverId, command, {
+      ...options,
+      deadlineAt:
+        options.deadlineAt === undefined ? undefined : this.executionDeadline(options.deadlineAt),
+    });
   }
 
   sendHeartbeat(serverId: string, server: ServerInfo): Promise<void> {
-    return this.heartbeat.send(serverId, server);
+    return this.heartbeat.send(serverId, server, this.createDeadline());
   }
 
-  async connect(serverId: string, server: ServerInfo): Promise<boolean> {
+  async connect(
+    serverId: string,
+    server: ServerInfo,
+    options: RconExecutionOptions = {}
+  ): Promise<boolean> {
     if (this.shouldAbortConnection(serverId)) return false;
-    if (!(await this.disconnectExistingConnection(serverId))) return false;
+    if (
+      !(await waitBeforeSend(
+        this.disconnectExistingConnection(serverId),
+        options.deadlineAt,
+        options.signal
+      ))
+    ) {
+      return false;
+    }
 
     // Fetch the password on every connection attempt; server state never caches secrets.
     const encryptedPassword = this.passwordProvider(server.id);
@@ -133,7 +216,8 @@ export class RconConnectionLifecycle {
     const connection = await this.createAuthenticatedConnection(
       serverId,
       server,
-      encryptedPassword
+      encryptedPassword,
+      options
     );
     return connection ? this.storeAuthenticatedConnection(serverId, server, connection) : false;
   }
@@ -156,6 +240,8 @@ export class RconConnectionLifecycle {
   async removeServer(serverId: string): Promise<RconDisconnectResult> {
     this.removedServers.add(serverId);
     this.servers.delete(serverId);
+    this.commands.cancelServer(serverId);
+    this.observations.invalidateServer(serverId);
     this.heartbeat.removeServer(serverId);
     const pendingConnections = this.sockets.pendingForServer(serverId);
     const [managedResult, ...pendingResults] = await Promise.all([
@@ -177,6 +263,8 @@ export class RconConnectionLifecycle {
   async shutdownAll(): Promise<RconShutdownSummary> {
     logger.info('[rcon] Shutting down all connections...');
     this.shuttingDown = true;
+    this.commands.shutdown();
+    this.observations.clear();
     this.heartbeat.stopAll();
     const pendingClosures = this.sockets
       .pendingEntries()
@@ -207,22 +295,27 @@ export class RconConnectionLifecycle {
     return serverInfo;
   }
 
-  private async reconnect(serverId: string, server: ServerInfo): Promise<boolean> {
+  private async reconnect(
+    serverId: string,
+    server: ServerInfo,
+    options: RconExecutionOptions = {}
+  ): Promise<boolean> {
     if (this.removedServers.has(serverId)) return false;
     const existing = this.reconnecting.get(serverId);
-    if (existing) return existing;
+    if (existing) return waitBeforeSend(existing, options.deadlineAt, options.signal);
     const reconnecting = (async () => {
       await this.disconnectRcon(serverId);
-      return this.connect(serverId, server);
+      return this.connect(serverId, server, options);
     })().finally(() => this.reconnecting.delete(serverId));
     this.reconnecting.set(serverId, reconnecting);
-    return reconnecting;
+    return waitBeforeSend(reconnecting, options.deadlineAt, options.signal);
   }
 
   private createAuthenticatedConnection(
     serverId: string,
     server: ServerInfo,
-    encryptedPassword: string
+    encryptedPassword: string,
+    options: RconExecutionOptions = {}
   ) {
     return createAuthenticatedRconConnection({
       serverId,
@@ -231,17 +324,22 @@ export class RconConnectionLifecycle {
       authTimeoutMs: this.authTimeoutMs,
       shouldAbort: () => this.shouldAbortConnection(serverId),
       trackPendingSocket: (connection) => this.sockets.trackPending(serverId, connection),
+      deadlineAt: options.deadlineAt,
+      signal: options.signal,
     });
   }
 
-  private async getCommandConnection(serverId: string): Promise<Rcon> {
-    await this.readyPromise;
+  private async getCommandConnection(
+    serverId: string,
+    options: RconExecutionOptions
+  ): Promise<Rcon> {
+    await waitBeforeSend(this.readyPromise, options.deadlineAt, options.signal);
     this.throwIfRemoved(serverId);
     const server = this.getKnownServer(serverId);
     let connection = this.sockets.get(serverId);
     if (!this.isUsableConnection(connection)) {
       logger.info({ server_id: serverId }, '[rcon] Connection issue, reconnecting');
-      await this.reconnect(serverId, server);
+      await this.reconnect(serverId, server, options);
       connection = this.sockets.get(serverId);
     }
     this.throwIfRemoved(serverId);
@@ -289,5 +387,13 @@ export class RconConnectionLifecycle {
 
   private shouldAbortConnection(serverId: string): boolean {
     return this.shuttingDown || this.removedServers.has(serverId);
+  }
+
+  private executionDeadline(deadlineAt: number | undefined): number {
+    if (deadlineAt === undefined) return this.createDeadline();
+    if (!Number.isFinite(deadlineAt) || deadlineAt <= 0) {
+      throw new TypeError('RCON deadlineAt must be a positive finite timestamp');
+    }
+    return deadlineAt;
   }
 }

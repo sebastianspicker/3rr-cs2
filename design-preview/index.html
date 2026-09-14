@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+<!-- Built by build.mjs from control-plane/web/views. Edit the source templates or build script. -->
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"><meta name="color-scheme" content="dark light"><title>3RR · Server control demo</title><link rel="icon" href="3rr-mark.svg" type="image/svg+xml"><link rel="stylesheet" href="panel.css"><link rel="stylesheet" href="preview.css"><script src="preview.js" defer></script></head>
+<body><script id="demo-catalog" type="application/json">{"gameTypes":{"competitive":{"gameModes":{"competitive":{"exec":"warmup.cfg","mapGroups":["mg_active"]},"wingman":{"exec":"wingman.cfg","mapGroups":["mg_wingman"]}}},"casual":{"gameModes":{"deathmatch":{"exec":"deathmatch.cfg","mapGroups":["mg_active"]},"gungame":{"exec":"gungame.cfg","mapGroups":["mg_gungame"]}}},"fun":{"gameModes":{"bunnyhop":{"exec":"bhop.cfg","mapGroups":["mg_bhop"]},"ctf":{"exec":"ctf.cfg","mapGroups":["mg_ctf"]},"scoutzknivez":{"exec":"scoutzknivez.cfg","mapGroups":["mg_scoutzknivez"]},"surf":{"exec":"surf.cfg","mapGroups":["mg_surf"]},"deathrun":{"exec":"deathrun.cfg","mapGroups":["mg_deathrun"]},"oitc":{"exec":"oitc.cfg","mapGroups":["mg_oitc"]},"1v1arenas":{"exec":"1v1arenas.cfg","mapGroups":["mg_1v1"]}}}},"mapGroups":{"mg_active":{"displayName":"Active Duty","maps":["de_ancient","de_anubis","de_dust2","de_inferno","de_mirage","de_nuke","de_overpass"]},"mg_wingman":{"displayName":"Wingman","maps":["de_overpass","de_vertigo","de_ancient","de_inferno","de_nuke","ar_shoots","ar_baggage","de_brewery","de_dogtown","workshop/3329258290/de_basalt","workshop/3328169568/de_edin","workshop/3085490518/gd_rialto","workshop/3070550406/de_safehouse","workshop/3070563536/de_lake","workshop/3070581293/de_bank","workshop/3070612859/de_shortdust"]},"mg_ctf":{"displayName":"CTF Maps","maps":["workshop/3555531615/ctf_2fort","workshop/3555532817/ctf_doublecross","workshop/3555534037/ctf_turbine"]},"mg_scoutzknivez":{"displayName":"ScoutzKnivez","maps":["workshop/3073929825/scoutzknivez_pure_cs2","workshop/3070553020/ar_dizzy"]},"mg_bhop":{"displayName":"Bhop","maps":["workshop/3077211069/bhop_at_night","workshop/3077153735/bhop_ragnarok","workshop/3077475505/bhop_zunron","workshop/3077596014/bhop_1derland","workshop/3078523849/bhop_whiteshit","workshop/3082038560/bhop_cherryblossom","workshop/3088973190/bhop_arcturus","workshop/3095219437/bhop_kiwi_cwfx"]},"mg_surf":{"displayName":"Surf","maps":["workshop/3070321829/surf_beginner","workshop/3082548297/surf_rookie","workshop/3076153623/surf_kitsune","workshop/3073875025/surf_utopia_njv","workshop/3076980482/surf_mesa_revo","workshop/3080544577/surf_deathstar","workshop/3098973196/surf_benevolent","workshop/3088413071/surf_ace","workshop/3133346713/surf_boreas","workshop/3129698096/surf_nyx","workshop/3296258296/surf_whiteout","workshop/3079877518/surf_ski_2"]},"mg_deathrun":{"displayName":"Deathrun","maps":["workshop/3164611860/deathrun_playground","workshop/3311285877/deathrun_egypt","workshop/3188021118/deathrun_civilization","workshop/3083325292/deathrun_iceworld_cs2"]},"mg_oitc":{"displayName":"OITC","maps":["de_ancient","de_anubis","de_dust2","de_inferno","de_mirage","de_nuke","de_overpass"]},"mg_1v1":{"displayName":"1v1 Arenas","maps":["workshop/3070581293/de_bank","workshop/3082605693/1v1aim_map_longdustversion_d","workshop/3070550406/de_safehouse"]},"mg_gungame":{"displayName":"GunGame","maps":["ar_shoots","ar_baggage","ar_pool_day","workshop/3443206318/speedball","workshop/3071005299/de_assembly","workshop/3070238628/fy_iceworld","workshop/3072640420/daymare","workshop/3070348309/aim_theorem","workshop/3070550406/de_safehouse","workshop/3070563536/de_lake","workshop/3070581293/de_bank","workshop/3088183343/fun_bounce","workshop/3082605693/1v1aim_map_longdustversion_d","workshop/3070291913/ar_churches_s2r","workshop/3082113929/aim_ag_texture_city_advanced","workshop/3086555291/shipment_version_1_0","workshop/3074966697/aim_ag_texture2","workshop/3095779105/aim_ag_texture_jungle","workshop/3071890065/cs2_bloodstrike","workshop/3345551391/twofort_cs2","workshop/3386116667/de_ema","workshop/3360723913/paintit"]}}}</script><a class="skip-link" href="#inventory-main">Skip to main content</a><div class="shell ops-shell">
+<nav class="panel-nav shell-nav ops-rail" aria-label="Primary navigation">
+  <div class="nav-inner rail-inner">
+    <a class="nav-brand" href="#servers" aria-label="3RR Server control">
+      <span class="brand-name">3RR</span><span class="brand-slashes" aria-hidden="true">—</span>
+      <span class="nav-product">Server control</span>
+    </a>
+    <button class="nav-toggle" id="nav-toggle-btn" aria-label="Open account navigation" aria-expanded="false" aria-controls="account-navigation">
+      <svg class="nav-icon" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="5" r="3"/><path d="M2 14c0-3.3 2.4-5 6-5s6 1.7 6 5Z"/></svg><span class="nav-toggle-label">Account</span><span aria-hidden="true">⌄</span>
+    </button>
+    <div class="rail-content" id="account-navigation" hidden>
+      <div class="rail-section">
+        <ul class="nav-links rail-nav" id="nav-links-list">
+          <li><a href="#servers"><svg class="nav-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="2" width="13" height="4" rx="1"/><rect x="1.5" y="10" width="13" height="4" rx="1"/><circle cx="4.5" cy="4" r="0.6" fill="currentColor"/><circle cx="4.5" cy="12" r="0.6" fill="currentColor"/></svg>Servers</a></li>
+          <li><a href="#demo-only"><svg class="nav-icon" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.5"/><path d="M8 5v6M5 8h6"/></svg>Add server</a></li>
+          <li><a href="#demo-only"><svg class="nav-icon" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="2.2"/><path d="M8 1.5v2M8 12.5v2M14.5 8h-2M3.5 8h-2M12.6 3.4l-1.4 1.4M4.8 11.2l-1.4 1.4M12.6 12.6l-1.4-1.4M4.8 4.8 3.4 3.4"/></svg>Settings</a></li>
+
+        </ul>
+      </div>
+      <div class="nav-server-list rail-section rail-servers" aria-label="Authorized servers">
+        <p class="nav-section-label rail-label">Your servers</p>
+        <ul class="rail-server-items" id="nav-server-list">
+
+          <li>
+            <a class="nav-server rail-server is-active" href="#setup" aria-current="location">
+            <span class="nav-server-copy">
+              <strong>EU Scrim #1</strong>
+              <span class="nav-server-endpoint">192.0.2.10:27015</span>
+            </span>
+            </a>
+          </li>
+
+        </ul>
+      </div>
+      <div class="nav-actions rail-foot">
+        <span class="nav-operator"><span aria-hidden="true">●</span> operator</span>
+        <button type="button" class="btn btn-ghost btn-sm rail-theme" id="theme-toggle" aria-label="Toggle color theme" title="Toggle color theme">Appearance</button>
+        <p class="small text-muted">Local demo · no account required</p>
+      </div>
+    </div>
+  </div>
+</nav>
+<button type="button" class="rail-scrim" id="rail-scrim" aria-label="Close navigation" tabindex="-1"></button>
+
+<p class="demo-disclosure">Design demo · simulated data. All actions stay in this browser; no server connection.</p><div id="demo-inventory"><main class="container main workbench route-shell route-shell--inventory" id="inventory-main">
+      <ol class="session-steps" aria-label="Session preparation progress">
+        <li class="session-step" aria-current="step"><span aria-hidden="true">1</span> Server</li>
+        <li class="session-step"><span aria-hidden="true">2</span> Setup</li>
+        <li class="session-step"><span aria-hidden="true">3</span> Check result</li>
+      </ol>
+      <section class="session-panel session-server-picker" aria-labelledby="servers-heading">
+        <div class="page-header route-header fleet-head">
+          <div>
+            <h1 id="servers-heading">Choose a server</h1>
+            <p>Select the server you want to prepare.</p>
+          </div>
+        </div>
+        <div class="fleet-stats" aria-label="Fleet summary">
+          <div class="fleet-stat"><span class="fleet-stat-value" id="fleet-total">–</span><span class="fleet-stat-label">Servers</span></div>
+          <div class="fleet-stat"><span class="fleet-stat-value text-success" id="fleet-connected">–</span><span class="fleet-stat-label">Connected</span></div>
+          <div class="fleet-stat"><span class="fleet-stat-value text-warning" id="fleet-unobserved">–</span><span class="fleet-stat-label">Unobserved</span></div>
+          <div class="fleet-stat"><span class="fleet-stat-value text-danger" id="fleet-disconnected">–</span><span class="fleet-stat-label">Disconnected</span></div>
+          <div class="fleet-stat"><span class="fleet-stat-value" id="fleet-players">–</span><span class="fleet-stat-label">Players online</span></div>
+        </div>
+        <div class="fleet-toolbar" role="search" aria-label="Filter servers">
+          <label class="visually-hidden" for="server-search">Search name or address</label>
+          <input class="form-control" type="search" id="server-search" placeholder="Search name or address" autocomplete="off">
+          <label class="visually-hidden" for="server-status-filter">Connection state</label>
+          <select class="form-select" id="server-status-filter"><option value="all">All connections</option><option value="connected">Connected</option><option value="unknown">Not observed</option><option value="disconnected">Disconnected</option><option value="error">Error</option></select>
+          <button class="btn btn-secondary" type="button" id="fleet-refresh">Refresh</button>
+        </div>
+        <div class="route-workspace route-workspace--table surface">
+          <div class="server-table" role="table" aria-label="Configured servers">
+            <div class="server-list-head server-choice-head" role="row">
+              <span role="columnheader">Server</span><span role="columnheader">Endpoint</span><span role="columnheader">RCON</span><span role="columnheader">Last check</span>
+            </div>
+            <div id="serverList" role="rowgroup" aria-live="polite" aria-busy="true"></div>
+          </div>
+          <div id="fleet-empty-filter" class="empty-state" hidden><p>No servers match these filters.</p><button type="button" class="btn btn-secondary" id="fleet-clear-filters">Clear filters</button></div>
+        </div>
+        <p id="fleet-filter-summary" class="fleet-filter-summary" role="status"></p>
+      </section>
+      <section class="session-panel" id="selected-server" aria-labelledby="selected-server-heading" hidden>
+        <h2 id="selected-server-heading">Selected: <span id="selected-server-name">Unknown</span></h2>
+        <div class="session-observation-strip" aria-label="Selected server observation">
+          <div><span>Observed</span> <strong id="selected-server-observed">Unknown</strong></div>
+          <div><span>Map</span> <strong id="selected-server-map">Unknown</strong></div>
+          <div><strong id="selected-server-players">Unknown</strong></div>
+        </div>
+      </section>
+      <p class="session-warning" id="selected-server-warning" hidden>
+        Changing the map will interrupt play.
+      </p>
+      <div class="session-actions" id="selected-server-actions" hidden>
+        <a class="btn btn-primary" id="prepare-selected-server" href="#servers">Prepare server</a>
+        <a href="#demo-only">Add server</a>
+      </div>
+    </main></div><div id="demo-manage" class="main main-manage" hidden><main class="container manage-workbench workbench" id="manage-main" data-server-id="1">
+        <nav class="manage-breadcrumb" aria-label="Breadcrumb" hidden><a href="#servers">Choose server</a><span aria-hidden="true">/</span><span id="manage-breadcrumb-title">EU Scrim #1</span></nav>
+    <div class="manage-header">
+      <div class="manage-identity">
+        <h1 id="manage-title" tabindex="-1">EU Scrim #1</h1>
+        <div class="server-addr">
+
+          <span class="manage-endpoint" id="truth-rail-endpoint">192.0.2.10:27015</span>
+          <span id="manage-status-dot" class="status-dot online" aria-hidden="true"></span>
+          <span id="manage-status-badge" class="badge badge-connected" data-live-status-badge>
+            Connected
+          </span>
+          <span id="manage-observed-at" class="manage-observed-at visually-hidden">No observation yet</span>
+        </div>
+      </div>
+
+    </div>
+
+
+        <div class="truth-rail session-observation-strip" aria-label="Server observations">
+  <span class="visually-hidden" id="truth-rail-server">EU Scrim #1</span>
+  <div class="truth-rail-inner">
+    <div class="rail-cell"><span class="rail-label" id="session-observation-label">Observed</span><span class="rail-value mono" id="truth-rail-observed-at">Not observed</span></div>
+    <div class="rail-cell"><span class="rail-label">Map</span><span class="rail-value mono" id="truth-rail-map">Unknown</span></div>
+    <div class="rail-cell"><span class="rail-label">Players</span><span class="rail-value" id="truth-rail-players">Unknown</span></div>
+  </div>
+</div>
+
+
+        <nav class="session-steps" aria-label="Session preparation">
+          <a class="session-step" href="#servers">1 <span>Server</span></a>
+          <button class="session-step" type="button" id="session-step-setup" aria-current="step">2 <span>Setup</span></button>
+          <button class="session-step" type="button" id="session-step-result" disabled>3 <span>Check result</span></button>
+        </nav>
+
+        <section class="tabpanel manage-tabpanel" id="manage-panel-console" role="tabpanel" aria-labelledby="manage-tab-console" hidden>
+          <section class="console-panel" id="console" aria-labelledby="console-heading">
+          <h2 class="visually-hidden" id="console-heading">RCON Console</h2>
+          <span class="visually-hidden"><span id="rcon-console-status-badge" class="badge badge-connected" data-live-status-badge>Connected</span></span>
+          <div class="truth-ledger" aria-label="Observed and requested server state">
+            <div class="truth-row truth-row--observed">
+              <span class="truth-time" id="truth-observed-time">Pending</span>
+              <strong>Observed</strong>
+              <span id="truth-observed-detail">Waiting for a live RCON observation</span>
+            </div>
+            <div class="truth-row truth-row--requested">
+              <span class="truth-time" id="truth-requested-time">Saved</span>
+              <strong>Requested</strong>
+              <span id="truth-requested-detail">competitive / competitive / de_mirage</span>
+            </div>
+          </div>
+          <div class="rcon-terminal surface">
+            <div id="rconResultBox" class="rcon-response">
+              <div class="rcon-response-header">
+                <span class="rcon-response-label">Console output</span>
+                <button id="rconClearBtn" class="btn btn-ghost btn-sm" aria-label="Clear console output">Clear</button>
+              </div>
+              <pre id="rconResultText"></pre>
+              <div class="console-empty"><p>Ready for a command</p><span>Responses from this server appear here.</span></div>
+            </div>
+            <label class="form-label rcon-input-label" for="rconInput">RCON command</label>
+            <div class="input-row rcon-command-row">
+            <input
+              type="text"
+              id="rconInput"
+              name="rcon_command"
+              class="form-control"
+              placeholder="Enter a command…"
+              aria-describedby="rcon-input-hint"
+              aria-label="RCON command"
+              autocomplete="off"
+            >
+            <button id="rconSuggestRefreshBtn" class="btn btn-secondary">Suggest</button>
+            <button id="rconInputBtn" class="btn btn-primary">Send command</button>
+            </div>
+            <p id="rcon-input-hint" class="rcon-input-hint">Enter to send · ↑ ↓ command history</p>
+            <div id="rconSuggestions" class="rcon-suggestions" hidden></div>
+          </div>
+          <div class="rcon-history-surface surface">
+            <div class="rcon-history-header">
+              <span class="rcon-response-label">Sent commands</span>
+              <button id="rconHistoryClearBtn" class="btn btn-ghost btn-sm">Clear</button>
+            </div>
+            <div id="rconHistoryList" class="compact-list" aria-live="polite">
+              <p class="empty-state">No sent RCON commands yet.</p>
+            </div>
+          </div>
+          <details class="inline-advanced rcon-message-panel">
+            <summary>Message players<span>Send an admin message to everyone on this server</span></summary>
+            <div class="input-row mt-sm">
+              <input
+                type="text"
+                id="say_input"
+                name="say_message"
+                class="form-control"
+                placeholder="Say as admin… (Enter to send)"
+                aria-label="Say as admin message"
+                autocomplete="off"
+              >
+              <button id="say_input_btn" class="btn btn-secondary">Say</button>
+            </div>
+          </details>
+          <p id="rcon-command-status" class="visually-hidden" role="status" aria-live="polite"></p>
+</section>
+
+        </section>
+        <section class="tabpanel manage-tabpanel" id="manage-panel-match" role="tabpanel" aria-labelledby="manage-tab-match" hidden>
+
+<section class="panel surface match-panel" aria-labelledby="match-controls-heading">
+          <div class="panel-header">
+            <h2 id="match-controls-heading" aria-label="Quick Commands">Match controls</h2>
+          </div>
+
+          <div class="btn-grid cols-3 match-primary-grid">
+            <button id="pause_game"     class="btn btn-secondary">Pause</button>
+            <button id="unpause_game"   class="btn btn-secondary">Unpause</button>
+            <button id="start_warmup"   class="btn btn-secondary">Warmup</button>
+          </div>
+          <button id="matchzy_match" class="btn btn-primary w-100 mt-sm">Start match</button>
+
+          <details class="inline-advanced match-advanced" id="advanced-controls">
+            <summary>Advanced controls</summary>
+            <div class="section-label">Bots</div>
+            <div class="btn-grid cols-3">
+              <button id="add_bot" class="btn btn-secondary">Add Bot</button>
+              <button id="kill_bots" class="btn btn-secondary">Kill Bots</button>
+              <button id="kick_all_bots" class="btn btn-danger-outline">Kick All</button>
+            </div>
+
+            <div class="section-label">Match control</div>
+            <div class="btn-grid cols-3">
+              <button id="scramble_teams" class="btn btn-secondary">Scramble</button>
+              <button id="knife_start" class="btn btn-secondary">Knife</button>
+              <button id="swap_team" class="btn btn-secondary">Swap</button>
+              <button id="matchzy_abort" class="btn btn-danger">Abort Match</button>
+              <button id="matchzy_coach_ct" class="btn btn-secondary">Coach CT</button>
+              <button id="matchzy_coach_t" class="btn btn-secondary">Coach T</button>
+            </div>
+
+            <div class="section-label">Match settings</div>
+            <div class="btn-grid cols-2">
+              <div class="btn-pair" role="group" aria-label="Team limit">
+                <button id="limitteams_on" data-toggle-group="limitteams" data-toggle-val="1" aria-pressed="false" class="btn btn-info">Limit On</button>
+                <button id="limitteams_off" data-toggle-group="limitteams" data-toggle-val="0" aria-pressed="false" class="btn btn-outline-info">Off</button>
+              </div>
+              <div class="btn-pair" role="group" aria-label="Team balance">
+                <button id="autoteam_on" data-toggle-group="autoteam" data-toggle-val="1" aria-pressed="false" class="btn btn-info">Balance On</button>
+                <button id="autoteam_off" data-toggle-group="autoteam" data-toggle-val="0" aria-pressed="false" class="btn btn-outline-info">Off</button>
+              </div>
+              <div class="btn-pair" role="group" aria-label="Friendly fire">
+                <button id="friendlyfire_on" data-toggle-group="friendlyfire" data-toggle-val="1" aria-pressed="false" class="btn btn-info">FF On</button>
+                <button id="friendlyfire_off" data-toggle-group="friendlyfire" data-toggle-val="0" aria-pressed="false" class="btn btn-outline-info">Off</button>
+              </div>
+              <div class="btn-pair" role="group" aria-label="Automatic kick">
+                <button id="autokick_on" data-toggle-group="autokick" data-toggle-val="1" aria-pressed="false" class="btn btn-info">Kick On</button>
+                <button id="autokick_off" data-toggle-group="autokick" data-toggle-val="0" aria-pressed="false" class="btn btn-outline-info">Off</button>
+              </div>
+            </div>
+
+            <div class="section-label">Round backups</div>
+            <div class="btn-grid cols-3">
+              <button id="list_backups" class="btn btn-secondary">List</button>
+              <button id="restore_backup" class="btn btn-secondary">Restore</button>
+              <button id="restore_latest_backup" class="btn btn-secondary">Latest</button>
+            </div>
+            <div id="restore_backup_row" class="input-row mt-sm" hidden>
+              <input type="number" id="restore_round_input" class="form-control" placeholder="Round # (1–99)" min="1" max="99" aria-label="Round number to restore (1–99)">
+              <button id="restore_round_submit" class="btn btn-primary">Go</button>
+              <button id="restore_round_cancel" class="btn btn-secondary" aria-label="Cancel round restore">✕</button>
+            </div>
+          </details>
+</section>
+
+          <section class="panel surface scrim-panel" aria-labelledby="scrim-controls-heading">
+          <div class="panel-header">
+            <h2 id="scrim-controls-heading">Scrim controls</h2>
+          </div>
+
+          <div class="section-label">Round Count</div>
+          <div class="btn-grid cols-3" id="maxrounds-presets">
+            <button id="maxrounds_16" class="btn btn-secondary">16 Rounds</button>
+            <button id="maxrounds_24" class="btn btn-secondary">24 Rounds</button>
+            <button id="maxrounds_30" class="btn btn-secondary">30 Rounds</button>
+          </div>
+
+          <div class="section-label">Overtime</div>
+          <div class="btn-grid cols-2">
+            <div class="btn-pair" role="group" aria-label="Overtime">
+              <button id="overtime_on"  data-toggle-group="overtime" data-toggle-val="1" aria-pressed="false" class="btn btn-info">OT On</button>
+              <button id="overtime_off" data-toggle-group="overtime" data-toggle-val="0" aria-pressed="false" class="btn btn-outline-info">Off</button>
+            </div>
+          </div>
+          <div class="btn-grid cols-3 mt-sm" id="ot-rounds-presets">
+            <button id="ot_rounds_3" class="btn btn-secondary">MR3</button>
+            <button id="ot_rounds_5" class="btn btn-secondary">MR5</button>
+            <button id="ot_rounds_6" class="btn btn-secondary">MR6</button>
+          </div>
+</section>
+
+          <section class="panel surface practice-panel" aria-labelledby="practice-controls-heading">
+          <div class="panel-header">
+            <h2 id="practice-controls-heading">Practice controls</h2>
+          </div>
+
+          <div class="practice-groups">
+            <div class="practice-group">
+              <div class="section-label">MatchZy</div>
+          <div class="btn-grid cols-3">
+            <button id="matchzy_practice" class="btn btn-primary">Practice Mode</button>
+            <button id="matchzy_exitprac" class="btn btn-secondary">Exit Practice</button>
+            <button id="matchzy_playout"  class="btn btn-secondary">Force Playout</button>
+          </div>
+          <div class="input-row mt-sm">
+            <input type="text" id="matchzy_match_file_input" class="form-control" placeholder="match.json" maxlength="100" aria-label="MatchZy match config filename">
+            <button id="matchzy_load_match_file_btn" class="btn btn-secondary">Load File</button>
+          </div>
+          <small class="text-muted mb-sm">File must exist on the server</small>
+
+            </div>
+            <div class="practice-group">
+              <div class="section-label">Server Settings</div>
+          <div class="btn-grid cols-2">
+            <div class="btn-pair" role="group" aria-label="Cheats">
+              <button id="cheats_on"  data-toggle-group="cheats" data-toggle-val="1" aria-pressed="false" class="btn btn-info">Cheats On</button>
+              <button id="cheats_off" data-toggle-group="cheats" data-toggle-val="0" aria-pressed="false" class="btn btn-outline-info">Off</button>
+            </div>
+            <div class="btn-pair" role="group" aria-label="Free armor">
+              <button id="free_armor_on"  data-toggle-group="free_armor" data-toggle-val="1" aria-pressed="false" class="btn btn-info">Free Armor On</button>
+              <button id="free_armor_off" data-toggle-group="free_armor" data-toggle-val="0" aria-pressed="false" class="btn btn-outline-info">Off</button>
+            </div>
+            <div class="btn-pair" role="group" aria-label="Buy anywhere">
+              <button id="buy_anywhere_on"  data-toggle-group="buy_anywhere" data-toggle-val="1" aria-pressed="false" class="btn btn-info">Buy Anywhere On</button>
+              <button id="buy_anywhere_off" data-toggle-group="buy_anywhere" data-toggle-val="0" aria-pressed="false" class="btn btn-outline-info">Off</button>
+            </div>
+            <div class="btn-pair" role="group" aria-label="Respawn">
+              <button id="respawn_on"  data-toggle-group="respawn" data-toggle-val="1" aria-pressed="false" class="btn btn-info">Respawn On</button>
+              <button id="respawn_off" data-toggle-group="respawn" data-toggle-val="0" aria-pressed="false" class="btn btn-outline-info">Off</button>
+            </div>
+            <div class="btn-pair" role="group" aria-label="Damage print">
+              <button id="damage_print_on"  data-toggle-group="damage_print" data-toggle-val="1" aria-pressed="false" class="btn btn-info">Dmg Print On</button>
+              <button id="damage_print_off" data-toggle-group="damage_print" data-toggle-val="0" aria-pressed="false" class="btn btn-outline-info">Off</button>
+            </div>
+          </div>
+          <div class="btn-grid cols-3 mt-sm" id="inf-ammo-presets">
+            <button id="inf_ammo_0" class="btn btn-secondary">Ammo Off</button>
+            <button id="inf_ammo_1" class="btn btn-secondary">Full</button>
+            <button id="inf_ammo_2" class="btn btn-secondary">Nades</button>
+          </div>
+
+            </div>
+            <div class="practice-group">
+              <div class="section-label">Game Modifiers</div>
+          <div class="btn-grid cols-2">
+            <div class="btn-pair" role="group" aria-label="Random rounds">
+              <button id="random_rounds_on"  data-toggle-group="random_rounds" data-toggle-val="1" aria-pressed="false" class="btn btn-info">Random Rounds On</button>
+              <button id="random_rounds_off" data-toggle-group="random_rounds" data-toggle-val="0" aria-pressed="false" class="btn btn-outline-info">Off</button>
+            </div>
+            <div class="btn-pair" role="group" aria-label="RTD">
+              <button id="rtd_on"  data-toggle-group="rtd" data-toggle-val="1" aria-pressed="false" class="btn btn-info">RTD On</button>
+              <button id="rtd_off" data-toggle-group="rtd" data-toggle-val="0" aria-pressed="false" class="btn btn-outline-info">Off</button>
+            </div>
+          </div>
+          <button id="rtd_force_roll" class="btn btn-secondary w-100 mt-sm">Force Roll (RTD)</button>
+
+            </div>
+            <div class="practice-group">
+              <div class="section-label">Visibility</div>
+          <div class="btn-grid cols-2">
+            <div class="btn-pair" role="group" aria-label="Grenade trajectory">
+              <button id="grenade_trail_on"  data-toggle-group="grenade_trail" data-toggle-val="1" aria-pressed="false" class="btn btn-info">Nade Trail On</button>
+              <button id="grenade_trail_off" data-toggle-group="grenade_trail" data-toggle-val="0" aria-pressed="false" class="btn btn-outline-info">Off</button>
+            </div>
+            <div class="btn-pair" role="group" aria-label="Impact markers">
+              <button id="show_impacts_on"  data-toggle-group="show_impacts" data-toggle-val="1" aria-pressed="false" class="btn btn-info">Impacts On</button>
+              <button id="show_impacts_off" data-toggle-group="show_impacts" data-toggle-val="0" aria-pressed="false" class="btn btn-outline-info">Off</button>
+            </div>
+          </div>
+
+            </div>
+            <div class="practice-group">
+              <div class="section-label">Timing &amp; Economy</div>
+          <div class="btn-grid cols-5" id="freezetime-presets">
+            <button id="freezetime_0"  class="btn btn-secondary">0s</button>
+            <button id="freezetime_5"  class="btn btn-secondary">5s</button>
+            <button id="freezetime_10" class="btn btn-secondary">10s</button>
+            <button id="freezetime_15" class="btn btn-secondary">15s</button>
+            <button id="freezetime_20" class="btn btn-secondary">20s</button>
+          </div>
+          <div class="btn-grid cols-5 mt-sm" id="startmoney-presets">
+            <button id="startmoney_0"     class="btn btn-secondary">$0</button>
+            <button id="startmoney_800"   class="btn btn-secondary">$800</button>
+            <button id="startmoney_1600"  class="btn btn-secondary">$1600</button>
+            <button id="startmoney_3200"  class="btn btn-secondary">$3200</button>
+            <button id="startmoney_16000" class="btn btn-secondary">$16k</button>
+          </div>
+            </div>
+            <div class="practice-group">
+              <div class="section-label">Buy Time</div>
+          <div class="btn-grid cols-5" id="buytime-presets">
+            <button id="buytime_10"  class="btn btn-secondary">10s</button>
+            <button id="buytime_15"  class="btn btn-secondary">15s</button>
+            <button id="buytime_30"  class="btn btn-secondary">30s</button>
+            <button id="buytime_45"  class="btn btn-secondary">45s</button>
+            <button id="buytime_90"  class="btn btn-secondary">90s</button>
+          </div>
+
+            </div>
+            <div class="practice-group">
+              <div class="section-label">Bot Difficulty</div>
+          <div class="btn-grid cols-4" id="bot-difficulty-presets">
+            <button id="bot_difficulty_0" class="btn btn-secondary">Easy</button>
+            <button id="bot_difficulty_1" class="btn btn-secondary">Normal</button>
+            <button id="bot_difficulty_2" class="btn btn-secondary">Hard</button>
+            <button id="bot_difficulty_3" class="btn btn-secondary">Expert</button>
+          </div>
+
+            </div>
+            <div class="practice-group">
+              <div class="section-label">Round Time</div>
+          <div class="btn-grid cols-4" id="roundtime-presets">
+            <button id="roundtime_1"  class="btn btn-secondary">1 min</button>
+            <button id="roundtime_2"  class="btn btn-secondary">2 min</button>
+            <button id="roundtime_5"  class="btn btn-secondary">5 min</button>
+            <button id="roundtime_60" class="btn btn-secondary">Unlimited</button>
+          </div>
+
+            </div>
+            <div class="practice-group">
+              <div class="section-label">Team Bots</div>
+          <div class="btn-grid cols-2">
+            <div class="btn-pair" role="group" aria-label="Counter-Terrorist bots">
+              <button id="bot_add_ct"  class="btn btn-secondary">+ CT Bot</button>
+              <button id="bot_kick_ct" class="btn btn-danger-outline">Kick CT</button>
+            </div>
+            <div class="btn-pair" role="group" aria-label="Terrorist bots">
+              <button id="bot_add_t"  class="btn btn-secondary">+ T Bot</button>
+              <button id="bot_kick_t" class="btn btn-danger-outline">Kick T</button>
+            </div>
+          </div>
+
+            </div>
+            <div class="practice-group">
+              <div class="section-label">Movement</div>
+          <div class="btn-grid cols-2">
+            <button id="noclip_btn"       class="btn btn-secondary">Noclip</button>
+            <button id="rethrow_nade_btn" class="btn btn-secondary">Rethrow Nade</button>
+          </div>
+
+            </div>
+            <div class="practice-group">
+              <div class="section-label">Give Nade Kit</div>
+          <div class="btn-grid cols-3">
+            <button id="give_flash"   class="btn btn-secondary">Flash</button>
+            <button id="give_smoke"   class="btn btn-secondary">Smoke</button>
+            <button id="give_he"      class="btn btn-secondary">HE</button>
+            <button id="give_molotov" class="btn btn-secondary">Molotov</button>
+            <button id="give_decoy"   class="btn btn-secondary">Decoy</button>
+            <button id="give_incen"   class="btn btn-secondary">Incendiary</button>
+          </div>
+            </div>
+          </div>
+</section>
+
+        </section>
+        <section class="tabpanel manage-tabpanel" id="manage-panel-players" role="tabpanel" aria-labelledby="manage-tab-players" hidden>
+          <section class="panel surface players-panel" aria-labelledby="players-heading">
+          <div class="panel-header">
+            <h2 id="players-heading" aria-label="RCON Players">Players</h2>
+            <div class="player-header-tools">
+              <input type="search" id="playerSearch" class="form-control" placeholder="Search players" aria-label="Search RCON-observed players" autocomplete="off">
+              <button id="refresh_players" class="btn btn-ghost btn-sm" aria-label="Refresh players">&#8635; Refresh</button>
+            </div>
+          </div>
+          <p class="small text-muted mb-sm" id="players-updated" aria-live="polite">No player observation yet.</p>
+          <p class="small text-danger mb-sm" id="players-error" hidden></p>
+          <div class="player-list-head" role="row" aria-hidden="true">
+            <span role="columnheader">Player</span>
+            <span role="columnheader">Steam ID</span>
+            <span role="columnheader">Actions</span>
+          </div>
+          <div id="playersList" class="player-list" role="table" aria-label="RCON-observed players" aria-live="polite">
+            <p class="empty-state">No players loaded.</p>
+          </div>
+</section>
+
+        </section>
+        <section class="tabpanel manage-tabpanel" id="manage-panel-setup" role="tabpanel" aria-labelledby="manage-tab-setup">
+          <section class="panel surface setup-panel session-panel" id="requested-setup" aria-labelledby="requested-setup-heading">
+  <h2 id="requested-setup-heading" tabindex="-1">Prepare a session</h2>
+  <p>Choose the setup to send to this server.</p>
+  <p id="setup-status" class="alert" role="status" aria-live="polite" tabindex="-1" hidden></p>
+  <button type="button" id="setup-retry" class="btn btn-secondary" hidden>Reload setup choices</button>
+  <form id="server_setup_form">
+    <fieldset id="setup-fields" class="session-fieldset">
+      <legend class="visually-hidden">Session setup</legend>
+      <div class="session-setup-grid">
+        <div class="session-fields">
+          <div id="gameTypeBtns" class="mb-3">
+            <label class="form-label" id="game-type-label" for="gameTypeValue">Game type</label>
+            <select id="gameTypeValue" name="game_type" class="form-select" required>
+
+                <option value="competitive" data-game-type="competitive" selected>Competitive</option>
+
+                <option value="casual" data-game-type="casual" >Casual</option>
+
+                <option value="fun" data-game-type="fun" >Fun</option>
+
+            </select>
+          </div>
+          <div id="gameModeBtns" class="mb-3">
+            <label class="form-label" id="game-mode-label" for="gameModeValue">Mode</label>
+            <select id="gameModeValue" name="game_mode" class="form-select" data-requested-mode="competitive" required disabled><option value="">Loading modes…</option></select>
+          </div>
+          <div class="mb-3">
+            <label for="selectedMap" class="form-label">Map</label>
+            <select id="selectedMap" name="selectedMap" class="form-select" required disabled data-requested-map="de_mirage"><option value="">Choose a game mode first</option></select>
+          </div>
+          <div class="session-team-fields">
+            <div><label for="team1" class="form-label">Team 1 (optional)</label><input type="text" id="team1" name="team1" class="form-control" maxlength="64" autocomplete="off" aria-describedby="team-name-help"></div>
+            <div><label for="team2" class="form-label">Team 2 (optional)</label><input type="text" id="team2" name="team2" class="form-control" maxlength="64" autocomplete="off" aria-describedby="team-name-help"></div>
+          </div>
+          <p id="team-name-help" class="small text-muted">Leave a name blank to keep the server's current team name.</p>
+          <p id="setup-config-note" class="small text-muted"></p>
+        </div>
+        <aside class="session-review" aria-labelledby="setup-review-heading">
+          <h3 id="setup-review-heading">Requested setup</h3>
+          <p id="setup-review-mode">Loading choices…</p>
+          <p id="setup-review-map" class="mono">—</p>
+          <p id="setup-review-teams">Keep current team names</p>
+          <p class="small text-muted">This shows the setup that will be sent to the server (not live data).</p>
+        </aside>
+      </div>
+    </fieldset>
+    <div class="session-warning" role="note"><span aria-hidden="true">⚠</span><div><strong id="setup-player-warning">Player count not observed</strong><p>Changing the map interrupts play.</p></div></div>
+    <div class="session-actions"><a href="#servers" class="btn btn-secondary">Back</a><div><button id="send-setup-commands" type="submit" class="btn btn-primary" disabled>Send setup to EU Scrim #1</button><p class="small text-muted">Sends setup commands. Live state is checked next.</p></div></div>
+  </form>
+</section>
+<section id="session-result" class="session-panel panel" aria-labelledby="session-result-heading" hidden>
+  <h2 id="session-result-heading" tabindex="-1">Setup commands sent</h2>
+  <p id="session-result-description">The request was sent. The live map has not been confirmed.</p>
+  <div id="session-pending-result" class="session-result-grid">
+    <div><h3>Requested at <span id="session-requested-at">—</span></h3>
+      <dl class="session-requested-list">
+        <div><dt>Game type</dt><dd data-session-requested="game_type"></dd></div>
+        <div><dt>Mode</dt><dd data-session-requested="game_mode"></dd></div>
+        <div><dt>Map</dt><dd class="mono" data-session-requested="selectedMap"></dd></div>
+        <div><dt>Team 1</dt><dd data-session-requested="team1"></dd></div>
+        <div><dt>Team 2</dt><dd data-session-requested="team2"></dd></div>
+      </dl>
+    </div>
+    <div class="session-latest"><h3>Latest observation</h3>
+      <p class="text-warning" id="session-observation-state">Awaiting a new observation</p>
+      <dl class="session-requested-list">
+        <div><dt>Last observed map</dt><dd id="session-previous-map" class="mono">Unknown</dd></div>
+        <div><dt>Observed at</dt><dd id="session-previous-time">Not observed</dd></div>
+        <div><dt>Player count after change</dt><dd id="session-result-players">Unknown</dd></div>
+      </dl>
+      <p class="small text-muted">Previous observations may no longer describe this server.</p>
+    </div>
+  </div>
+  <div id="session-observed-result" hidden>
+    <table class="session-comparison" role="table">
+      <thead role="rowgroup"><tr role="row"><th role="columnheader" scope="col">Field</th><th role="columnheader" scope="col">Requested</th><th role="columnheader" scope="col" id="session-comparison-observed">Observed</th></tr></thead>
+      <tbody role="rowgroup">
+        <tr role="row"><th role="rowheader" scope="row">Map</th><td role="cell" data-label="Requested" data-session-requested="selectedMap" class="mono"></td><td role="cell" data-label="Observed" id="session-observed-map" class="mono"></td></tr>
+        <tr role="row"><th role="rowheader" scope="row">Game type</th><td role="cell" data-label="Requested" data-session-requested="game_type"></td><td role="cell" data-label="Observed">Not reported</td></tr>
+        <tr role="row"><th role="rowheader" scope="row">Mode</th><td role="cell" data-label="Requested" data-session-requested="game_mode"></td><td role="cell" data-label="Observed">Not reported</td></tr>
+        <tr role="row"><th role="rowheader" scope="row">Team 1</th><td role="cell" data-label="Requested" data-session-requested="team1"></td><td role="cell" data-label="Observed">Not reported</td></tr>
+        <tr role="row"><th role="rowheader" scope="row">Team 2</th><td role="cell" data-label="Requested" data-session-requested="team2"></td><td role="cell" data-label="Observed">Not reported</td></tr>
+      </tbody>
+    </table>
+    <p>Players observed: <span id="session-observed-players">Unknown</span></p>
+    <div class="session-warning"><span aria-hidden="true">⚠</span><div><strong>Mode and team names remain unverified.</strong><p>This status check reports the map and players; it does not confirm every setup setting.</p></div></div>
+  </div>
+  <p id="session-result-error" class="alert alert-danger" role="alert" hidden></p>
+  <p id="session-result-status" class="visually-hidden" role="status" aria-live="polite"></p>
+  <div class="session-actions">
+    <button type="button" id="session-edit-setup" class="btn btn-secondary">Back to setup</button>
+    <div><button type="button" id="session-check-map" class="btn btn-primary">Check live map</button><p id="session-check-note" class="small text-muted">Checks server status without sending setup again.</p></div>
+    <button type="button" id="session-return" class="btn btn-primary" hidden>Return to server</button>
+  </div>
+</section>
+
+<details class="inline-advanced setup-advanced session-advanced" id="advanced-setup">
+  <summary>Workshop and advanced setup</summary>
+  <button id="restart_game" type="button" class="btn btn-danger-outline setup-destructive">Restart round</button>
+              <div class="mb-3">
+                <label for="workshopUrl" class="form-label">Or paste Workshop URL</label>
+                <div class="input-row">
+                  <input type="text" id="workshopUrl" name="workshop_url" class="form-control"
+                         placeholder="https://steamcommunity.com/sharedfiles/filedetails/?id=…" autocomplete="off">
+                  <button type="button" id="loadWorkshopMap" class="btn btn-secondary">Load</button>
+                </div>
+                <small class="text-muted">Paste a Steam Workshop URL to load any workshop map</small>
+              </div>
+              <div class="mb-3 workshop-favorites">
+                <div class="panel-subheader">
+                  <span class="section-label">Workshop Favorites</span>
+                  <button type="button" id="refreshWorkshopFavorites" class="btn btn-ghost btn-sm">Refresh</button>
+                </div>
+                <div class="input-row">
+                  <input type="text" id="favoriteWorkshopName" class="form-control" placeholder="Favorite name" maxlength="80" aria-label="Workshop favorite name">
+                  <input type="text" id="favoriteWorkshopId" class="form-control" placeholder="Workshop ID" maxlength="20" inputmode="numeric" aria-label="Workshop favorite ID">
+                  <button type="button" id="addWorkshopFavorite" class="btn btn-secondary">Save</button>
+                </div>
+                <div id="workshopFavoritesList" class="compact-list" aria-live="polite">
+                  <p class="empty-state">No favorites loaded.</p>
+                </div>
+              </div>
+              <div class="mb-3">
+                <label for="workshopCollectionId" class="form-label">Or load Workshop Collection</label>
+                <div class="input-row">
+                  <input type="text" id="workshopCollectionId" name="workshop_collection_id" class="form-control"
+                         placeholder="Collection ID (5–20 digits)" maxlength="20" autocomplete="off">
+                  <button type="button" id="loadWorkshopCollection" class="btn btn-secondary">Load</button>
+                </div>
+                <small class="text-muted">Loads all maps in a Workshop Collection for rotation</small>
+              </div>
+              <div class="mb-3">
+                <label for="mapGroupSelect" class="form-label">Set Map Group</label>
+                <div class="input-row">
+                  <select id="mapGroupSelect" class="form-select">
+
+                      <option value="mg_active">Active Duty (mg_active)</option>
+
+                      <option value="mg_wingman">Wingman (mg_wingman)</option>
+
+                      <option value="mg_ctf">CTF Maps (mg_ctf)</option>
+
+                      <option value="mg_scoutzknivez">ScoutzKnivez (mg_scoutzknivez)</option>
+
+                      <option value="mg_bhop">Bhop (mg_bhop)</option>
+
+                      <option value="mg_surf">Surf (mg_surf)</option>
+
+                      <option value="mg_deathrun">Deathrun (mg_deathrun)</option>
+
+                      <option value="mg_oitc">OITC (mg_oitc)</option>
+
+                      <option value="mg_1v1">1v1 Arenas (mg_1v1)</option>
+
+                      <option value="mg_gungame">GunGame (mg_gungame)</option>
+
+                  </select>
+                  <button type="button" id="setMapGroupBtn" class="btn btn-secondary">Set</button>
+                </div>
+                <small class="text-muted">Sets <code>mp_mapgroupname</code> for map cycling</small>
+              </div>
+</details>
+
+          <details class="session-advanced"><summary>Detailed server observations</summary><section class="panel surface observed-panel" id="overview" aria-labelledby="observed-status-heading">
+          <div class="panel-header">
+            <h2 id="observed-status-heading" aria-label="RCON Observed Status">Observed status</h2>
+          </div>
+          <p class="small text-muted mb-sm" id="live-status-updated" aria-live="polite">No RCON observation yet.</p>
+          <p class="small text-danger mb-sm" id="live-status-error" hidden></p>
+          <div class="data-grid">
+            <div class="data-item status-state-item">
+              <span class="data-label">RCON State</span>
+              <span class="data-value" id="live-status-state">--</span>
+            </div>
+            <div class="data-item status-hostname-item">
+              <span class="data-label">Hostname</span>
+              <span class="data-value" id="live-hostname">--</span>
+            </div>
+            <div class="data-item status-map-item">
+              <span class="data-label">Map</span>
+              <span class="data-value" id="live-map">--</span>
+            </div>
+            <div class="data-item status-players-item">
+              <span class="data-label">Players</span>
+              <span class="data-value" id="live-players">--</span>
+            </div>
+            <div class="data-item status-bots-item">
+              <span class="data-label">Bots</span>
+              <span class="data-value" id="live-bots">--</span>
+            </div>
+            <div class="data-item status-max-item">
+              <span class="data-label">Max Players</span>
+              <span class="data-value" id="live-max-players">--</span>
+            </div>
+          </div>
+</section>
+</details>
+        </section>
+        <div class="server-tools">
+          <h2 class="visually-hidden">Server tools</h2>
+        <div class="tabs manage-tabs" id="manage-tabs" role="tablist" aria-label="Server workbench">
+          <button type="button" id="manage-tab-console" role="tab" aria-selected="false" tabindex="-1" aria-controls="manage-panel-console" data-manage-tab="console">Console</button>
+          <button type="button" id="manage-tab-match" role="tab" aria-selected="false" aria-controls="manage-panel-match" data-manage-tab="match" tabindex="-1">Match</button>
+          <button type="button" id="manage-tab-players" role="tab" aria-selected="false" aria-controls="manage-panel-players" data-manage-tab="players" tabindex="-1">Players <span class="tab-meta" id="manage-tab-player-count">–</span></button>
+          <button type="button" id="manage-tab-setup" role="tab" aria-selected="true" aria-controls="manage-panel-setup" data-manage-tab="setup">Setup</button>
+        </div>
+          <div class="manage-header-actions"><button type="button" class="btn btn-secondary" id="command-palette-trigger" aria-haspopup="dialog">Commands <kbd>Ctrl K</kbd></button><button type="button" class="btn btn-secondary" id="manage-reconnect">Reconnect</button><button type="button" id="refresh_status" class="btn btn-secondary" aria-label="Refresh live status">Refresh observation</button></div>
+        </div>
+      </main></div></div><p id="demo-notice" class="demo-notice alert" role="status" hidden></p></body></html>

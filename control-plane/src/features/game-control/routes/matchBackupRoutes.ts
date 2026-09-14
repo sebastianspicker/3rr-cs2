@@ -1,3 +1,4 @@
+import { currentExecutionOptions } from '../../../shared/executionContext';
 /** Backup-list and restore endpoints with authenticated server ownership checks. */
 import express from 'express';
 import { parseGameBody } from './matchRouteValidation';
@@ -31,7 +32,10 @@ export function createMatchBackupRoutes(
         { user: req.session?.user?.username ?? 'unknown', action: 'list-backups' },
         '[game] action'
       );
-      const text = await rcon.executeCommand(server_id, 'mp_backup_restore_list_files');
+      const text = await rcon.executeCommand(server_id, 'mp_backup_restore_list_files', {
+        ...currentExecutionOptions(),
+        classification: 'observation',
+      });
       if (typeof text !== 'string' || text.trim().length === 0) {
         return res.status(502).json({
           error: 'Backup list response was empty; backup state unknown',
@@ -83,7 +87,10 @@ export function createMatchBackupRoutes(
         { user: req.session?.user?.username ?? 'unknown', action: 'restore-latest-backup' },
         '[game] action'
       );
-      const text = await rcon.executeCommand(server_id, 'mp_backup_round_file_last');
+      const text = await rcon.executeCommand(server_id, 'mp_backup_round_file_last', {
+        ...currentExecutionOptions(),
+        classification: 'observation',
+      });
       const latestBackup = parseLatestBackupState(text);
       const result = await restoreLatestBackup(factories, server_id, latestBackup);
       return res.status(result.status).json(result.body);

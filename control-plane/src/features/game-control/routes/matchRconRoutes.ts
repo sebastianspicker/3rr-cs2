@@ -1,3 +1,4 @@
+import { currentExecutionOptions } from '../../../shared/executionContext';
 /** Explicit RCON endpoints that retain audit history only for sent commands. */
 import express from 'express';
 import type { RconManager } from '../../../integrations/rcon/rcon';
@@ -61,7 +62,7 @@ export function createMatchRconRoutes(
         { user: req.session?.user?.username ?? 'unknown', text },
         '[rcon] say-admin command'
       );
-      await rcon.executeCommand(server_id, `say "${text}"`);
+      await rcon.executeCommand(server_id, `say "${text}"`, currentExecutionOptions());
       return res.status(200).json({ message: 'Say command sent.' });
     } catch (err) {
       sendGameRouteError(res, err, 'say-admin');

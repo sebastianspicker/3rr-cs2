@@ -1,30 +1,31 @@
-# 3RR Control Plane
+# 3RR control plane
 
-`control-plane` is the Node 22 Express/TypeScript application for authenticated
-control of existing Counter-Strike 2 servers over RCON. It stores operational
-state in SQLite, uses Redis for production sessions and rate limits, renders
-EJS pages, and builds browser assets from maintained web sources.
+The control plane is a Node 22 application for managing existing
+Counter-Strike 2 servers over RCON. It provides an authenticated Express API
+and EJS web interface, stores application data in SQLite, and uses Redis for
+sessions and rate limits in production. The browser code is written in
+TypeScript and bundled as part of the build.
 
-It does not install or update CS2, CFG files, maps, or plugins, and it never
-runs commands on a CS2 host.
+It does not install or update CS2, configuration files, maps, or plugins. It
+also never runs shell commands on a CS2 host.
 
 ## Architecture
 
-`src/main.ts` is the sole process composition root. It constructs SQLite,
-Redis, RCON, and the Express application. The dependency rules are enforced by
-`npm run check:architecture`:
+`src/main.ts` starts the process and wires together SQLite, Redis, RCON, and
+the Express application. `npm run check:architecture` enforces the source
+dependencies:
 
-- `src/app`: composition, lifecycle, authentication, security, rate limits,
-  and health
+- `src/app`: application assembly, lifecycle, authentication, security, rate
+  limits, and health
 - `src/features`: HTTP routes and feature behavior
 - `src/infrastructure`: SQLite, Redis, and logging
-- `src/integrations`: RCON and external network boundary
-- `src/shared`: dependency-leaf utilities
-- `web/client`, `web/assets`, `web/views`: maintained browser sources
+- `src/integrations`: RCON and other external network connections
+- `src/shared`: utilities that do not depend on another application layer
+- `web/client`, `web/assets`, `web/views`: browser source files
 - `web/generated`: generated assets; do not edit directly
 
-`features`, `infrastructure`, and `integrations` must not depend on `app`.
-`shared` must not depend on any of those layers.
+The feature, infrastructure, and integration layers cannot import `app`, and
+`shared` cannot import any other application layer.
 
 Keep RCON credential encoding in
 `src/infrastructure/credentials/rconCredential.ts`, server-access behavior in
@@ -32,29 +33,34 @@ Keep RCON credential encoding in
 and RCON command parsing/policy in
 `src/integrations/rcon/rconCommandPolicy.ts`.
 
-## Install and run
+## Quick start
 
 ```bash
 npm ci
-cp .env.example .env
+cp -n .env.example .env
+chmod 0600 .env
 ```
 
 Set `SESSION_SECRET` and `RCON_SECRET_KEY` in `.env`. In production,
-`SESSION_SECRET` must be at least 32 characters and `RCON_SECRET_KEY` must be a
-32-byte base64 or hex key.
+`SESSION_SECRET` must be a strong value of at least 32 characters and
+`RCON_SECRET_KEY` must be a 32-byte base64 or hex key. Placeholder, repeated,
+sequential, and single-character-class session secrets are rejected.
 
-For an empty database only, set `ALLOW_DEFAULT_CREDENTIALS=true`,
-`DEFAULT_USERNAME`, and a 12-character-or-longer `DEFAULT_PASSWORD`; remove
-them and set `ALLOW_DEFAULT_CREDENTIALS=false` after creating the first admin.
+To create the first administrator in an empty database, set
+`ALLOW_DEFAULT_CREDENTIALS=true`, `DEFAULT_USERNAME`, and a
+`DEFAULT_PASSWORD` of at least 12 characters. After signing in, remove the
+username and password from the environment, set
+`ALLOW_DEFAULT_CREDENTIALS=false`, and restart the application. Production
+rejects known placeholder passwords.
 
 ```bash
 npm run build
 node --env-file=.env dist/src/main.js
 ```
 
-`npm start` runs the already-built `dist/src/main.js` with the environment
-provided by the process. `npm run dev` watches the application after building
-web assets.
+`npm start` runs the existing `dist/src/main.js` build with variables already
+present in the process environment; it does not load `.env`. `npm run dev`
+builds the web assets and watches the application for changes.
 
 ## Configuration
 
@@ -73,43 +79,63 @@ web assets.
 | `RCON_COMMAND_TIMEOUT_MS` | No              | `2000`                        | RCON command timeout                                      |
 | `HEALTHCHECK_VERBOSE`     | No              | `false`                       | Enables detailed health output                            |
 
-`PANEL_BIND_ADDRESS` belongs to
+`PANEL_BIND_ADDRESS` configures
 [`../deploy/compose/control-plane.compose.yaml`](../deploy/compose/control-plane.compose.yaml),
-not the Node process. The full shared contract is in
-[../docs/reference/env.md](../docs/reference/env.md).
+not the Node process. See [the environment reference](../docs/reference/env.md)
+for every shared setting.
 
-## Commands
+## Development and checks
 
 ```bash
+npx playwright install chromium
 npm run check
 npm run validate -- --require-docker
 npm run ci
 ```
 
-`npm run check` runs format, lint, architecture, type, unit/integration/contract
-tests, and build checks. The Docker validation command verifies deployment
-configuration but does not validate a live CS2/RCON environment.
+`npm run check` checks formatting, lint rules, architecture, and browser types;
+creates a clean build; and runs the backend unit, integration, and contract
+tests plus the Chromium browser tests. `npm run validate -- --require-docker`
+also checks the deployment configuration. It does not connect to a live CS2
+server over RCON.
+
+`npm run test:compiled` and `npm run test:browser` reuse the current build.
+`npm test` creates a clean build before running both suites. The browser tests
+start the real Express application with a temporary SQLite database and fixed
+RCON responses, so they do not need a production server or credentials.
+
+On Linux, install Chromium and its system dependencies once before running the
+tests:
+
+```bash
+npx playwright install --with-deps chromium
+```
+
+Use `npm ci` for local and CI installations so both use the versions in the
+checked-in lockfile. Docker creates its own clean production build.
 
 ## Deployment and safety
 
-Start the supplied control-plane and Redis deployment from a local env file:
+Start the supplied control-plane and Redis deployment with the local `.env`
+file created above:
 
 ```bash
-docker compose --env-file ./panel.env \
+docker compose --env-file ./.env \
   -f ../deploy/compose/control-plane.compose.yaml up --build
 ```
 
-It binds `127.0.0.1:3000` by default and does not terminate TLS. Put it behind
-a TLS reverse proxy, set `TRUST_PROXY` only to known hops, and restrict RCON
-access to the control-plane network.
+The example publishes the application at `127.0.0.1:3000` by default and does
+not terminate TLS. Put it behind a TLS reverse proxy, set `TRUST_PROXY` only
+for known proxy hops, and allow RCON traffic only from the control-plane
+network.
 
-SQLite migrations are forward-only through `PRAGMA user_version`; version 3 is
-currently supported. Back up the database before upgrading. Preserve CSRF on
-authenticated state-changing routes, per-server serialized RCON commands,
-explicit RCON connection/authentication state, timeouts, network validation,
-and the one-command printable-ASCII console policy.
+SQLite migrations move forward through `PRAGMA user_version`; schema version 3
+is current. Back up the database before upgrading. Changes to the application
+must preserve CSRF protection for authenticated state changes, serialized RCON
+commands per server, separate RCON connection and authentication states,
+timeouts, network validation, and the console rule that accepts one printable
+ASCII command at a time.
 
-Read [docs/API.md](docs/API.md), [docs/RUNBOOK.md](docs/RUNBOOK.md),
-[docs/SERVER-SETUP.md](docs/SERVER-SETUP.md), and
-[docs/FRONTEND.md](docs/FRONTEND.md) before changing their respective
-contracts.
+For more detail, see the [API reference](docs/API.md), [operations
+runbook](docs/RUNBOOK.md), [CS2 server requirements](docs/SERVER-SETUP.md), and
+[frontend guide](docs/FRONTEND.md).

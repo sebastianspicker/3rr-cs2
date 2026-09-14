@@ -8,6 +8,7 @@ interface RconInitializationDependencies {
   hasConnection(serverId: string): boolean;
   rememberServer(server: ServerInfo): void;
   connect(serverId: string, server: ServerInfo): Promise<boolean>;
+  concurrency: number;
 }
 
 /** Connect saved servers independently so one failed endpoint never blocks startup. */
@@ -16,6 +17,7 @@ export async function initializeRconConnections({
   hasConnection,
   rememberServer,
   connect,
+  concurrency,
 }: RconInitializationDependencies): Promise<RconInitSummary> {
   try {
     const servers = db
@@ -31,36 +33,62 @@ export async function initializeRconConnections({
     };
 
     logger.info({ count: servers.length }, '[rcon] Initializing connections');
-    await Promise.all(
-      servers.map(async (server) => {
+    // Register the complete startup inventory before any connection can finish.
+    for (const server of servers) rememberServer(server);
+    const results = new Array<
+      | { state: 'connected' }
+      | { state: 'skipped' }
+      | { state: 'failed'; error: RconInitSummary['errors'][number] }
+    >(servers.length);
+    let nextIndex = 0;
+    const worker = async () => {
+      while (nextIndex < servers.length) {
+        const index = nextIndex++;
+        const server = servers[index];
+        if (!server) continue;
         const serverId = String(server.id);
         if (hasConnection(serverId)) {
-          summary.skipped += 1;
-          return;
+          results[index] = { state: 'skipped' };
+          continue;
         }
 
-        rememberServer(server);
         try {
           if (await connect(serverId, server)) {
-            summary.connected += 1;
-            return;
+            results[index] = { state: 'connected' };
+            continue;
           }
-          summary.failed += 1;
-          summary.errors.push({
-            server_id: serverId,
-            serverIP: server.serverIP,
-            message: 'RCON initialization failed',
-          });
+          results[index] = {
+            state: 'failed',
+            error: {
+              server_id: serverId,
+              serverIP: server.serverIP,
+              message: 'RCON initialization failed',
+            },
+          };
         } catch (error) {
-          summary.failed += 1;
-          summary.errors.push({
-            server_id: serverId,
-            serverIP: server.serverIP,
-            message: errorMessage(error),
-          });
+          results[index] = {
+            state: 'failed',
+            error: {
+              server_id: serverId,
+              serverIP: server.serverIP,
+              message: errorMessage(error),
+            },
+          };
         }
-      })
+      }
+    };
+    await Promise.all(
+      Array.from({ length: Math.min(concurrency, servers.length) }, () => worker())
     );
+    for (const result of results) {
+      if (!result) continue;
+      if (result.state === 'connected') summary.connected += 1;
+      else if (result.state === 'skipped') summary.skipped += 1;
+      else {
+        summary.failed += 1;
+        summary.errors.push(result.error);
+      }
+    }
     summary.complete = true;
     logger.info(
       {

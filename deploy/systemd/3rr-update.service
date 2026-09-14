@@ -7,6 +7,9 @@ Wants=network-online.target
 Type=oneshot
 ExecStart=/opt/3rr/apps/maintain/updater/3rr-update.sh
 WorkingDirectory=/opt/3rr/apps/maintain/updater
-# Covers the two default 30-minute SteamCMD budgets plus lifecycle overhead.
-# Raise this deadline when STEAMCMD_TIMEOUT_SECS is raised; the unit deadline wins.
-TimeoutStartSec=65min
+# Covers both default SteamCMD calls, bounded systemctl retries, restoration,
+# retry sleeps, and additional host overhead. Recalculate with the updater README
+# formula whenever timeout or retry settings change; the unit deadline wins.
+TimeoutStartSec=120min
+# Allows a timed-out systemctl call plus bounded start/status restoration retries.
+TimeoutStopSec=20min

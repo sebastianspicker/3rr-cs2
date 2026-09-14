@@ -1,24 +1,24 @@
 ## Summary
 
-<!-- Explain the operator-visible problem and the smallest change that solves it. -->
+<!-- What problem does this solve, and what changes for users? -->
 
 ## Scope
 
-- Module(s):
-- Behavior or contract changed:
+- Modules changed:
+- Behavior or interface changes:
 - Compatibility impact:
 
-## Verification
+## Checks
 
-<!-- Include exact commands and results. Separate passing, skipped, and environment-blocked checks. -->
+<!-- List the commands you ran and their results. Explain any checks you could not run. -->
 
-- [ ] Focused tests cover the reason for the change.
-- [ ] `./scripts/verify.sh` passed, or every unavailable lane is listed below.
-- [ ] Documentation reflects operator-visible behavior.
-- [ ] No credentials, local paths, temporary tool state, or private work notes are included.
+- [ ] Tests cover the changed behavior, where applicable.
+- [ ] `./scripts/verify.sh` passed, or I listed the checks I could not run below.
+- [ ] Documentation matches the change.
+- [ ] The changes and attachments contain no credentials, personal paths, temporary reports, or private notes.
 
-Skipped or blocked checks:
+Checks not run, and why:
 
-## Release Risk
+## Deployment considerations
 
-<!-- Note migrations, rollback needs, network boundaries, state transitions, or deployment assumptions. -->
+<!-- Note any migrations, recovery steps, network changes, or deployment requirements. -->

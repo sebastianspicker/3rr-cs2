@@ -13,19 +13,19 @@
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to main content</a>
-  <%- include('partials/navbar') %>
-  <main class="container route-shell route-shell--form" id="main">
+  <div class="shell ops-shell">
+    <%- include('partials/navbar') %>
+  <main class="container main workbench route-shell route-shell--form" id="main">
     <div class="page-header route-header">
       <div>
-        <p class="route-kicker">Operator</p>
         <h1>Settings</h1>
-        <p>Account password and appearance for this browser</p>
+        <p>Account security and browser appearance.</p>
       </div>
     </div>
-    <div class="route-workspace route-workspace--split">
+    <div class="route-workspace route-workspace--split settings-workspace">
       <div class="panel route-main" aria-labelledby="change-password-heading">
         <div class="panel-header">
-          <h2 id="change-password-heading">Change Password</h2>
+          <h2 id="change-password-heading">Change password</h2>
         </div>
         <form id="change-password-form">
           <div class="mb-3">
@@ -33,12 +33,13 @@
             <input type="password" id="current-password" name="currentPassword" class="form-control" required autocomplete="current-password">
           </div>
           <div class="mb-3">
-            <label for="new-password" class="form-label">New password <span class="text-muted">(min 12 characters)</span></label>
-            <input type="password" id="new-password" name="newPassword" class="form-control" required minlength="12" autocomplete="new-password">
+            <label for="new-password" class="form-label">New password</label>
+            <input type="password" id="new-password" aria-describedby="password-help change-password-status" name="newPassword" class="form-control" required minlength="12" autocomplete="new-password">
+            <p class="form-help" id="password-help">Use at least 12 characters.</p>
           </div>
           <div class="mb-3">
             <label for="confirm-password" class="form-label">Confirm new password</label>
-            <input type="password" id="confirm-password" name="confirmPassword" class="form-control" required autocomplete="new-password">
+            <input type="password" id="confirm-password" aria-describedby="change-password-status" name="confirmPassword" class="form-control" required autocomplete="new-password">
           </div>
           <div id="change-password-status" class="alert mb-3" role="status" aria-live="polite" hidden></div>
           <button id="change-password-submit" type="submit" class="btn btn-primary">Update password</button>
@@ -48,21 +49,24 @@
         <div class="panel-header">
           <h2 id="appearance-heading">Appearance</h2>
         </div>
-        <p class="text-muted mb-3">Night Desk is the default for evening ops. Choice is stored only in this browser.</p>
+        <p class="text-muted mb-3">Choose a comfortable appearance. Saved only in this browser.</p>
         <div class="btn-pair" role="radiogroup" aria-label="Theme" id="theme-radiogroup">
-          <button type="button" class="btn btn-secondary" role="radio" data-theme-value="dark" id="theme-dark" aria-checked="true">Night Desk</button>
-          <button type="button" class="btn btn-secondary" role="radio" data-theme-value="light" id="theme-light" aria-checked="false">Daylight</button>
+          <button type="button" class="btn btn-secondary" role="radio" data-theme-value="dark" id="theme-dark" aria-checked="true">Dark</button>
+          <button type="button" class="btn btn-secondary" role="radio" data-theme-value="light" id="theme-light" aria-checked="false">Light</button>
         </div>
         <div id="theme-status" class="alert alert-success mt-sm" role="status" aria-live="polite" hidden></div>
       </section>
     </div>
   </main>
+  </div>
   <%- include('partials/footer') %>
+  <script src="/js/console.js"></script>
   <script nonce="<%= cspNonce %>">
     (function () {
       var csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
       document.getElementById('change-password-form').addEventListener('submit', async function (e) {
         e.preventDefault();
+        if (e.target.getAttribute('aria-busy') === 'true') return;
         var status = document.getElementById('change-password-status');
         var currentPassword = document.getElementById('current-password').value;
         var newPassword = document.getElementById('new-password').value;
@@ -77,10 +81,14 @@
 
         if (newPassword !== confirmPassword) {
           setStatus('New passwords do not match.', 'danger');
+          document.getElementById('confirm-password').setAttribute('aria-invalid', 'true');
+          document.getElementById('confirm-password').focus();
           return;
         }
 
+        document.getElementById('confirm-password').removeAttribute('aria-invalid');
         try {
+          e.target.setAttribute('aria-busy', 'true');
           submitButton.disabled = true;
           submitButton.textContent = 'Updating…';
           var res = await fetch('/api/users/change-password', {
@@ -96,8 +104,9 @@
             setStatus(data.error || 'Failed to update password.', 'danger');
           }
         } catch (err) {
-          setStatus('Network error. Please try again.', 'danger');
+          setStatus('The result could not be confirmed. Your password may have changed; sign in with the new password to check.', 'danger');
         } finally {
+          e.target.setAttribute('aria-busy', 'false');
           submitButton.disabled = false;
           submitButton.textContent = 'Update password';
         }
@@ -125,6 +134,7 @@
         themeButtons.forEach(function (btn) {
           var active = btn.getAttribute('data-theme-value') === value;
           btn.setAttribute('aria-checked', active ? 'true' : 'false');
+          btn.tabIndex = active ? 0 : -1;
           btn.classList.toggle('btn-active', active);
         });
         if (announce && themeStatus) {
@@ -134,10 +144,23 @@
       }
 
       applyThemeSelection(currentTheme(), false);
+      document.getElementById('confirm-password').addEventListener('input', function (event) {
+        event.target.removeAttribute('aria-invalid');
+      });
+      document.getElementById('theme-toggle').addEventListener('click', function () {
+        applyThemeSelection(currentTheme(), false);
+      });
 
       themeButtons.forEach(function (btn) {
         btn.addEventListener('click', function () {
           applyThemeSelection(btn.getAttribute('data-theme-value'), true);
+        });
+        btn.addEventListener('keydown', function (event) {
+          if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) return;
+          event.preventDefault();
+          var target = event.key === 'Home' ? themeButtons[0] : event.key === 'End' ? themeButtons[1] : themeButtons[btn === themeButtons[0] ? 1 : 0];
+          applyThemeSelection(target.getAttribute('data-theme-value'), true);
+          target.focus();
         });
       });
     })();

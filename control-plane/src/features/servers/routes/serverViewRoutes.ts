@@ -1,3 +1,4 @@
+import { currentExecutionOptions } from '../../../shared/executionContext';
 import express from 'express';
 import type Database from 'better-sqlite3';
 import type { RconManager } from '../../../integrations/rcon/rcon';
@@ -37,8 +38,8 @@ export function createServerViewRoutes(
     serverId: string
   ): Promise<{ hostname: string; error: string | null }> {
     try {
-      const response = await rcon.executeCommand(serverId, 'hostname');
-      return { hostname: parseHostnameResponse(response, '–'), error: null };
+      const response = await rcon.observeCommand(serverId, 'hostname', currentExecutionOptions());
+      return { hostname: parseHostnameResponse(response.value, '–'), error: null };
     } catch (error) {
       logger.warn({ server_id: serverId, err: error }, '[server] manage hostname unavailable');
       return { hostname: '–', error: 'hostname unavailable' };

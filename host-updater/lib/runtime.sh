@@ -68,6 +68,14 @@ require_cmd() {
     command -v "$cmd" > /dev/null 2>&1 || exit_with_error "Missing required command: $cmd"
 }
 
+require_gnu_timeout() {
+    local version
+    version="$(timeout --version 2> /dev/null | awk 'NR == 1 { print; exit }')"
+    if [[ "$version" != *"GNU coreutils"* ]]; then
+        exit_with_error "GNU coreutils timeout is required; 'timeout --version' did not identify GNU coreutils."
+    fi
+}
+
 # Call after require_root so validation failures can use exit_with_error.
 validate_lockdir_config() {
     if [ "$LOCKDIR" = "/" ] || [[ "$LOCKDIR" =~ ^/+$ ]]; then
@@ -102,6 +110,12 @@ validate_numeric_timing_config() {
     fi
     if [ "$STEAMCMD_TIMEOUT_SECS" -gt 86400 ]; then
         exit_with_error "STEAMCMD_TIMEOUT_SECS must be at most 86400 (24 hours). Current: $STEAMCMD_TIMEOUT_SECS"
+    fi
+    if ! [[ "$SYSTEMCTL_TIMEOUT_SECS" =~ ^[0-9]+$ ]] || [ "$SYSTEMCTL_TIMEOUT_SECS" -lt 1 ]; then
+        exit_with_error "SYSTEMCTL_TIMEOUT_SECS must be a positive integer. Current: $SYSTEMCTL_TIMEOUT_SECS"
+    fi
+    if [ "$SYSTEMCTL_TIMEOUT_SECS" -gt 3600 ]; then
+        exit_with_error "SYSTEMCTL_TIMEOUT_SECS must be at most 3600 (1 hour). Current: $SYSTEMCTL_TIMEOUT_SECS"
     fi
     if [ "$MAX_ATTEMPTS" -gt 100 ]; then
         exit_with_error "MAX_ATTEMPTS must be at most 100. Current: $MAX_ATTEMPTS"

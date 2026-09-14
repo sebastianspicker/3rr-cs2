@@ -13,17 +13,24 @@ export function bootstrapDatabase(db: Database.Database): void {
   createInitialAdmin(db);
 }
 
-function encryptStoredRconPasswords(db: Database.Database): void {
-  if (!hasRconSecretKey()) return;
-  const rows = db.prepare(`SELECT id, rconPassword FROM servers`).all() as Array<{
-    id: number;
-    rconPassword: string;
-  }>;
-  const update = db.prepare(`UPDATE servers SET rconPassword = ? WHERE id = ?`);
-  for (const row of rows) {
-    if (typeof row.rconPassword !== 'string' || isEncryptedRconSecret(row.rconPassword)) continue;
-    update.run(encryptRconSecret(row.rconPassword), row.id);
-  }
+export function encryptStoredRconPasswords(db: Database.Database): number {
+  if (!hasRconSecretKey()) return 0;
+  const converted = db.transaction(() => {
+    const rows = db.prepare('SELECT id, rconPassword FROM servers').all() as Array<{
+      id: number;
+      rconPassword: string;
+    }>;
+    const update = db.prepare('UPDATE servers SET rconPassword = ? WHERE id = ?');
+    let count = 0;
+    for (const row of rows) {
+      if (typeof row.rconPassword !== 'string' || isEncryptedRconSecret(row.rconPassword)) continue;
+      update.run(encryptRconSecret(row.rconPassword), row.id);
+      count += 1;
+    }
+    return count;
+  })();
+  logger.info({ converted }, '[db] Stored RCON credential conversion complete');
+  return converted;
 }
 
 function createInitialAdmin(db: Database.Database): void {

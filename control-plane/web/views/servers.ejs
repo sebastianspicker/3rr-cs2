@@ -13,25 +13,63 @@
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to main content</a>
-  <%- include('partials/navbar') %>
-  <main class="container route-shell route-shell--inventory" id="main">
-    <div class="page-header route-header">
-      <div>
-        <p class="route-kicker">Fleet</p>
-        <h1>Servers</h1>
-        <p>Connection state, player count, and operator access</p>
-      </div>
-    </div>
-    <section class="route-workspace route-workspace--table" aria-labelledby="servers-heading">
-      <h2 class="visually-hidden" id="servers-heading">Fleet inventory</h2>
-      <div class="server-table" role="table" aria-label="Configured servers">
-        <div class="server-list-head" role="row">
-          <span role="columnheader">Server</span><span role="columnheader">Status</span><span role="columnheader">Address</span><span role="columnheader">Players</span><span role="columnheader">Actions</span>
+  <div class="shell ops-shell">
+    <%- include('partials/navbar') %>
+    <main class="container main workbench route-shell route-shell--inventory" id="main">
+      <ol class="session-steps" aria-label="Session preparation progress">
+        <li class="session-step" aria-current="step"><span aria-hidden="true">1</span> Server</li>
+        <li class="session-step"><span aria-hidden="true">2</span> Setup</li>
+        <li class="session-step"><span aria-hidden="true">3</span> Check result</li>
+      </ol>
+      <section class="session-panel session-server-picker" aria-labelledby="servers-heading">
+        <div class="page-header route-header fleet-head">
+          <div>
+            <h1 id="servers-heading">Choose a server</h1>
+            <p>Select the server you want to prepare.</p>
+          </div>
         </div>
-        <div id="serverList" role="rowgroup" aria-live="polite" aria-busy="true"></div>
+        <div class="fleet-stats" aria-label="Fleet summary">
+          <div class="fleet-stat"><span class="fleet-stat-value" id="fleet-total">–</span><span class="fleet-stat-label">Servers</span></div>
+          <div class="fleet-stat"><span class="fleet-stat-value text-success" id="fleet-connected">–</span><span class="fleet-stat-label">Connected</span></div>
+          <div class="fleet-stat"><span class="fleet-stat-value text-warning" id="fleet-unobserved">–</span><span class="fleet-stat-label">Unobserved</span></div>
+          <div class="fleet-stat"><span class="fleet-stat-value text-danger" id="fleet-disconnected">–</span><span class="fleet-stat-label">Disconnected</span></div>
+          <div class="fleet-stat"><span class="fleet-stat-value" id="fleet-players">–</span><span class="fleet-stat-label">Players online</span></div>
+        </div>
+        <div class="fleet-toolbar" role="search" aria-label="Filter servers">
+          <label class="visually-hidden" for="server-search">Search name or address</label>
+          <input class="form-control" type="search" id="server-search" placeholder="Search name or address" autocomplete="off">
+          <label class="visually-hidden" for="server-status-filter">Connection state</label>
+          <select class="form-select" id="server-status-filter"><option value="all">All connections</option><option value="connected">Connected</option><option value="unknown">Not observed</option><option value="disconnected">Disconnected</option><option value="error">Error</option></select>
+          <button class="btn btn-secondary" type="button" id="fleet-refresh">Refresh</button>
+        </div>
+        <div class="route-workspace route-workspace--table surface">
+          <div class="server-table" role="table" aria-label="Configured servers">
+            <div class="server-list-head server-choice-head" role="row">
+              <span role="columnheader">Server</span><span role="columnheader">Endpoint</span><span role="columnheader">RCON</span><span role="columnheader">Last check</span>
+            </div>
+            <div id="serverList" role="rowgroup" aria-live="polite" aria-busy="true"></div>
+          </div>
+          <div id="fleet-empty-filter" class="empty-state" hidden><p>No servers match these filters.</p><button type="button" class="btn btn-secondary" id="fleet-clear-filters">Clear filters</button></div>
+        </div>
+        <p id="fleet-filter-summary" class="fleet-filter-summary" role="status"></p>
+      </section>
+      <section class="session-panel" id="selected-server" aria-labelledby="selected-server-heading" hidden>
+        <h2 id="selected-server-heading">Selected: <span id="selected-server-name">Unknown</span></h2>
+        <div class="session-observation-strip" aria-label="Selected server observation">
+          <div><span>Observed</span> <strong id="selected-server-observed">Unknown</strong></div>
+          <div><span>Map</span> <strong id="selected-server-map">Unknown</strong></div>
+          <div><strong id="selected-server-players">Unknown</strong></div>
+        </div>
+      </section>
+      <p class="session-warning" id="selected-server-warning" hidden>
+        Changing the map will interrupt play.
+      </p>
+      <div class="session-actions" id="selected-server-actions" hidden>
+        <a class="btn btn-primary" id="prepare-selected-server" href="/servers">Prepare server</a>
+        <a href="/add-server">Add server</a>
       </div>
-    </section>
-  </main>
+    </main>
+  </div>
 
   <%- include('partials/footer') %>
   <script src="/js/console.js"></script>

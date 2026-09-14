@@ -1,0 +1,20 @@
+/* Demo-only disclosure and local status. All application styles come from panel.css. */
+.demo-disclosure {
+  color: var(--muted);
+  font-size: 0.75rem;
+  margin: 0 auto;
+  max-width: var(--content-max);
+  padding: 10px 24px 0;
+}
+.demo-notice {
+  position: fixed;
+  bottom: 16px;
+  right: 16px;
+  z-index: 100;
+  max-width: min(460px, calc(100vw - 32px));
+  box-shadow: var(--shadow-float);
+}
+#demo-manage[hidden],
+#demo-inventory[hidden] {
+  display: none;
+}

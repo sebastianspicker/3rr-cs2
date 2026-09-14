@@ -1,3 +1,5 @@
+import { currentExecutionOptions } from '../../shared/executionContext';
+import type { RconObservation, RconObservationOptions } from '../../integrations/rcon/rconTypes';
 /** Authenticated status routes that expose bounded live RCON observations. */
 import express from 'express';
 import type Database from 'better-sqlite3';
@@ -17,6 +19,7 @@ interface StatusObservation {
   maxPlayers: number | null;
   successful: number;
   errors: string[];
+  observedAt: string | null;
 }
 
 export function createStatusRouter(
@@ -39,7 +42,7 @@ export function createStatusRouter(
   };
 
   const applyStatusResult = (
-    result: PromiseSettledResult<string>,
+    result: PromiseSettledResult<RconObservation>,
     serverId: string,
     data: StatusObservation
   ): void => {
@@ -47,16 +50,20 @@ export function createStatusRouter(
       unavailable(serverId, 'status', result.reason, data.errors);
       return;
     }
-    const parsed = parseStatusResponse(result.value);
+    const parsed = parseStatusResponse(result.value.value);
     data.map = parsed.map;
     data.humanCount = parsed.humans;
     data.botCount = parsed.bots;
     data.maxPlayers = parsed.maxPlayers;
     data.successful += 1;
+    data.observedAt =
+      data.observedAt && data.observedAt < result.value.observedAt
+        ? data.observedAt
+        : result.value.observedAt;
   };
 
   const applyHostnameResult = (
-    result: PromiseSettledResult<string>,
+    result: PromiseSettledResult<RconObservation>,
     serverId: string,
     data: StatusObservation
   ): void => {
@@ -64,12 +71,16 @@ export function createStatusRouter(
       unavailable(serverId, 'hostname', result.reason, data.errors);
       return;
     }
-    data.hostname = parseHostnameResponse(result.value, '');
+    data.hostname = parseHostnameResponse(result.value.value, '');
     data.successful += 1;
+    data.observedAt =
+      data.observedAt && data.observedAt < result.value.observedAt
+        ? data.observedAt
+        : result.value.observedAt;
   };
 
   const applyMaxPlayersResult = (
-    result: PromiseSettledResult<string>,
+    result: PromiseSettledResult<RconObservation>,
     serverId: string,
     data: StatusObservation
   ): void => {
@@ -77,11 +88,18 @@ export function createStatusRouter(
       unavailable(serverId, 'sv_visiblemaxplayers', result.reason, data.errors);
       return;
     }
-    data.maxPlayers = parseVisibleMaxPlayers(result.value) ?? data.maxPlayers;
+    data.maxPlayers = parseVisibleMaxPlayers(result.value.value) ?? data.maxPlayers;
     data.successful += 1;
+    data.observedAt =
+      data.observedAt && data.observedAt < result.value.observedAt
+        ? data.observedAt
+        : result.value.observedAt;
   };
 
-  async function collectStatusObservation(serverId: string): Promise<StatusObservation> {
+  async function collectStatusObservation(
+    serverId: string,
+    options: RconObservationOptions
+  ): Promise<StatusObservation> {
     const data: StatusObservation = {
       hostname: null,
       map: null,
@@ -90,11 +108,12 @@ export function createStatusRouter(
       maxPlayers: null,
       successful: 0,
       errors: [],
+      observedAt: null,
     };
     const [statusResult, hostnameResult, cvarResult] = await Promise.allSettled([
-      rcon.executeCommand(serverId, 'status'),
-      rcon.executeCommand(serverId, 'hostname'),
-      rcon.executeCommand(serverId, 'sv_visiblemaxplayers'),
+      rcon.observeCommand(serverId, 'status', options),
+      rcon.observeCommand(serverId, 'hostname', options),
+      rcon.observeCommand(serverId, 'sv_visiblemaxplayers', options),
     ]);
     applyStatusResult(statusResult, serverId, data);
     applyHostnameResult(hostnameResult, serverId, data);
@@ -112,7 +131,7 @@ export function createStatusRouter(
   const observationStatus = (data: StatusObservation) => ({
     partial: data.successful > 0 && data.errors.length > 0,
     complete: data.successful === 3,
-    observed_at: data.successful > 0 ? new Date().toISOString() : null,
+    observed_at: data.observedAt,
     error: data.errors.length > 0 ? data.errors.join('; ') : null,
   });
 
@@ -130,7 +149,10 @@ export function createStatusRouter(
         return res.status(404).json({ error: 'Server not found' });
       }
 
-      const data = await collectStatusObservation(serverId);
+      const data = await collectStatusObservation(serverId, {
+        ...currentExecutionOptions(),
+        refresh: req.query.refresh === '1',
+      });
 
       return res.json({
         hostname: data.hostname,
