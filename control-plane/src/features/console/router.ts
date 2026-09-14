@@ -1,3 +1,4 @@
+import { currentExecutionOptions } from '../../shared/executionContext';
 /** Raw RCON observations, autocomplete, and command history. */
 import express from 'express';
 import type Database from 'better-sqlite3';
@@ -30,25 +31,34 @@ export function createConsoleRouter(
     const serverId = requireAuthorizedServerIdParam(req, res);
     if (!serverId) return;
     const [usersResult, statusResult] = await Promise.allSettled([
-      rcon.executeCommand(serverId, 'users'),
-      rcon.executeCommand(serverId, 'status'),
+      rcon.observeCommand(serverId, 'users', {
+        ...currentExecutionOptions(),
+        refresh: req.query.refresh === '1',
+      }),
+      rcon.observeCommand(serverId, 'status', {
+        ...currentExecutionOptions(),
+        refresh: req.query.refresh === '1',
+      }),
     ]);
     const errors: string[] = [];
     let players: ParsedPlayer[] = [],
-      observed = false,
+      observedAt: string | null = null,
       humans: number | null = null,
       bots: number | null = null,
       maxPlayers: number | null = null;
     if (usersResult.status === 'fulfilled') {
-      observed = true;
-      players = parseUsersResponse(usersResult.value);
+      observedAt = usersResult.value.observedAt;
+      players = parseUsersResponse(usersResult.value.value);
     } else {
       logger.warn({ server_id: serverId, err: usersResult.reason }, '[players] RCON users error');
       errors.push('users unavailable');
     }
     if (statusResult.status === 'fulfilled') {
-      observed = true;
-      const parsed = parseStatusResponse(statusResult.value);
+      observedAt =
+        observedAt && observedAt < statusResult.value.observedAt
+          ? observedAt
+          : statusResult.value.observedAt;
+      const parsed = parseStatusResponse(statusResult.value.value);
       humans = parsed.humans;
       bots = parsed.bots;
       maxPlayers = parsed.maxPlayers;
@@ -61,7 +71,7 @@ export function createConsoleRouter(
       humans,
       bots,
       max_players: maxPlayers,
-      observed_at: observed ? new Date().toISOString() : null,
+      observed_at: observedAt,
       error: errors.length ? errors.join('; ') : null,
     });
   });

@@ -2,23 +2,45 @@
 import { serverStatusClass, serverStatusLabel } from './serverStatus';
 import type { ServerListItem } from './serverTypes';
 
+export function serverDisplayName(server: ServerListItem): string {
+  const hostname = String(server.hostname).trim();
+  return hostname && hostname !== '-' && hostname !== '–'
+    ? hostname
+    : `${String(server.serverIP)}:${String(server.serverPort)}`;
+}
+
 export function createServerTitle(server: ServerListItem): HTMLElement {
   const header = document.createElement('div');
-  header.className = 'card-header';
+  header.className = 'card-header server-choice';
   header.setAttribute('role', 'cell');
-  const title = document.createElement('h3');
+  const radio = document.createElement('input');
+  radio.className = 'server-choice-input';
+  radio.type = 'radio';
+  radio.name = 'selected-server';
+  radio.value = String(server.id);
+  radio.id = `server-choice-${String(server.id)}`;
+  radio.dataset.serverId = String(server.id);
+  const label = document.createElement('label');
+  label.htmlFor = radio.id;
+  label.className = 'server-choice-label';
+  const title = document.createElement('span');
   title.className = 'card-title';
-  const hostname = String(server.hostname).trim();
-  title.textContent =
-    hostname && hostname !== '-' && hostname !== '–' ? hostname : `Server ${String(server.id)}`;
-  header.appendChild(title);
+  title.textContent = serverDisplayName(server);
+  label.appendChild(title);
+  if (String(server.hostname).trim() === '-' || String(server.hostname).trim() === '–') {
+    const fallback = document.createElement('span');
+    fallback.className = 'server-choice-fallback';
+    fallback.textContent = 'Hostname unavailable';
+    label.appendChild(fallback);
+  }
+  header.append(radio, label);
   return header;
 }
 
 export function createStatusIndicator(server: ServerListItem): HTMLElement {
   const statusClass = serverStatusClass(server);
   const status = document.createElement('div');
-  status.className = 'server-status-cell';
+  status.className = 'server-status-cell server-choice-status';
   status.setAttribute('role', 'cell');
   const statusDot = document.createElement('span');
   const dotClass =

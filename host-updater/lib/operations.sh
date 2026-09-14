@@ -50,6 +50,10 @@ run_steamcmd_with_timeout() {
     run_as_steam timeout --foreground --kill-after=10 "$STEAMCMD_TIMEOUT_SECS" "$@"
 }
 
+run_systemctl_with_timeout() {
+    timeout --foreground --kill-after=10 "$SYSTEMCTL_TIMEOUT_SECS" systemctl "$@"
+}
+
 retry_systemctl() {
     local action
     action="$1"
@@ -57,7 +61,7 @@ retry_systemctl() {
 
     local attempt
     for ((attempt = 1; attempt <= MAX_ATTEMPTS; attempt++)); do
-        if systemctl "$action" "$SERVICE_NAME"; then
+        if run_systemctl_with_timeout "$action" "$SERVICE_NAME"; then
             return 0
         fi
         if [ "$attempt" -lt "$MAX_ATTEMPTS" ]; then
@@ -74,7 +78,7 @@ wait_for_service_active() {
     require_cmd systemctl
 
     for ((attempt = 1; attempt <= MAX_ATTEMPTS; attempt++)); do
-        if systemctl is-active --quiet "$SERVICE_NAME"; then
+        if run_systemctl_with_timeout is-active --quiet "$SERVICE_NAME"; then
             return 0
         fi
         if [ "$attempt" -lt "$MAX_ATTEMPTS" ]; then
@@ -89,7 +93,7 @@ wait_for_service_active() {
 stop_service() {
     log "Stopping $SERVICE_NAME..."
     require_cmd systemctl
-    if systemctl is-active --quiet "$SERVICE_NAME"; then
+    if run_systemctl_with_timeout is-active --quiet "$SERVICE_NAME"; then
         # Record restoration responsibility before stop: systemctl may change
         # service state even when its command ultimately returns non-zero.
         SERVICE_STOPPED_BY_UPDATER=1
@@ -226,7 +230,7 @@ start_service() {
 
 ensure_service_running() {
     require_cmd systemctl
-    if systemctl is-active --quiet "$SERVICE_NAME"; then
+    if run_systemctl_with_timeout is-active --quiet "$SERVICE_NAME"; then
         log "$SERVICE_NAME is already running."
     else
         log "$SERVICE_NAME is not running; starting..."

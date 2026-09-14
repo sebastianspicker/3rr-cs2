@@ -1,0 +1,92 @@
+# Publishes the current panel design with local simulated interactions.
+# GitHub Pages has no authenticated API or RCON backend.
+name: Pages Demo
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/pages.yml'
+      - 'design-preview/**'
+      - 'control-plane/web/assets/**'
+      - 'control-plane/web/views/**'
+      - 'control-plane/scripts/build-css.mjs'
+      - 'control-plane/src/features/game-catalog/maps.json'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/pages.yml'
+      - 'design-preview/**'
+      - 'control-plane/web/assets/**'
+      - 'control-plane/web/views/**'
+      - 'control-plane/scripts/build-css.mjs'
+      - 'control-plane/src/features/game-catalog/maps.json'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages-demo-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Verify demo
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
+      - name: Verify static demo
+        run: |
+          node --check design-preview/preview.js
+          node design-preview/verify.mjs
+
+  package:
+    name: Package Pages artifact
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pages: write # Configure the repository's Pages metadata.
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
+      - name: Stage public demo files
+        run: |
+          mkdir -p "$RUNNER_TEMP/3rr-pages/fonts"
+          cp design-preview/index.html design-preview/panel.css design-preview/preview.css design-preview/preview.js design-preview/olive-texture.png design-preview/3rr-mark.svg "$RUNNER_TEMP/3rr-pages/"
+          cp design-preview/fonts/*.woff2 design-preview/fonts/*-LICENSE.txt "$RUNNER_TEMP/3rr-pages/fonts/"
+      - name: Upload demo artifact
+        uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4
+        with:
+          path: ${{ runner.temp }}/3rr-pages
+
+  deploy:
+    name: Deploy Pages demo
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: package
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    concurrency:
+      group: github-pages
+      cancel-in-progress: false
+    permissions:
+      pages: write # Publish the prepared Pages artifact.
+      id-token: write # Authenticate the deployment with GitHub OIDC.
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4

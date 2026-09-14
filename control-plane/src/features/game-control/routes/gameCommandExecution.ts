@@ -1,4 +1,7 @@
 import type { Response } from 'express';
+import { currentExecutionOptions } from '../../../shared/executionContext';
+import type { RconExecutionOptions } from '../../../integrations/rcon/rconTypes';
+import { RconExecutionError } from '../../../integrations/rcon/rconErrors';
 import type { RconManager } from '../../../integrations/rcon/rcon';
 import logger from '../../../infrastructure/logging';
 import { RconSecretDecryptError } from '../../../infrastructure/credentials/rconCredential';
@@ -9,6 +12,7 @@ export class RconCommandSequenceError extends Error {
   readonly failedCommand: string;
   readonly failedCommandIndex: number;
   readonly failureReason: string;
+  readonly executionError: RconExecutionError | undefined;
 
   constructor(appliedCommands: readonly string[], failedCommand: string, cause: unknown) {
     const partial = appliedCommands.length > 0;
@@ -18,6 +22,7 @@ export class RconCommandSequenceError extends Error {
         : 'RCON command sequence failed before any commands were applied'
     );
     this.name = 'RconCommandSequenceError';
+    this.executionError = cause instanceof RconExecutionError ? cause : undefined;
     this.appliedCommands = [...appliedCommands];
     this.failedCommand = failedCommand;
     this.failedCommandIndex = appliedCommands.length;
@@ -32,16 +37,29 @@ export class RconCommandSequenceError extends Error {
 export function sendGameRouteError(res: Response, err: unknown, tag = 'game'): void {
   logger.error({ err, tag }, `[${tag}] Error`);
   if (err instanceof RconCommandSequenceError) {
-    res.status(500).json({
+    res.status(err.executionError?.statusCode ?? 500).json({
+      ...(err.executionError
+        ? { outcome: err.executionError.outcome, code: err.executionError.name }
+        : {}),
       error: err.partial
         ? 'RCON command sequence failed after earlier commands were applied; server may be partially updated'
-        : 'RCON command sequence failed before any commands were applied',
+        : err.executionError?.outcome === 'unknown'
+          ? 'RCON command sequence failed; the dispatched command outcome is uncertain'
+          : 'RCON command sequence failed before any commands were applied',
       partial: err.partial,
       applied_commands: err.appliedCommands,
       failed_command: err.failedCommand,
       failed_command_index: err.failedCommandIndex,
       failure_reason: err.failureReason,
     });
+    return;
+  }
+  if (err instanceof RconExecutionError && err.cause instanceof RconSecretDecryptError) {
+    sendGameRouteError(res, err.cause, tag);
+    return;
+  }
+  if (err instanceof RconExecutionError) {
+    res.status(err.statusCode).json({ error: err.message, code: err.name, outcome: err.outcome });
     return;
   }
   if (err instanceof RconSecretDecryptError) {
@@ -62,11 +80,12 @@ export function sendGameRouteError(res: Response, err: unknown, tag = 'game'): v
 export async function runGameCmd(
   rcon: RconManager,
   serverId: string,
-  command: string
+  command: string,
+  options: RconExecutionOptions = currentExecutionOptions()
 ): Promise<void> {
   logger.debug({ server_id: serverId, cmd: command }, '[game] executing command');
   try {
-    await rcon.executeCommand(serverId, command);
+    await rcon.executeCommand(serverId, command, options);
   } catch (error) {
     logger.warn({ server_id: serverId, cmd: command, error }, '[game] command failed');
     throw error;
@@ -76,13 +95,18 @@ export async function runGameCmd(
 export function runGameCmdSequence(
   rcon: RconManager,
   serverId: string,
-  commands: readonly string[]
+  commands: readonly string[],
+  options: RconExecutionOptions = currentExecutionOptions()
 ): Promise<void> {
+  const deadlineOptions = {
+    ...options,
+    deadlineAt: options.deadlineAt ?? Date.now() + (rcon.totalDeadlineMs ?? 12_000),
+  };
   const appliedCommands: string[] = [];
   const runAt = (index: number): Promise<void> => {
     const command = commands.at(index);
     if (command === undefined) return Promise.resolve();
-    return runGameCmd(rcon, serverId, command).then(
+    return runGameCmd(rcon, serverId, command, deadlineOptions).then(
       () => {
         appliedCommands.push(command);
         return runAt(index + 1);

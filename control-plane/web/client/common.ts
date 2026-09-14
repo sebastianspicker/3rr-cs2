@@ -7,6 +7,47 @@ export interface ApiResponse {
   partial?: boolean;
 }
 
+export interface ApiErrorDetails {
+  error?: string;
+  message?: string;
+  code?: string;
+  outcome?: 'not_sent' | 'unknown';
+  applied_commands?: string[];
+  failed_command_index?: number;
+  failure_reason?: string;
+  failed_command?: string;
+  [key: string]: unknown;
+}
+
+export class ApiError extends Error {
+  readonly code?: string;
+  readonly outcome?: 'not_sent' | 'unknown';
+  constructor(
+    message: string,
+    readonly status: number,
+    readonly details: ApiErrorDetails = {}
+  ) {
+    const guidance =
+      details.outcome === 'not_sent'
+        ? ' Command was not sent.'
+        : details.outcome === 'unknown'
+          ? ' Outcome unknown. Check server state before sending again.'
+          : '';
+    const sequence =
+      Array.isArray(details.applied_commands) && details.applied_commands.length
+        ? ` Applied: ${details.applied_commands.join(', ')}.`
+        : '';
+    const failed =
+      typeof details.failed_command === 'string'
+        ? ` Failed command: ${details.failed_command}.`
+        : '';
+    super(message + sequence + failed + guidance);
+    this.name = 'ApiError';
+    this.code = details.code;
+    this.outcome = details.outcome;
+  }
+}
+
 type JsonMethod = 'GET' | 'POST' | 'PATCH' | 'DELETE';
 const apiRequestTimeoutMs = 15_000;
 
@@ -43,10 +84,18 @@ function requestSameOrigin(endpoint: string, init: RequestInit): Promise<Respons
       );
     };
     request.onerror = () => {
-      reject(new TypeError('Network request failed'));
+      reject(
+        new ApiError('Network request failed.', 0, {
+          outcome: init.method === 'GET' ? undefined : 'unknown',
+        })
+      );
     };
     request.ontimeout = () => {
-      reject(new Error('Request timed out. Retry the action.'));
+      reject(
+        new ApiError('Request timed out.', 0, {
+          outcome: init.method === 'GET' ? undefined : 'unknown',
+        })
+      );
     };
     request.send(typeof init.body === 'string' ? init.body : null);
   });
@@ -54,9 +103,10 @@ function requestSameOrigin(endpoint: string, init: RequestInit): Promise<Respons
 
 export async function fetchJson<T>(endpoint: string, options: JsonRequestOptions = {}): Promise<T> {
   const method = options.method ?? 'GET';
-  const init: RequestInit = { method };
+  const init: RequestInit = { method, headers: { Accept: 'application/json' } };
   if (method !== 'GET') {
     init.headers = {
+      Accept: 'application/json',
       'Content-Type': 'application/json',
       ...csrfHeaders(),
     };
@@ -72,14 +122,16 @@ export async function fetchJson<T>(endpoint: string, options: JsonRequestOptions
       throw new Error('Session expired - redirecting to login');
     }
     let errMsg = `Request failed (${resp.status})`;
+    let details: ApiErrorDetails = {};
     try {
-      const errBody = (await resp.json()) as { error?: string; message?: string };
+      const errBody = (await resp.json()) as ApiErrorDetails;
+      details = errBody;
       if (errBody.error) errMsg = errBody.error;
       else if (errBody.message) errMsg = errBody.message;
     } catch {
       /* non-JSON body - keep default */
     }
-    throw new Error(errMsg);
+    throw new ApiError(errMsg, resp.status, details);
   }
   return resp.json() as Promise<T>;
 }

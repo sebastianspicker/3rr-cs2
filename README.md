@@ -1,113 +1,158 @@
 # 3RR
 
 [![CI](https://github.com/sebastianspicker/3rr/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/sebastianspicker/3rr/actions/workflows/ci.yml)
-[![Secret Scan](https://github.com/sebastianspicker/3rr/actions/workflows/secret-scan.yml/badge.svg?branch=main)](https://github.com/sebastianspicker/3rr/actions/workflows/secret-scan.yml)
+[![Secret scan](https://github.com/sebastianspicker/3rr/actions/workflows/secret-scan.yml/badge.svg?branch=main)](https://github.com/sebastianspicker/3rr/actions/workflows/secret-scan.yml)
 
-3RR is a modular operations stack for self-hosted Counter-Strike 2 servers.
-Its control plane, host updater, and bootstrap assets share configuration and
-documentation, but they are independently deployable and do not call one
-another at runtime.
+3RR helps you run self-hosted Counter-Strike 2 servers. Use the browser panel
+to choose a server, prepare a practice session or scrim, manage players, and send RCON
+commands. Separate tools handle Linux host updates and server configuration.
 
-> [!WARNING]
-> This repository is alpha software. Review the
-> [release requirements](docs/RELEASING.md) and validate workflows in a
-> representative deployment before relying on it.
+It is built for community operators and server administrators who already
+have a CS2 host. You can use each component independently.
 
-## Modules
+3RR is in alpha. Test it on a non-critical server before using it for a
+scheduled match. See the [release checklist](docs/RELEASING.md) for deployment
+and recovery checks.
 
-| Path | Purpose | Does not do |
-| --- | --- | --- |
-| [`control-plane/`](control-plane/README.md) | Node 22 Express/TypeScript web and API control plane with SQLite, Redis, EJS, and RCON | Install CS2, run SteamCMD, or execute host commands |
-| [`host-updater/`](host-updater/README.md) | Linux/systemd/SteamCMD update transaction for an existing CS2 host | Provide a web UI or operate RCON |
-| [`server-bootstrap/`](server-bootstrap/README.md) | Static CFG assets, administrator bootstrap output, startup wrapper, and capability manifest | Install CS2, plugins, maps, SteamCMD, or systemd units |
-| [`deploy/`](deploy/) | Compose examples and updater systemd units | Replace local secrets or deployment review |
+[Try the browser demo](https://sebastianspicker.github.io/3rr/) ·
+[Install the control plane](control-plane/README.md) ·
+[Deployment examples](deploy/README.md)
 
-The control plane authenticates operators and controls running servers over
-RCON. The host updater performs a bounded transaction only after confirming a
-new Steam build. Server bootstrap writes and links server-owned assets without
-turning them into a background service.
+## Screenshot tour
 
-## Quick start
+These are screenshots of the current control plane, using fictional servers
+and simulated RCON responses. The [capture guide](docs/screenshots/README.md)
+explains how to reproduce them.
 
-### Control plane
+### 1. Choose a server
+
+See the servers you can access, their connection state, and the latest player
+counts. Select the target before preparing a session.
+
+![Server list with Scrim 01 selected and its latest status visible](docs/screenshots/01-servers.png)
+
+### 2. Review the setup
+
+Choose a game type, mode, and map, then add optional team names. The review
+shows what will be sent; changing the map interrupts anyone playing.
+
+![Session setup for Scrim 01 with Mirage and the teams Tigers and Sharks](docs/screenshots/02-setup.png)
+
+### 3. Send commands, then check the map
+
+A successful request means the setup commands were sent. A separate status
+check compares the requested map with what the server reports. It does not
+confirm settings the server has not reported, such as team names.
+
+![Setup result showing that the requested Mirage map was observed](docs/screenshots/04-map-observed.png)
+
+<details>
+<summary>See the commands-sent step and mobile view</summary>
+
+![Setup commands sent, awaiting a fresh server observation](docs/screenshots/03-commands-sent.png)
+
+<img src="docs/screenshots/05-mobile.png" alt="Session result on a narrow mobile screen" width="390">
+
+</details>
+
+## Browser demo
+
+The [GitHub Pages demo](https://sebastianspicker.github.io/3rr/) follows the
+current panel's **Server → Setup → Check result** flow. Choose a sample server,
+review its setup, send simulated commands, then check the reported map.
+
+The demo uses the application's olive styling with fictional data. Every
+action runs locally in your browser; it does not connect to a game server.
+See [demo instructions](design-preview/README.md) for the available controls,
+local use, and Pages setup on a fork.
+
+## Components
+
+| Component                                      | What it does                                                 | Requirements                                           |
+| ---------------------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------ |
+| [Control plane](control-plane/README.md)       | Browser and HTTP access to existing servers over RCON        | Node 22, SQLite; Redis in production                   |
+| [Host updater](host-updater/README.md)         | Stops, updates, and restarts an existing CS2 installation    | Linux, Bash, systemd, SteamCMD                         |
+| [Server bootstrap](server-bootstrap/README.md) | CFG files, administrator-file generator, and startup wrapper | A CS2 runtime; see the component's plugin requirements |
+| [Deployment examples](deploy/README.md)        | Compose and systemd configurations to adapt for your host    | Your own image, storage, network, and secrets          |
+
+The control plane does not install or update CS2. The updater runs on the
+Linux host independently of the panel. [Architecture](docs/architecture.md)
+explains how each component works and which data it uses.
+
+## Run the control plane locally
+
+Install Node 22 and npm, then run from the repository root:
 
 ```bash
 cd control-plane
 npm ci
-cp .env.example .env
-# Set SESSION_SECRET and RCON_SECRET_KEY in .env.
+cp -n .env.example .env
+chmod 600 .env
+```
+
+Edit `.env` before starting:
+
+- Set `SESSION_SECRET` and `RCON_SECRET_KEY` to separate random values.
+  Run `openssl rand -hex 32` once for each value.
+- Set `DB_PATH=./data/3rr.db` for a database inside this checkout.
+- For the first start on an empty database, set `ALLOW_DEFAULT_CREDENTIALS=true`,
+  choose `DEFAULT_USERNAME`, and set `DEFAULT_PASSWORD` to at least 12 characters.
+
+```bash
 npm run build
 node --env-file=.env dist/src/main.js
 ```
 
-Open `http://localhost:3000`. For an empty database, set
-`ALLOW_DEFAULT_CREDENTIALS=true`, `DEFAULT_USERNAME`, and a 12-character-or-
-longer `DEFAULT_PASSWORD` only long enough to create the first administrator.
-Remove those bootstrap values afterwards.
+Open `http://localhost:3000` and sign in. Once the administrator exists, stop
+the app, clear `DEFAULT_USERNAME` and `DEFAULT_PASSWORD`, set
+`ALLOW_DEFAULT_CREDENTIALS=false`, and restart it. Add an existing CS2 server
+using its address, port, and RCON password.
 
-To run the supplied panel-and-Redis deployment, start from the copied local env
-file rather than committing secrets:
+For deployment, follow the [control-plane guide](control-plane/README.md) and
+[Compose examples](deploy/README.md). Production requires Redis and HTTPS.
+The Compose example binds the panel to `127.0.0.1:3000`. Put a TLS reverse
+proxy in front of it. Review the [CS2-side requirements](control-plane/docs/SERVER-SETUP.md)
+before using CFG or plugin commands.
+
+## Development
 
 ```bash
-docker compose --env-file ./panel.env -f deploy/compose/control-plane.compose.yaml up --build
+(cd control-plane && npm ci && npm run check)
+(cd control-plane && npm run validate -- --require-docker)
+(cd host-updater && make ci)
 ```
 
-The Compose example binds to loopback by default and does not terminate TLS.
-
-### Host updater
-
-Follow [host-updater/README.md](host-updater/README.md). Its installed layout
-remains `/opt/3rr/apps/maintain/updater`; run a dry run and one supervised
-update before enabling `3rr-update.timer`.
-
-### Server bootstrap
-
-Follow [server-bootstrap/README.md](server-bootstrap/README.md) and
-[the provisioning workflow](docs/workflows/provision-server.md). Keep runtime
-environment files, administrator identities, tokens, and generated output out
-of version control.
-
-## Architecture and contracts
-
-- [Architecture](docs/architecture.md)
-- [Environment variables](docs/reference/env.md)
-- [Deployment topology](docs/reference/topology.md)
-- [Control-plane API](control-plane/docs/API.md)
-- [Control-plane runbook](control-plane/docs/RUNBOOK.md)
-- [CS2-side requirements](control-plane/docs/SERVER-SETUP.md)
-- [Updater workflow](docs/workflows/update-server.md)
-- [Operation workflow](docs/workflows/operate-server.md)
-- [Recovery](docs/workflows/disaster-recovery.md)
-- [Pterodactyl-style migration](docs/workflows/migrate-from-pterodactyl.md)
-
-## Development and verification
-
-The root verifier requires Node 22 or Docker, plus `make`, `shellcheck`,
-`shfmt`, `jq`, `ruby`, and `curl`.
+Run these commands from the repository root. The full repository check is:
 
 ```bash
-cd control-plane && npm ci && npm run check
-cd control-plane && npm run validate -- --require-docker
-cd host-updater && make ci
 ./scripts/verify.sh
 ```
 
-`./scripts/verify.sh` checks documentation links, configuration and Compose
-syntax, the control plane, the built container surface, updater tests, and
-bootstrap safety. It does not prove a live CS2, RCON, SteamCMD, systemd, Redis,
-backup, or production-network deployment.
+It requires Node 22 or its Docker fallback, a working Docker daemon and
+Compose, `make`, `shellcheck`, `shfmt`, `jq`, `ruby`, and `curl`. It checks docs,
+configuration, the control plane and container, updater behavior, and bootstrap
+scripts. Live CS2/RCON, SteamCMD, systemd, production Redis, and off-host
+recovery still need deployment testing. The static demo has its own
+[checks](design-preview/README.md#checks).
 
-## Security
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the contribution workflow and screenshot updates.
 
-Do not commit session secrets, RCON encryption keys or passwords, CS2 tokens,
-administrator files, or local environment files. Keep the control plane behind
-TLS, set `TRUST_PROXY` only for proxy hops you operate, and restrict RCON to
-the control-plane network.
+## Documentation
 
-RCON console input is intentionally one printable ASCII command with separator
-and dangerous-command checks. Do not weaken this boundary without a threat
-model and focused regression tests.
+- [Configuration reference](docs/reference/env.md)
+- [HTTP API](control-plane/docs/API.md) and [frontend maintenance](control-plane/docs/FRONTEND.md)
+- [Control-plane runbook](control-plane/docs/RUNBOOK.md) and [backup and recovery](docs/recovery.md)
+- [Provision a server](docs/workflows/provision-server.md),
+  [operate it](docs/workflows/operate-server.md), and
+  [update it](docs/workflows/update-server.md)
+- [Migrate from Pterodactyl](docs/workflows/migrate-from-pterodactyl.md)
+- [Product principles](PRODUCT.md) and [module provenance](docs/reference/provenance.md)
 
-Read [CONTRIBUTING.md](CONTRIBUTING.md) before changing shared contracts. See
-[docs/reference/provenance.md](docs/reference/provenance.md) for origin and
-license context.
+## Security and license
+
+Keep session secrets, RCON keys and passwords, Game Server Login Tokens,
+administrator files, and databases out of Git. Restrict RCON access to trusted
+hosts. Report vulnerabilities through [SECURITY.md](SECURITY.md).
+
+[MIT License](LICENSE). Imported modules and bundled fonts retain their
+respective license notices.

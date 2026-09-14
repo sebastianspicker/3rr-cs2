@@ -1,0 +1,59 @@
+{
+  "capturedAt": "2026-09-14T09:15:01.653Z",
+  "source": "control-plane Express/EJS application",
+  "data": "Disposable SQLite and deterministic RCON fixture; no live CS2 server",
+  "command": "cd control-plane && npm run build && node scripts/capture-screenshots.mjs",
+  "browser": "Chromium 153.0.8010.12",
+  "captures": [
+    {
+      "file": "01-servers.png",
+      "title": "Choose an existing server",
+      "route": "/servers",
+      "viewport": {
+        "width": 1536,
+        "height": 1024
+      },
+      "fullPage": false
+    },
+    {
+      "file": "02-setup.png",
+      "title": "Review the requested session setup",
+      "route": "/manage/2",
+      "viewport": {
+        "width": 1536,
+        "height": 1024
+      },
+      "fullPage": false
+    },
+    {
+      "file": "03-commands-sent.png",
+      "title": "Setup commands sent; live state still needs checking",
+      "route": "/manage/2",
+      "viewport": {
+        "width": 1536,
+        "height": 1024
+      },
+      "fullPage": false
+    },
+    {
+      "file": "04-map-observed.png",
+      "title": "Compare the requested map with a fresh observation",
+      "route": "/manage/2",
+      "viewport": {
+        "width": 1536,
+        "height": 1024
+      },
+      "fullPage": false
+    },
+    {
+      "file": "05-mobile.png",
+      "title": "Session result on a narrow screen",
+      "route": "/manage/2",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "fullPage": true
+    }
+  ]
+}

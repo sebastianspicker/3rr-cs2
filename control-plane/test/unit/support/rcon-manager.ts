@@ -5,6 +5,9 @@ import { mockModule } from './mock-module';
 export const rconScenario = {
   resolvedHost: '203.0.113.77',
   createdHosts: [] as string[],
+  executeCalls: [] as string[],
+  execute: undefined as ((command: string, connection: FakeRcon) => Promise<string>) | undefined,
+  authenticate: undefined as (() => Promise<void>) | undefined,
 };
 
 class FakeSocket extends EventEmitter {
@@ -28,10 +31,12 @@ export class FakeRcon {
   }
 
   async authenticate(): Promise<void> {
-    return undefined;
+    return rconScenario.authenticate?.();
   }
 
   async execute(command: string): Promise<string> {
+    rconScenario.executeCalls.push(command);
+    if (rconScenario.execute) return rconScenario.execute(command, this);
     return `${command} ok`;
   }
 
@@ -53,5 +58,8 @@ export function resetRconScenario(): void {
   Object.assign(rconScenario, {
     resolvedHost: '203.0.113.77',
     createdHosts: [],
+    executeCalls: [],
+    execute: undefined,
+    authenticate: undefined,
   });
 }

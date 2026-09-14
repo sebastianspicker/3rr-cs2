@@ -23,10 +23,23 @@ node_modules/
 *.sqlite-wal
 *.sqlite3-shm
 *.sqlite3-wal
+*.db-journal
+*.sqlite-journal
+*.sqlite3-journal
+
+# Private bootstrap files, including output written to a custom directory
+admins.json
+admin_groups.json
+3rr-secrets.cfg
+.3rr-secrets.cfg.*
 
 # Local environment and credentials
 .env
 .env.*
+*.env
+# Updater CI manifests contain tool versions and source-file lists.
+!/host-updater/scripts/ci-tools-versions.env
+!/host-updater/scripts/shell-files.env
 !.env.example
 !**/.env.example
 !.env.sample
@@ -163,3 +176,6 @@ development-log*
 /status.md
 /handoff.md
 /handover.md
+
+# Local design research; public captures belong in docs/screenshots/
+/design-exploration/

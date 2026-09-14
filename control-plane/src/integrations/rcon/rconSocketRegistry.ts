@@ -15,7 +15,8 @@ export class RconSocketRegistry {
 
   constructor(
     private readonly disconnectTimeoutMs: number,
-    private readonly forceDisconnectTimeoutMs: number
+    private readonly forceDisconnectTimeoutMs: number,
+    private readonly onConnectionChanged: (serverId: string) => void = () => undefined
   ) {}
 
   has(serverId: string): boolean {
@@ -79,7 +80,10 @@ export class RconSocketRegistry {
     this.releasePending(conn);
     this.rcons.set(serverId, conn);
     conn.connection.once('close', () => {
-      if (this.rcons.get(serverId) === conn) this.rcons.delete(serverId);
+      if (this.rcons.get(serverId) === conn) {
+        this.rcons.delete(serverId);
+        this.onConnectionChanged(serverId);
+      }
       const details = this.details.get(serverId);
       if (details) {
         details.connected = false;
@@ -93,6 +97,7 @@ export class RconSocketRegistry {
       authenticated: conn.isAuthenticated(),
       heartbeatFailures,
     });
+    this.onConnectionChanged(serverId);
   }
 
   async disconnect(serverId: string): Promise<RconDisconnectResult> {
@@ -101,6 +106,7 @@ export class RconSocketRegistry {
     const conn = this.rcons.get(serverId);
     if (!conn) {
       this.details.delete(serverId);
+      this.onConnectionChanged(serverId);
       return { server_id: serverId, state: 'absent', closed: true };
     }
     this.details.delete(serverId);
@@ -111,6 +117,7 @@ export class RconSocketRegistry {
       forceTimeoutMs: this.forceDisconnectTimeoutMs,
     });
     if (result.closed && this.rcons.get(serverId) === conn) this.rcons.delete(serverId);
+    if (result.closed) this.onConnectionChanged(serverId);
     if (!result.closed) logger.warn(result, '[rcon] disconnect cleanup not confirmed');
     return result;
   }

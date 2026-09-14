@@ -1,18 +1,21 @@
 # CS2 server requirements
 
-The control plane sends RCON commands to an existing CS2 server. Controls work
-only when their required CFG files, maps, and plugins exist on that server.
+The control plane connects to an existing CS2 server over RCON. Each control
+depends on the corresponding configuration file, map, or plugin already being
+installed on that server.
 
 ## CFG assets
 
-Copy required CFG files from `../../server-bootstrap/assets/cfg/` to the
-server's `game/csgo/cfg` directory. The supported inventory is enforced by
+Copy the configuration files you need from
+`../../server-bootstrap/assets/cfg/` into the server's `game/csgo/cfg`
+directory. The available files are listed and checked by
 [`../../server-bootstrap/capabilities.json`](../../server-bootstrap/capabilities.json).
-Do not copy arbitrary bundle paths through the startup wrapper.
+The startup wrapper only accepts paths listed in that manifest.
 
-MatchZy live-match controls execute `live.cfg`. The reference file is
-`../../server-bootstrap/assets/cfg/server-provided/live.cfg`; install it as the
-server-local `game/csgo/cfg/live.cfg` or provide an equivalent file.
+The MatchZy live-match controls run `live.cfg`. You can use
+`../../server-bootstrap/assets/cfg/server-provided/live.cfg` as the source,
+installing it at `game/csgo/cfg/live.cfg` on the server, or provide an
+equivalent file there.
 
 Verify each enabled preset through RCON, for example:
 
@@ -23,21 +26,22 @@ exec live.cfg
 
 ## Plugins and maps
 
-Several controls assume Metamod, CounterStrikeSharp, MatchZy, or a mode-specific
-plugin. CFG files configure rules; they do not install plugin or map behavior.
+Some controls require Metamod, CounterStrikeSharp, MatchZy, or a plugin for a
+specific game mode. Configuration files set server rules; they do not install
+plugins or maps.
 
-Before exposing a control to operators:
+Before making a control available to operators:
 
 1. Install the required plugin or map on the server.
 2. Run `css_plugins list` and confirm the plugin loaded.
 3. Execute the corresponding CFG or command over RCON.
-4. Confirm the result on the server.
+4. Check the result on the server itself.
 
-CTF, deathrun, OITC, 1v1 arenas, Roll the Dice, and MatchZy require server-side
-support not installed by the control plane.
+CTF, deathrun, OITC, 1v1 arenas, Roll the Dice, and MatchZy all need
+server-side support that the control plane does not install.
 
 ## Network access
 
-Use a distinct RCON password, restrict the RCON port to the control-plane host,
-and do not expose it publicly. Add a server only after RCON authentication
-succeeds from the control-plane network.
+Give RCON its own password and restrict the RCON port to the control-plane
+host. Do not expose the port publicly. Before adding a server, confirm that
+RCON authentication works from the control-plane network.

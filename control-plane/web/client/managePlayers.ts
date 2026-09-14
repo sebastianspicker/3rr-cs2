@@ -50,7 +50,7 @@ function createPlayerRow(player: PlayerRow): HTMLElement {
   actions.setAttribute('role', 'cell');
   const kick = document.createElement('button');
   kick.type = 'button';
-  kick.className = 'btn btn-warning btn-sm';
+  kick.className = 'btn btn-danger-outline btn-sm';
   kick.textContent = 'Kick';
   kick.dataset.playerAction = 'kick';
   kick.dataset.userid = player.userid;

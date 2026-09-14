@@ -1,72 +1,96 @@
 <%# Shared navigation; administrator links remain conditional on server-rendered access state. %>
-<nav class="panel-nav shell-nav" aria-label="Primary navigation">
-  <div class="nav-inner">
-    <a class="nav-brand" href="/servers" aria-label="3RR Operate">
-        <span class="brand-name">3RR</span><span class="brand-slashes" aria-hidden="true">///</span>
-      <span class="nav-product">Operate</span>
+<nav class="panel-nav shell-nav ops-rail" aria-label="Primary navigation">
+  <div class="nav-inner rail-inner">
+    <a class="nav-brand" href="/servers" aria-label="3RR Server control">
+      <span class="brand-name">3RR</span><span class="brand-slashes" aria-hidden="true">—</span>
+      <span class="nav-product">Server control</span>
     </a>
-    <button class="nav-toggle" id="nav-toggle-btn" aria-label="Open navigation" aria-expanded="false" aria-controls="nav-links-list">
-      <span aria-hidden="true">&#9776;</span><span class="nav-toggle-label">Menu</span>
+    <button class="nav-toggle" id="nav-toggle-btn" aria-label="Open account navigation" aria-expanded="false" aria-controls="account-navigation">
+      <svg class="nav-icon" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="5" r="3"/><path d="M2 14c0-3.3 2.4-5 6-5s6 1.7 6 5Z"/></svg><span class="nav-toggle-label">Account</span><span aria-hidden="true">⌄</span>
     </button>
-    <ul class="nav-links" id="nav-links-list">
-      <li><a href="/servers">Fleet</a></li>
-      <li><a href="/add-server">Add server</a></li>
-      <li><a href="/settings">Settings</a></li>
-      <% if (locals.isAdmin) { %>
-      <li><a href="/admin/users">Users</a></li>
-      <% } %>
-    </ul>
-    <% if (typeof server_id !== 'undefined') { %>
-      <%
-        const navRconOnline = connected && authenticated;
-        const navRconUnknown = Boolean(hostname_error);
-        const navStatusDotClass = navRconOnline ? 'online' : navRconUnknown ? 'unknown' : 'offline';
-        const navStatusBadgeClass = navRconOnline ? 'badge-connected' : navRconUnknown ? 'badge-unknown' : 'badge-disconnected';
-        const navStatusLabel = navRconOnline ? 'Connected' : navRconUnknown ? 'Unknown' : 'Disconnected';
-      %>
-      <div class="nav-server-list" aria-label="Authorized servers">
-        <p class="nav-section-label">Authorized servers</p>
-        <a class="nav-server is-active" href="/manage/<%= server_id %>" aria-current="location">
-          <span class="status-dot <%= navStatusDotClass %>" aria-hidden="true"></span>
-          <span class="nav-server-copy">
-            <strong><%= hostname && hostname !== '–' ? hostname : 'Server ' + server_id %></strong>
-            <span class="badge <%= navStatusBadgeClass %>" data-live-status-badge><%= navStatusLabel %></span>
-          </span>
-        </a>
+    <div class="rail-content" id="account-navigation" hidden>
+      <div class="rail-section">
+        <ul class="nav-links rail-nav" id="nav-links-list">
+          <li><a href="/servers"><svg class="nav-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="2" width="13" height="4" rx="1"/><rect x="1.5" y="10" width="13" height="4" rx="1"/><circle cx="4.5" cy="4" r="0.6" fill="currentColor"/><circle cx="4.5" cy="12" r="0.6" fill="currentColor"/></svg>Servers</a></li>
+          <li><a href="/add-server"><svg class="nav-icon" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.5"/><path d="M8 5v6M5 8h6"/></svg>Add server</a></li>
+          <li><a href="/settings"><svg class="nav-icon" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="2.2"/><path d="M8 1.5v2M8 12.5v2M14.5 8h-2M3.5 8h-2M12.6 3.4l-1.4 1.4M4.8 11.2l-1.4 1.4M12.6 12.6l-1.4-1.4M4.8 4.8 3.4 3.4"/></svg>Settings</a></li>
+          <% if (locals.isAdmin) { %>
+          <li><a href="/admin/users"><svg class="nav-icon" viewBox="0 0 16 16" aria-hidden="true"><circle cx="6" cy="5.5" r="2.5"/><path d="M1.5 14c.6-2.6 2.5-4 4.5-4s3.9 1.4 4.5 4"/><circle cx="11.5" cy="6" r="2"/><path d="M12 10c1.7.2 2.9 1.4 3.2 3.4"/></svg>Users</a></li>
+          <% } %>
+        </ul>
       </div>
-    <% } %>
-    <div class="nav-actions">
-      <span class="nav-operator"><span aria-hidden="true">●</span> <%= locals.isAdmin ? 'admin' : 'operator' %></span>
-      <form action="/auth/logout" method="post">
-        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-        <button type="submit" class="btn btn-ghost btn-sm">Sign out</button>
-      </form>
+      <div class="nav-server-list rail-section rail-servers" aria-label="Authorized servers">
+        <p class="nav-section-label rail-label">Your servers</p>
+        <ul class="rail-server-items" id="nav-server-list">
+      <% if (typeof server_id !== 'undefined') { %>
+          <li>
+            <a class="nav-server rail-server is-active" href="/manage/<%= server_id %>" aria-current="location">
+            <span class="nav-server-copy">
+              <strong><%= hostname && hostname !== '–' ? hostname : 'Server ' + server_id %></strong>
+              <span class="nav-server-endpoint"><%= host %>:<%= port %></span>
+            </span>
+            </a>
+          </li>
+      <% } %>
+        </ul>
+      </div>
+      <div class="nav-actions rail-foot">
+        <span class="nav-operator"><span aria-hidden="true">●</span> <%= locals.isAdmin ? 'admin' : 'operator' %></span>
+        <button type="button" class="btn btn-ghost btn-sm rail-theme" id="theme-toggle" aria-label="Toggle color theme" title="Toggle color theme">Appearance</button>
+        <form action="/auth/logout" method="post">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <button type="submit" class="btn btn-ghost btn-sm">Sign out</button>
+        </form>
+      </div>
     </div>
   </div>
 </nav>
+<button type="button" class="rail-scrim" id="rail-scrim" aria-label="Close navigation" tabindex="-1"></button>
 <script nonce="<%= cspNonce %>">
   (function () {
     var path = window.location.pathname;
     document.querySelectorAll('#nav-links-list a').forEach(function (a) {
       var href = a.getAttribute('href');
-      if (href === path || (href === '/servers' && path.indexOf('/manage/') === 0)) {
+      if (href === path) {
         a.setAttribute('aria-current', 'page');
       }
     });
     var btn = document.getElementById('nav-toggle-btn');
     var links = document.getElementById('nav-links-list');
-    if (btn && links) {
-      btn.addEventListener('click', function () {
-        var open = links.classList.toggle('open');
-        btn.setAttribute('aria-expanded', String(open));
-        btn.setAttribute('aria-label', open ? 'Close navigation' : 'Open navigation');
-      });
+    var scrim = document.getElementById('rail-scrim');
+    var rail = document.querySelector('.ops-rail');
+    var content = document.getElementById('account-navigation');
+    function setRailOpen(open, restoreFocus) {
+      if (!content || !btn) return;
+      content.hidden = !open;
+      document.body.classList.toggle('rail-open', open);
+      btn.setAttribute('aria-expanded', String(open));
+      btn.setAttribute('aria-label', open ? 'Close account navigation' : 'Open account navigation');
+      if (restoreFocus) btn.focus();
+    }
+    if (btn && content) {
+      btn.addEventListener('click', function () { setRailOpen(content.hidden, false); });
       document.addEventListener('keydown', function (event) {
-        if (event.key !== 'Escape' || !links.classList.contains('open')) return;
-        links.classList.remove('open');
-        btn.setAttribute('aria-expanded', 'false');
-        btn.setAttribute('aria-label', 'Open navigation');
-        btn.focus();
+        if (event.key === 'Escape' && !content.hidden) {
+          event.preventDefault();
+          setRailOpen(false, true);
+        }
+      });
+      document.addEventListener('click', function (event) {
+        if (rail && !rail.contains(event.target)) setRailOpen(false, false);
+      });
+      rail.addEventListener('focusout', function (event) {
+        if (event.relatedTarget && !rail.contains(event.relatedTarget)) setRailOpen(false, false);
+      });
+    }
+    if (scrim) scrim.addEventListener('click', function () { setRailOpen(false, true); });
+    var themeToggle = document.getElementById('theme-toggle');
+    if (themeToggle) {
+      themeToggle.addEventListener('click', function () {
+        var root = document.documentElement;
+        var next = root.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+        root.setAttribute('data-theme', next);
+        try { localStorage.setItem('3rr.theme', next); } catch (e) { /* storage blocked */ }
       });
     }
   })();

@@ -13,8 +13,6 @@
 </head>
 <body class="manage-page">
   <a class="skip-link" href="#main">Skip to main content</a>
-  <%- include('partials/navbar') %>
-
   <%
     const initialRconOnline = connected && authenticated;
     const initialRconUnknown = Boolean(hostname_error);
@@ -29,28 +27,47 @@
       initialStatusLabel
     };
   %>
-  <%- include('partials/manage/truth-rail', rconStatusLocals) %>
+  <div class="shell ops-shell">
+    <%- include('partials/navbar') %>
+    <div class="main main-manage">
+      <main class="container manage-workbench workbench" id="main" data-server-id="<%= server_id %>">
+        <%- include('partials/manage/header', rconStatusLocals) %>
+        <%- include('partials/manage/truth-rail', rconStatusLocals) %>
 
-  <main class="container manage-workbench" id="main" data-server-id="<%= server_id %>">
-    <%- include('partials/manage/header', rconStatusLocals) %>
+        <nav class="session-steps" aria-label="Session preparation">
+          <a class="session-step" href="/servers">1 <span>Server</span></a>
+          <button class="session-step" type="button" id="session-step-setup" aria-current="step">2 <span>Setup</span></button>
+          <button class="session-step" type="button" id="session-step-result" disabled>3 <span>Check result</span></button>
+        </nav>
 
-    <div class="manage-grid">
-      <!-- LEFT COLUMN -->
-      <div class="manage-column-left">
-        <%- include('partials/manage/setup') %>
-        <%- include('partials/manage/observed-status') %>
-        <%- include('partials/manage/players') %>
-        <%- include('partials/manage/scrim') %>
-      </div>
-
-      <!-- RIGHT COLUMN -->
-      <div class="manage-column-right">
-        <%- include('partials/manage/console', rconStatusLocals) %>
-        <%- include('partials/manage/match-controls') %>
-        <%- include('partials/manage/practice') %>
-      </div>
+        <section class="tabpanel manage-tabpanel" id="manage-panel-console" role="tabpanel" aria-labelledby="manage-tab-console" hidden>
+          <%- include('partials/manage/console', rconStatusLocals) %>
+        </section>
+        <section class="tabpanel manage-tabpanel" id="manage-panel-match" role="tabpanel" aria-labelledby="manage-tab-match" hidden>
+          <%- include('partials/manage/match-controls') %>
+          <%- include('partials/manage/scrim') %>
+          <%- include('partials/manage/practice') %>
+        </section>
+        <section class="tabpanel manage-tabpanel" id="manage-panel-players" role="tabpanel" aria-labelledby="manage-tab-players" hidden>
+          <%- include('partials/manage/players') %>
+        </section>
+        <section class="tabpanel manage-tabpanel" id="manage-panel-setup" role="tabpanel" aria-labelledby="manage-tab-setup">
+          <%- include('partials/manage/setup') %>
+          <details class="session-advanced"><summary>Detailed server observations</summary><%- include('partials/manage/observed-status') %></details>
+        </section>
+        <div class="server-tools">
+          <h2 class="visually-hidden">Server tools</h2>
+        <div class="tabs manage-tabs" id="manage-tabs" role="tablist" aria-label="Server workbench">
+          <button type="button" id="manage-tab-console" role="tab" aria-selected="false" tabindex="-1" aria-controls="manage-panel-console" data-manage-tab="console">Console</button>
+          <button type="button" id="manage-tab-match" role="tab" aria-selected="false" aria-controls="manage-panel-match" data-manage-tab="match" tabindex="-1">Match</button>
+          <button type="button" id="manage-tab-players" role="tab" aria-selected="false" aria-controls="manage-panel-players" data-manage-tab="players" tabindex="-1">Players <span class="tab-meta" id="manage-tab-player-count">–</span></button>
+          <button type="button" id="manage-tab-setup" role="tab" aria-selected="true" aria-controls="manage-panel-setup" data-manage-tab="setup">Setup</button>
+        </div>
+          <div class="manage-header-actions"><button type="button" class="btn btn-secondary" id="command-palette-trigger" aria-haspopup="dialog">Commands <kbd>Ctrl K</kbd></button><button type="button" class="btn btn-secondary" id="manage-reconnect">Reconnect</button><button type="button" id="refresh_status" class="btn btn-secondary" aria-label="Refresh live status">Refresh observation</button></div>
+        </div>
+      </main>
     </div>
-  </main>
+  </div>
 
   <%- include('partials/footer') %>
   <script src="/js/console.js"></script>

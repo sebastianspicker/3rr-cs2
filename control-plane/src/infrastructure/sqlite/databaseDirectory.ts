@@ -8,10 +8,6 @@ export interface DatabaseLocation {
   parentIdentity: DatabaseFileIdentity;
 }
 
-export function canonicalDatabasePath(filePath: string, nodeEnv: string): string {
-  return prepareDatabaseLocation(filePath, nodeEnv).path;
-}
-
 /**
  * Resolves a database path to its real parent and records that parent before SQLite opens it.
  *

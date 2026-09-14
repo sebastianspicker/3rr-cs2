@@ -1,13 +1,12 @@
-# Structured fields keep public bug reports reproducible and free of credentials.
 name: Bug report
-description: Report a reproducible defect in 3RR.
+description: Report a problem you can reproduce in 3RR.
 title: "[Bug]: "
 body:
   - type: markdown
     attributes:
       value: |
-        Thanks for helping improve 3rr. Do not include passwords,
-        tokens, private IP inventories, or live RCON credentials.
+        Describe what went wrong and how to reproduce it. Remove passwords,
+        tokens, private network details, and RCON credentials before posting.
   - type: dropdown
     id: module
     attributes:
@@ -23,31 +22,31 @@ body:
     id: version
     attributes:
       label: Version or commit
-      description: Provide a tag or full commit SHA when possible.
+      description: Include the release tag or full commit SHA, if you have it.
     validations:
       required: true
   - type: textarea
     id: reproduction
     attributes:
       label: Reproduction steps
-      description: Include the smallest deterministic sequence that demonstrates the problem.
+      description: List the steps someone else can follow to reproduce the problem.
     validations:
       required: true
   - type: textarea
     id: expected
     attributes:
-      label: Expected and observed behavior
+      label: What you expected and what happened
     validations:
       required: true
   - type: textarea
     id: evidence
     attributes:
-      label: Sanitized logs or screenshots
-      description: Redact secrets, usernames, hostnames, and private network details.
+      label: Logs or screenshots
+      description: Remove secrets, usernames, hostnames, and private network details.
   - type: checkboxes
     id: checks
     attributes:
-      label: Safety check
+      label: Before posting
       options:
         - label: I removed credentials and sensitive infrastructure details.
           required: true

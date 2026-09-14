@@ -5,7 +5,7 @@
 # Apply default when empty (single source of truth; run after config load and after trim).
 apply_defaults() {
     local var
-    for var in LOCKDIR REQUIRED_SPACE MAX_ATTEMPTS SLEEP_SECS STEAMCMD_TIMEOUT_SECS SERVICE_NAME; do
+    for var in LOCKDIR REQUIRED_SPACE MAX_ATTEMPTS SLEEP_SECS STEAMCMD_TIMEOUT_SECS SYSTEMCTL_TIMEOUT_SECS SERVICE_NAME; do
         if [ -z "${!var}" ]; then
             case "$var" in
                 LOCKDIR) LOCKDIR="/tmp/3rr-update.lock" ;;
@@ -13,6 +13,7 @@ apply_defaults() {
                 MAX_ATTEMPTS) MAX_ATTEMPTS="5" ;;
                 SLEEP_SECS) SLEEP_SECS="5" ;;
                 STEAMCMD_TIMEOUT_SECS) STEAMCMD_TIMEOUT_SECS="1800" ;;
+                SYSTEMCTL_TIMEOUT_SECS) SYSTEMCTL_TIMEOUT_SECS="90" ;;
                 SERVICE_NAME) SERVICE_NAME="cs2.service" ;;
             esac
         fi

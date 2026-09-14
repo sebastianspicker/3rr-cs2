@@ -1,5 +1,6 @@
 /** Constructs the Express application while preserving middleware and route order. */
 import path from 'node:path';
+import { executionLifetime } from './executionLifetime';
 import express, { type NextFunction, type Request, type Response } from 'express';
 import type Database from 'better-sqlite3';
 import logger from '../infrastructure/logging';
@@ -38,6 +39,7 @@ export function createPanelApp(
   app.set('view engine', 'ejs');
   app.set('views', path.join(packageRoot, 'web', 'views'));
   const { isAuthenticated, requireAdmin } = createAuthentication(dependencies.db);
+  app.use(executionLifetime(dependencies.rcon));
   app.use('/', createAuthRouter(dependencies.db));
   app.use(
     '/',

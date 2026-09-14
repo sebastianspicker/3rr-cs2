@@ -15,3 +15,7 @@ fs.copyFileSync(
   path.join(src, 'jetbrains-mono', 'files', 'jetbrains-mono-latin-wght-normal.woff2'),
   path.join(dest, 'jetbrains-mono-latin-wght-normal.woff2')
 );
+fs.copyFileSync(
+  path.join(src, 'inter', 'files', 'inter-latin-wght-normal.woff2'),
+  path.join(dest, 'inter-latin-wght-normal.woff2')
+);

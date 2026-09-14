@@ -5,9 +5,9 @@
 ### Changed
 
 - Reorganized the repository around `control-plane`, `host-updater`,
-  `server-bootstrap`, and `deploy` while retaining the public HTTP,
-  environment, SQLite v3, `enc:v1`, RCON, updater CLI/configuration, and
-  installed updater-path contracts.
+  `server-bootstrap`, and `deploy` without changing the HTTP API,
+  environment settings, SQLite v3 schema, `enc:v1` credential format, RCON
+  behavior, updater commands and configuration, or installed updater paths.
 
 ## [1.1.0-alpha.1] - 2026-07-23
 
@@ -16,7 +16,7 @@
 - Renamed the project and public identifiers to `3RR`.
 - Changed the default SQLite filename and session cookie to `3rr.db` and
   `3rr.sid`.
-- Added Redis to the maintained control-plane deployment and bound its
+- Added Redis to the control-plane deployment example and bound its
   published port to `127.0.0.1` by default.
 - Renamed the updater, configuration, systemd units, lock path, and log path.
   Existing installations must disable `cs2-auto-update.timer` before enabling
@@ -33,11 +33,11 @@
 ### Fixed
 
 - Keep the CS2 service running when the updater cannot determine the remote
-  build, and reject false-success updates whose build ID did not change.
+  build, and reject updates reported as successful when the build ID did not change.
 - Validate stale-lock process identity, configuration syntax, disk-space
   output, startup values, and database/proxy defaults consistently.
-- Preserve CFG-before-map ordering during game setup and fail production on
-  unhandled promise rejections.
+- Run CFG commands before map changes during game setup, and stop the
+  production process on unhandled promise rejections.
 
 ## [1.0.0] - 2026-04-19
 

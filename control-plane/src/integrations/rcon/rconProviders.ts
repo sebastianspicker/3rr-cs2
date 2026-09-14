@@ -8,6 +8,18 @@ export function positiveInt(value: unknown, fallback: number): number {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
+export function validatedManagerOption(
+  name: string,
+  value: number | undefined,
+  fallback: number
+): number {
+  if (value === undefined) return fallback;
+  if (!Number.isSafeInteger(value) || value <= 0 || value > 2_147_483_647) {
+    throw new RangeError(`${name} must be an integer between 1 and 2147483647`);
+  }
+  return value;
+}
+
 export function createSqlitePasswordProvider(db: Database.Database) {
   const selectPassword = db.prepare('SELECT rconPassword FROM servers WHERE id = ?');
   return (serverId: number): string | null => {

@@ -4,7 +4,10 @@
 # `server-bootstrap/scripts/bootstrap-admins.sh`.
 services:
   cs2-runtime:
-    image: cm2network/cs2
+    # Set CS2_IMAGE to a reviewed immutable reference such as
+    # registry.example/cs2@sha256:<64 hex characters>. No digest is supplied
+    # here because operators must select and record the artifact they tested.
+    image: "${CS2_IMAGE:?Set CS2_IMAGE to a reviewed immutable image reference with a sha256 digest}"
     container_name: cs2-runtime
     entrypoint:
       - /bin/bash

@@ -96,6 +96,8 @@ trap 'cleanup; exit 143' TERM
 log "shared shell and config checks"
 run shellcheck \
   "${ROOT}/scripts/verify.sh" \
+  "${ROOT}/scripts/check-deployment-contract.sh" \
+  "${ROOT}/scripts/recovery-layout-rehearsal.test.sh" \
   "${ROOT}/server-bootstrap/scripts/bootstrap-admins.sh" \
   "${ROOT}/server-bootstrap/scripts/bootstrap-output.sh" \
   "${ROOT}/server-bootstrap/scripts/server-start.sh" \
@@ -104,6 +106,8 @@ run shellcheck \
   "${ROOT}/server-bootstrap/tests/startup-wrapper-safety.test.sh"
 run shfmt -d -i 2 -bn -ci \
   "${ROOT}/scripts/verify.sh" \
+  "${ROOT}/scripts/check-deployment-contract.sh" \
+  "${ROOT}/scripts/recovery-layout-rehearsal.test.sh" \
   "${ROOT}/server-bootstrap/scripts/bootstrap-admins.sh" \
   "${ROOT}/server-bootstrap/scripts/bootstrap-output.sh" \
   "${ROOT}/server-bootstrap/scripts/server-start.sh" \
@@ -112,6 +116,8 @@ run shfmt -d -i 2 -bn -ci \
   "${ROOT}/server-bootstrap/tests/startup-wrapper-safety.test.sh"
 run ruby -ryaml -e "YAML.safe_load(File.read('${ROOT}/deploy/compose/control-plane.compose.yaml'), aliases: false, filename: '${ROOT}/deploy/compose/control-plane.compose.yaml')" >/dev/null
 run ruby -ryaml -e "YAML.safe_load(File.read('${ROOT}/deploy/compose/server-runtime.compose.yaml'), aliases: false, filename: '${ROOT}/deploy/compose/server-runtime.compose.yaml')" >/dev/null
+run bash "${ROOT}/scripts/check-deployment-contract.sh"
+run bash "${ROOT}/scripts/recovery-layout-rehearsal.test.sh"
 run ruby "${ROOT}/scripts/check-doc-links.rb"
 for github_yaml in "${ROOT}"/.github/ISSUE_TEMPLATE/*.yml "${ROOT}"/.github/workflows/*.yml; do
   run ruby -ryaml -e "YAML.safe_load(File.read(ARGV.fetch(0)), aliases: false, filename: ARGV.fetch(0))" "${github_yaml}" >/dev/null
@@ -136,7 +142,10 @@ log "control plane"
 control_plane_cmd='set -euo pipefail
 cd /workspace/control-plane
 npm ci
-npm run check'
+npx playwright install --with-deps chromium
+npm run check
+node --check ../design-preview/preview.js
+node ../design-preview/verify.mjs'
 
 node_major=""
 if have node; then
@@ -148,6 +157,8 @@ if [[ "${node_major}" == "22" ]]; then
   cd "${ROOT}/control-plane"
   run npm ci
   run npm run check
+  run node --check "${ROOT}/design-preview/preview.js"
+  run node "${ROOT}/design-preview/verify.mjs"
 else
   require_cmd docker
   # The control plane requires Node 22 because better-sqlite3 ships native bindings and

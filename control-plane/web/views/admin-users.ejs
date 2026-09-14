@@ -13,19 +13,20 @@
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to main content</a>
-  <%- include('partials/navbar') %>
-  <main class="container route-shell route-shell--admin" id="main">
+  <div class="shell ops-shell">
+    <%- include('partials/navbar') %>
+  <main class="container main workbench route-shell route-shell--admin" id="main">
     <div class="page-header route-header">
       <div>
-        <p class="route-kicker">Access</p>
         <h1>Users</h1>
-        <p>Operator accounts and initial server access</p>
+        <p>Manage operator accounts and their initial server access.</p>
       </div>
     </div>
     <div class="route-workspace route-workspace--split">
       <section class="panel route-main" aria-labelledby="user-list-heading">
         <div class="panel-header">
-          <h2 id="user-list-heading">Users</h2>
+          <h2 id="user-list-heading">Operator accounts</h2>
+          <button type="button" id="refresh-users" class="btn btn-secondary btn-sm">Refresh</button>
         </div>
         <div id="user-list-status" class="alert mb-3" role="status" aria-live="polite" hidden></div>
         <div class="table-scroll">
@@ -45,8 +46,9 @@
 
       <section class="panel route-aside" aria-labelledby="add-user-heading">
         <div class="panel-header">
-          <h2 id="add-user-heading">Add User</h2>
+          <h2 id="add-user-heading">Add user</h2>
         </div>
+        <p class="form-help">New accounts are operators. Optionally grant access to one server when creating the account.</p>
         <form id="add-user-form">
           <div class="mb-3">
             <label for="new-username" class="form-label">Username</label>
@@ -73,7 +75,9 @@
       </section>
     </div>
   </main>
+  </div>
   <%- include('partials/footer') %>
+  <script src="/js/console.js"></script>
   <script nonce="<%= cspNonce %>">
     (function () {
       var csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
@@ -140,17 +144,24 @@
         });
       }
 
+      var userListGeneration = 0;
       async function loadUsers() {
+        var generation = ++userListGeneration;
+        var table = document.getElementById('user-table');
+        table.setAttribute('aria-busy', 'true');
         try {
           var res = await fetch('/api/users/list', {
             headers: { 'x-csrf-token': csrfToken }
           });
           var data = await res.json();
+          if (generation !== userListGeneration) return;
+          if (!res.ok) throw new Error(data.error || 'Failed to load users.');
+          document.getElementById('user-list-status').hidden = true;
           var tbody = document.getElementById('user-table-body');
           tbody.textContent = '';
           data.users.forEach(function (user) {
             var tr = document.createElement('tr');
-            var role = user.is_admin ? 'Admin' : 'User';
+            var role = user.is_admin ? 'Admin' : 'Operator';
 
             var idCell = document.createElement('td');
             idCell.textContent = user.id;
@@ -199,7 +210,7 @@
                 var d = await r.json();
                 if (r.ok) {
                   setStatus(status, 'User deleted.', 'success');
-                  loadUsers();
+                  await loadUsers();
                 } else {
                   setStatus(status, d.error || 'Failed to delete user.', 'danger');
                 }
@@ -211,11 +222,20 @@
             });
           });
         } catch (err) {
-          setStatus(document.getElementById('user-list-status'), 'Failed to load users.', 'danger');
+          if (generation === userListGeneration) {
+            setStatus(document.getElementById('user-list-status'), 'Users could not be loaded. Use Refresh to try again.', 'danger');
+          }
+        } finally {
+          if (generation === userListGeneration) table.setAttribute('aria-busy', 'false');
         }
       }
 
       loadUsers();
+      document.getElementById('refresh-users').addEventListener('click', async function (event) {
+        event.currentTarget.disabled = true;
+        await loadUsers();
+        document.getElementById('refresh-users').disabled = false;
+      });
 
       document.getElementById('add-user-form').addEventListener('submit', async function (e) {
         e.preventDefault();
@@ -241,7 +261,7 @@
           if (res.ok) {
             setStatus(status, 'User created.', 'success');
             e.target.reset();
-            loadUsers();
+            await loadUsers();
           } else {
             setStatus(status, data.error || 'Failed to create user.', 'danger');
           }

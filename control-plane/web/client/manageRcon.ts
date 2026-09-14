@@ -66,7 +66,7 @@ export function initRconControls(serverId: string): void {
     if (!commands.length) {
       const empty = document.createElement('p');
       empty.className = 'empty-state';
-      empty.textContent = 'No sent RCON commands yet.';
+      empty.textContent = 'No commands sent yet. Your command history appears here.';
       historyList.appendChild(empty);
       return;
     }

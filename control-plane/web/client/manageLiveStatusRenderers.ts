@@ -6,6 +6,7 @@ export function renderStatusMetrics(view: LiveStatusView): void {
   setText('live-hostname', view.hostname);
   setText('live-map', view.map);
   setText('live-players', view.players);
+  setText('manage-tab-player-count', view.players);
   setText('live-bots', view.bots);
   setText('live-max-players', view.maximum);
 }
@@ -27,7 +28,10 @@ export function renderTruthRail(data: LiveStatusResponse, view: LiveStatusView):
       : `${view.map} · ${view.players} players · ${view.bots} bots`
   );
   setText('truth-rail-map', view.map);
-  setText('truth-rail-players', view.players);
+  setText(
+    'truth-rail-players',
+    `${data.humans ?? 'Unknown'} humans · ${data.bots ?? 'unknown'} bots`
+  );
   setText('truth-rail-observed-at', data.observed_at ? observedAt : 'No observation yet');
   if (view.pageTitle) setText('truth-rail-server', view.pageTitle);
 }
@@ -47,5 +51,7 @@ export function renderPageTitle(view: LiveStatusView): void {
   if (!view.pageTitle) return;
   const title = el<HTMLElement>('#manage-title');
   if (title) title.textContent = view.pageTitle;
+  const activeRailName = el<HTMLElement>('#nav-server-list a[aria-current] strong');
+  if (activeRailName) activeRailName.textContent = view.pageTitle;
   document.title = `3RR - ${view.pageTitle}`;
 }

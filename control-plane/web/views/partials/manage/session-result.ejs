@@ -1,0 +1,45 @@
+<section id="session-result" class="session-panel panel" aria-labelledby="session-result-heading" hidden>
+  <h2 id="session-result-heading" tabindex="-1">Setup commands sent</h2>
+  <p id="session-result-description">The request was sent. The live map has not been confirmed.</p>
+  <div id="session-pending-result" class="session-result-grid">
+    <div><h3>Requested at <span id="session-requested-at">—</span></h3>
+      <dl class="session-requested-list">
+        <div><dt>Game type</dt><dd data-session-requested="game_type"></dd></div>
+        <div><dt>Mode</dt><dd data-session-requested="game_mode"></dd></div>
+        <div><dt>Map</dt><dd class="mono" data-session-requested="selectedMap"></dd></div>
+        <div><dt>Team 1</dt><dd data-session-requested="team1"></dd></div>
+        <div><dt>Team 2</dt><dd data-session-requested="team2"></dd></div>
+      </dl>
+    </div>
+    <div class="session-latest"><h3>Latest observation</h3>
+      <p class="text-warning" id="session-observation-state">Awaiting a new observation</p>
+      <dl class="session-requested-list">
+        <div><dt>Last observed map</dt><dd id="session-previous-map" class="mono">Unknown</dd></div>
+        <div><dt>Observed at</dt><dd id="session-previous-time">Not observed</dd></div>
+        <div><dt>Player count after change</dt><dd id="session-result-players">Unknown</dd></div>
+      </dl>
+      <p class="small text-muted">Previous observations may no longer describe this server.</p>
+    </div>
+  </div>
+  <div id="session-observed-result" hidden>
+    <table class="session-comparison" role="table">
+      <thead role="rowgroup"><tr role="row"><th role="columnheader" scope="col">Field</th><th role="columnheader" scope="col">Requested</th><th role="columnheader" scope="col" id="session-comparison-observed">Observed</th></tr></thead>
+      <tbody role="rowgroup">
+        <tr role="row"><th role="rowheader" scope="row">Map</th><td role="cell" data-label="Requested" data-session-requested="selectedMap" class="mono"></td><td role="cell" data-label="Observed" id="session-observed-map" class="mono"></td></tr>
+        <tr role="row"><th role="rowheader" scope="row">Game type</th><td role="cell" data-label="Requested" data-session-requested="game_type"></td><td role="cell" data-label="Observed">Not reported</td></tr>
+        <tr role="row"><th role="rowheader" scope="row">Mode</th><td role="cell" data-label="Requested" data-session-requested="game_mode"></td><td role="cell" data-label="Observed">Not reported</td></tr>
+        <tr role="row"><th role="rowheader" scope="row">Team 1</th><td role="cell" data-label="Requested" data-session-requested="team1"></td><td role="cell" data-label="Observed">Not reported</td></tr>
+        <tr role="row"><th role="rowheader" scope="row">Team 2</th><td role="cell" data-label="Requested" data-session-requested="team2"></td><td role="cell" data-label="Observed">Not reported</td></tr>
+      </tbody>
+    </table>
+    <p>Players observed: <span id="session-observed-players">Unknown</span></p>
+    <div class="session-warning"><span aria-hidden="true">⚠</span><div><strong>Mode and team names remain unverified.</strong><p>This status check reports the map and players; it does not confirm every setup setting.</p></div></div>
+  </div>
+  <p id="session-result-error" class="alert alert-danger" role="alert" hidden></p>
+  <p id="session-result-status" class="visually-hidden" role="status" aria-live="polite"></p>
+  <div class="session-actions">
+    <button type="button" id="session-edit-setup" class="btn btn-secondary">Back to setup</button>
+    <div><button type="button" id="session-check-map" class="btn btn-primary">Check live map</button><p id="session-check-note" class="small text-muted">Checks server status without sending setup again.</p></div>
+    <button type="button" id="session-return" class="btn btn-primary" hidden>Return to server</button>
+  </div>
+</section>

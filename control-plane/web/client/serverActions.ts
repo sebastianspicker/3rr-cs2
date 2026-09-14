@@ -1,6 +1,6 @@
 /** Handles reconnect and removal actions delegated from the server list. */
 import { sendPostRequest, showConfirm, showToast, toastError } from './common';
-import { fetchServers } from './serverListLoader';
+import { refreshServersAfterMutation } from './serverListLoader';
 
 export async function handleServerAction(event: Event): Promise<void> {
   const target = event.target as HTMLElement;
@@ -10,7 +10,7 @@ export async function handleServerAction(event: Event): Promise<void> {
     sendPostRequest('/api/reconnect-server', { server_id: reconnect.dataset.serverId })
       .then(() => {
         showToast('Reconnected successfully.', 'success');
-        return fetchServers();
+        return refreshServersAfterMutation();
       })
       .catch(toastError('Reconnect failed.'));
     return;
@@ -22,6 +22,6 @@ export async function handleServerAction(event: Event): Promise<void> {
   );
   if (!confirmed) return;
   sendPostRequest('/api/delete-server', { server_id: remove.dataset.serverId })
-    .then(() => fetchServers())
+    .then(() => refreshServersAfterMutation())
     .catch(toastError('Delete failed.'));
 }
