@@ -1,6 +1,6 @@
 # 3RR control plane
 
-The control plane is a Node 22 application for managing existing
+The control plane is a Node 26 application for managing existing
 Counter-Strike 2 servers over RCON. It provides an authenticated Express API
 and EJS web interface, stores application data in SQLite, and uses Redis for
 sessions and rate limits in production. The browser code is written in
@@ -25,13 +25,10 @@ dependencies:
 - `web/generated`: generated assets; do not edit directly
 
 The feature, infrastructure, and integration layers cannot import `app`, and
-`shared` cannot import any other application layer.
-
-Keep RCON credential encoding in
-`src/infrastructure/credentials/rconCredential.ts`, server-access behavior in
-`src/features/server-access`, game-catalog data in `src/features/game-catalog`,
-and RCON command parsing/policy in
-`src/integrations/rcon/rconCommandPolicy.ts`.
+`shared` cannot import any other application layer. Other code reaches RCON
+only through `src/integrations/rcon/index.ts`, and SQL lives only in feature
+`repository.ts` modules and `src/infrastructure/sqlite`. The full rules are in
+[docs/architecture.md](../docs/architecture.md#control-plane-structure).
 
 ## Quick start
 

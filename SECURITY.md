@@ -6,7 +6,7 @@ fixes target `main` and subsequent prereleases.
 ## Reporting
 
 Please open a private
-[GitHub security advisory](https://github.com/sebastianspicker/3rr/security/advisories/new)
+[GitHub security advisory](https://github.com/sebastianspicker/3rr-cs2/security/advisories/new)
 before disclosing a vulnerability publicly. Include reproduction steps,
 affected versions, impact, and known mitigations. Remove live credentials,
 tokens, and private host details from the report.

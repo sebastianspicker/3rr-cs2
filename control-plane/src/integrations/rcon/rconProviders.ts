@@ -1,5 +1,4 @@
 /** Injectable RCON dependencies for persisted credentials and safe network targets. */
-import type Database from 'better-sqlite3';
 import logger from '../../infrastructure/logging';
 import type { ServerInfo } from './rconTypes';
 
@@ -18,14 +17,6 @@ export function validatedManagerOption(
     throw new RangeError(`${name} must be an integer between 1 and 2147483647`);
   }
   return value;
-}
-
-export function createSqlitePasswordProvider(db: Database.Database) {
-  const selectPassword = db.prepare('SELECT rconPassword FROM servers WHERE id = ?');
-  return (serverId: number): string | null => {
-    const row = selectPassword.get(serverId) as { rconPassword: string } | undefined;
-    return row?.rconPassword ?? null;
-  };
 }
 
 /** Resolves and pins an allowed literal address for one RCON connection attempt. */

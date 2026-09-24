@@ -1,18 +1,18 @@
 import { currentExecutionOptions } from '../../../shared/executionContext';
 /** Explicit RCON endpoints that retain audit history only for sent commands. */
 import express from 'express';
-import type { RconManager } from '../../../integrations/rcon/rcon';
 import type { RequestHandler } from 'express';
 import type { ServerAccess } from '../../server-access/access';
 import logger from '../../../infrastructure/logging';
-import type { createRconHistoryRepository } from '../../../integrations/rcon/rconHistory';
+import type { createRconHistoryRepository } from '../../../infrastructure/sqlite';
 import { createRecordedCommandExecutor, validatedRconCommand } from './matchRconService';
 import {
   sanitizeString,
   MAX_RCON_COMMAND_LEN,
   MAX_SAY_MESSAGE_LEN,
   RCON_BLOCKED_COMMANDS,
-} from '../../../integrations/rcon/rconCommandPolicy';
+  type RconManager,
+} from '../../../integrations/rcon';
 import { sendGameRouteError } from './gameCommandExecution';
 
 export function createMatchRconRoutes(

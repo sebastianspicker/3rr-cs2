@@ -1,25 +1,24 @@
 /** Match setup endpoints that persist requested state only after input validation. */
 import express from 'express';
-import type Database from 'better-sqlite3';
-import type { RconManager } from '../../../integrations/rcon/rcon';
+import type { RconManager } from '../../../integrations/rcon';
 import type { RequestHandler } from 'express';
 import { parseGameBody } from './matchRouteValidation';
 import type { ServerAccess } from '../../server-access/access';
 import logger from '../../../infrastructure/logging';
-import { SetupGameBodySchema, createMatchContracts } from './matchContracts';
+import { SetupGameBodySchema } from './matchContracts';
+import type { MatchRepository } from './repository';
 import { applySetup, validateSetup } from './matchSetupService';
 import { sendGameRouteError } from './gameCommandExecution';
 import { createGameRouteFactories } from './gameRouteFactories';
 
 export function createMatchSetupRoutes(
-  db: Database.Database,
   rcon: RconManager,
   isAuthenticated: RequestHandler,
-  access: ServerAccess
+  access: ServerAccess,
+  repository: MatchRepository
 ): express.Router {
   const router = express.Router();
   const { requireAuthorizedServerId } = access;
-  const { updateRequestedSetupStmt } = createMatchContracts(db);
   const factories = createGameRouteFactories(rcon, access);
   const { makeToggleRoute, makeSimpleCmdRoute, makeSequenceRoute } = factories;
 
@@ -45,7 +44,7 @@ export function createMatchSetupRoutes(
       );
 
       await applySetup(factories, server_id, setup);
-      updateRequestedSetupStmt.run(setup.mapName, setup.gameType, setup.gameMode, server_id);
+      repository.updateRequestedSetup(setup.mapName, setup.gameType, setup.gameMode, server_id);
 
       return res.status(200).json({
         message: 'Game setup commands sent.',

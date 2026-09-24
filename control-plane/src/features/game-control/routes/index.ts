@@ -1,7 +1,7 @@
 /** Mount point for authenticated game-control route families. */
 import express from 'express';
 import type Database from 'better-sqlite3';
-import type { RconManager } from '../../../integrations/rcon/rcon';
+import type { RconManager } from '../../../integrations/rcon';
 import type { RequestHandler } from 'express';
 import { createServerAccess } from '../../server-access/access';
 import { createMatchRouter } from './match';

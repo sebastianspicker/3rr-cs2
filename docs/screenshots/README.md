@@ -9,7 +9,7 @@ viewport sizes. The desktop tour follows one session: choose a server, review
 setup, send commands, and check the reported map. The mobile capture shows
 the same result at 390 pixels wide.
 
-To refresh all five images, use Node 22 and run from the repository root:
+To refresh all five images, use Node 26 and run from the repository root:
 
 ```bash
 cd control-plane

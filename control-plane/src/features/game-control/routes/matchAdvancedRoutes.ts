@@ -1,6 +1,6 @@
 /** Validated advanced match operations, kept separate from ordinary setup routes. */
 import express from 'express';
-import type { RconManager } from '../../../integrations/rcon/rcon';
+import type { RconManager } from '../../../integrations/rcon';
 import type { RequestHandler } from 'express';
 import { parseGameBody } from './matchRouteValidation';
 import type { ServerAccess } from '../../server-access/access';

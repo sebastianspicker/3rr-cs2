@@ -1,5 +1,5 @@
 /** Validated deployment settings for manager admission and execution budgets. */
-import type { RconManagerOptions } from '../integrations/rcon/rconTypes';
+import type { RconManagerOptions } from '../integrations/rcon';
 
 export function rconOptionsFromEnvironment(env = process.env): RconManagerOptions {
   const settings = {

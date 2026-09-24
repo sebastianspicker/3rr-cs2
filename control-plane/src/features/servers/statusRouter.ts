@@ -1,15 +1,20 @@
 import { currentExecutionOptions } from '../../shared/executionContext';
-import type { RconObservation, RconObservationOptions } from '../../integrations/rcon/rconTypes';
 /** Authenticated status routes that expose bounded live RCON observations. */
 import express from 'express';
 import type Database from 'better-sqlite3';
-import type { RconManager } from '../../integrations/rcon/rcon';
 import type { RequestHandler } from 'express';
 import { parseServerId } from '../server-access/parseServerId';
 import logger from '../../infrastructure/logging';
-import { parseStatusResponse, parseVisibleMaxPlayers } from '../../integrations/rcon/rconParsers';
-import { parseHostnameResponse } from '../../integrations/rcon/rconResponse';
+import {
+  parseHostnameResponse,
+  parseStatusResponse,
+  parseVisibleMaxPlayers,
+  type RconManager,
+  type RconObservation,
+  type RconObservationOptions,
+} from '../../integrations/rcon';
 import type { ServerAccess } from '../server-access/access';
+import { createServersRepository } from './repository';
 
 interface StatusObservation {
   hostname: string | null;
@@ -26,10 +31,10 @@ export function createStatusRouter(
   db: Database.Database,
   rcon: RconManager,
   isAuthenticated: RequestHandler,
-  { selectAccessibleServerSql }: ServerAccess
+  _access: ServerAccess
 ): express.Router {
   const router = express.Router();
-  const selectStatusStmt = db.prepare(selectAccessibleServerSql('s.id'));
+  const repository = createServersRepository(db);
 
   const unavailable = (
     serverId: string,
@@ -142,9 +147,7 @@ export function createStatusRouter(
     }
 
     try {
-      const row = selectStatusStmt.get(serverId, req.session.user?.id) as
-        | { id: number }
-        | undefined;
+      const row = repository.findAccessibleServerId(serverId, req.session.user?.id);
       if (!row) {
         return res.status(404).json({ error: 'Server not found' });
       }

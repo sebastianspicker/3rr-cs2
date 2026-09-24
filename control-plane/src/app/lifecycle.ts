@@ -2,7 +2,7 @@ import type { Express } from 'express';
 import type { Server as HttpServer } from 'node:http';
 import type Database from 'better-sqlite3';
 import logger from '../infrastructure/logging';
-import type { RconManager } from '../integrations/rcon/rcon';
+import type { RconManager } from '../integrations/rcon';
 import type { RedisClient } from '../infrastructure/redis';
 
 export function parsePanelPort(raw: unknown, fallback: number): number {

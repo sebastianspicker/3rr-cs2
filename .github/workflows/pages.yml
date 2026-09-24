@@ -13,6 +13,7 @@ on:
       - 'control-plane/web/views/**'
       - 'control-plane/scripts/build-css.mjs'
       - 'control-plane/src/features/game-catalog/maps.json'
+      - 'docs/screenshots/**'
   pull_request:
     branches:
       - main
@@ -23,6 +24,7 @@ on:
       - 'control-plane/web/views/**'
       - 'control-plane/scripts/build-css.mjs'
       - 'control-plane/src/features/game-catalog/maps.json'
+      - 'docs/screenshots/**'
   workflow_dispatch:
 
 permissions:
@@ -63,9 +65,10 @@ jobs:
         uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
       - name: Stage public demo files
         run: |
-          mkdir -p "$RUNNER_TEMP/3rr-pages/fonts"
+          mkdir -p "$RUNNER_TEMP/3rr-pages/fonts" "$RUNNER_TEMP/3rr-pages/screenshots"
           cp design-preview/index.html design-preview/panel.css design-preview/preview.css design-preview/preview.js design-preview/olive-texture.png design-preview/3rr-mark.svg "$RUNNER_TEMP/3rr-pages/"
           cp design-preview/fonts/*.woff2 design-preview/fonts/*-LICENSE.txt "$RUNNER_TEMP/3rr-pages/fonts/"
+          cp docs/screenshots/*.png "$RUNNER_TEMP/3rr-pages/screenshots/"
       - name: Upload demo artifact
         uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4
         with:
