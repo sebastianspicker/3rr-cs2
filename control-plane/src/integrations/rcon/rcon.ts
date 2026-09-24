@@ -1,6 +1,4 @@
 /** Explicit RCON construction boundary. */
-import type Database from 'better-sqlite3';
-import { createSqlitePasswordProvider } from './rconProviders';
 import { RconConnectionLifecycle } from './rconLifecycle';
 
 export type {
@@ -19,14 +17,14 @@ export {
   RconExecutionError,
   RconOverloadError,
 } from './rconErrors';
-import type { RconManagerOptions } from './rconTypes';
+import type { RconManagerOptions, RconServerStore } from './rconTypes';
 
 /** Public API marker retained for routes, tests, and application lifecycle code. */
 export class RconManager extends RconConnectionLifecycle {}
 
 export function createRconManager(
-  db: Database.Database,
+  store: RconServerStore,
   options: RconManagerOptions = {}
 ): RconManager {
-  return new RconManager(createSqlitePasswordProvider(db), db, options);
+  return new RconManager(store, options);
 }

@@ -1,4 +1,6 @@
-# The repository verifier is the single CI entry point for all three modules.
+# The repository verifier is the single CI entry point for all three modules,
+# split into parallel jobs by section (see `scripts/verify.sh --help`). The
+# final `verify` job aggregates their results and is the required status check.
 name: CI
 
 on:
@@ -14,24 +16,107 @@ permissions:
   contents: read
 
 jobs:
-  verify:
+  shared:
+    name: Verify (shared)
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: 22.23.1
-          cache: npm
-          cache-dependency-path: control-plane/package-lock.json
+          persist-credentials: false
 
       - name: Install shell tooling
         run: sudo apt-get update && sudo apt-get install -y shellcheck shfmt jq ruby
+
+      - name: Verify repository
+        run: ./scripts/verify.sh --only shared
+
+  control-plane:
+    name: Verify (control-plane)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 26.9.0
+          cache: npm
+          cache-dependency-path: control-plane/package-lock.json
 
       - name: Install browser test runtime
         working-directory: control-plane
         run: npm ci && npx playwright install --with-deps chromium
 
       - name: Verify repository
-        run: ./scripts/verify.sh
+        run: ./scripts/verify.sh --only control-plane
+
+  docker:
+    name: Verify (docker)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
+
+      - name: Install shell tooling
+        run: sudo apt-get update && sudo apt-get install -y shellcheck shfmt jq ruby
+
+      - name: Verify repository
+        run: ./scripts/verify.sh --only docker
+
+  host-updater:
+    name: Verify (host-updater)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
+
+      - name: Install shell tooling
+        run: sudo apt-get update && sudo apt-get install -y shellcheck shfmt
+
+      - name: Verify repository
+        run: ./scripts/verify.sh --only host-updater
+
+  bootstrap:
+    name: Verify (bootstrap)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
+
+      - name: Install shell tooling
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      - name: Verify repository
+        run: ./scripts/verify.sh --only bootstrap
+
+  verify:
+    name: verify
+    needs:
+      - shared
+      - control-plane
+      - docker
+      - host-updater
+      - bootstrap
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require all verification jobs to succeed
+        run: |
+          if [ "${{ needs.shared.result }}" != "success" ] ||
+            [ "${{ needs.control-plane.result }}" != "success" ] ||
+            [ "${{ needs.docker.result }}" != "success" ] ||
+            [ "${{ needs.host-updater.result }}" != "success" ] ||
+            [ "${{ needs.bootstrap.result }}" != "success" ]; then
+            echo "One or more verification jobs did not succeed." >&2
+            exit 1
+          fi

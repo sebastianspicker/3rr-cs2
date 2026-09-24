@@ -6,13 +6,7 @@ import { z } from 'zod';
 import type Database from 'better-sqlite3';
 import logger from '../../infrastructure/logging';
 import type { Request, Response } from 'express';
-
-interface UserRow {
-  id: number;
-  username: string;
-  password: string;
-  is_admin: number;
-}
+import { createAuthRepository, type AuthUserRow } from './repository';
 
 const DUMMY_PASSWORD_HASH = [
   '$2b$10$',
@@ -42,7 +36,7 @@ const passwordMatches = async (password: string, passwordHash: string): Promise<
   }
 };
 
-const establishSession = (req: Request, res: Response, user: UserRow): void => {
+const establishSession = (req: Request, res: Response, user: AuthUserRow): void => {
   req.session.regenerate((regenErr) => {
     if (regenErr) {
       logger.error({ err: regenErr }, '[auth] session regenerate failed');
@@ -65,6 +59,7 @@ const establishSession = (req: Request, res: Response, user: UserRow): void => {
 
 export function createAuthRouter(db: Database.Database): express.Router {
   const router = express.Router();
+  const repository = createAuthRepository(db);
   const login = async (req: Request, res: Response): Promise<void> => {
     const credentials = parseCredentials(req.body);
     if (!credentials) {
@@ -73,10 +68,7 @@ export function createAuthRouter(db: Database.Database): express.Router {
     }
     const { username, password } = credentials;
 
-    const query = db.prepare(
-      'SELECT id, username, password, is_admin FROM users WHERE username = ?'
-    );
-    const user = query.get(username) as UserRow | undefined;
+    const user = repository.findByUsername(username);
     const passwordHash = user?.password ?? DUMMY_PASSWORD_HASH;
 
     const matches = await passwordMatches(password, passwordHash);

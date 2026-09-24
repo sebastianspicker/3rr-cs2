@@ -1,7 +1,9 @@
 # 3RR
 
-[![CI](https://github.com/sebastianspicker/3rr/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/sebastianspicker/3rr/actions/workflows/ci.yml)
-[![Secret scan](https://github.com/sebastianspicker/3rr/actions/workflows/secret-scan.yml/badge.svg?branch=main)](https://github.com/sebastianspicker/3rr/actions/workflows/secret-scan.yml)
+Browser control and host tooling for self-hosted CS2 servers.
+
+[![CI](https://github.com/sebastianspicker/3rr-cs2/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/sebastianspicker/3rr-cs2/actions/workflows/ci.yml)
+[![Secret scan](https://github.com/sebastianspicker/3rr-cs2/actions/workflows/secret-scan.yml/badge.svg?branch=main)](https://github.com/sebastianspicker/3rr-cs2/actions/workflows/secret-scan.yml)
 
 3RR helps you run self-hosted Counter-Strike 2 servers. Use the browser panel
 to choose a server, prepare a practice session or scrim, manage players, and send RCON
@@ -14,7 +16,7 @@ have a CS2 host. You can use each component independently.
 scheduled match. See the [release checklist](docs/RELEASING.md) for deployment
 and recovery checks.
 
-[Try the browser demo](https://sebastianspicker.github.io/3rr/) ·
+[Try the browser demo](https://sebastianspicker.github.io/3rr-cs2/) ·
 [Install the control plane](control-plane/README.md) ·
 [Deployment examples](deploy/README.md)
 
@@ -57,7 +59,7 @@ confirm settings the server has not reported, such as team names.
 
 ## Browser demo
 
-The [GitHub Pages demo](https://sebastianspicker.github.io/3rr/) follows the
+The [GitHub Pages demo](https://sebastianspicker.github.io/3rr-cs2/) follows the
 current panel's **Server → Setup → Check result** flow. Choose a sample server,
 review its setup, send simulated commands, then check the reported map.
 
@@ -70,7 +72,7 @@ local use, and Pages setup on a fork.
 
 | Component                                      | What it does                                                 | Requirements                                           |
 | ---------------------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------ |
-| [Control plane](control-plane/README.md)       | Browser and HTTP access to existing servers over RCON        | Node 22, SQLite; Redis in production                   |
+| [Control plane](control-plane/README.md)       | Browser and HTTP access to existing servers over RCON        | Node 26, SQLite; Redis in production                   |
 | [Host updater](host-updater/README.md)         | Stops, updates, and restarts an existing CS2 installation    | Linux, Bash, systemd, SteamCMD                         |
 | [Server bootstrap](server-bootstrap/README.md) | CFG files, administrator-file generator, and startup wrapper | A CS2 runtime; see the component's plugin requirements |
 | [Deployment examples](deploy/README.md)        | Compose and systemd configurations to adapt for your host    | Your own image, storage, network, and secrets          |
@@ -81,7 +83,7 @@ explains how each component works and which data it uses.
 
 ## Run the control plane locally
 
-Install Node 22 and npm, then run from the repository root:
+Install Node 26 and npm, then run from the repository root:
 
 ```bash
 cd control-plane
@@ -128,12 +130,18 @@ Run these commands from the repository root. The full repository check is:
 ./scripts/verify.sh
 ```
 
-It requires Node 22 or its Docker fallback, a working Docker daemon and
+It requires Node 26 or its Docker fallback, a working Docker daemon and
 Compose, `make`, `shellcheck`, `shfmt`, `jq`, `ruby`, and `curl`. It checks docs,
 configuration, the control plane and container, updater behavior, and bootstrap
-scripts. Live CS2/RCON, SteamCMD, systemd, production Redis, and off-host
-recovery still need deployment testing. The static demo has its own
-[checks](design-preview/README.md#checks).
+scripts, including that tracked executable file modes match
+`scripts/executable-files.txt`. Live CS2/RCON, SteamCMD, systemd, production
+Redis, and off-host recovery still need deployment testing. The static demo
+has its own [checks](design-preview/README.md#checks).
+
+Use `./scripts/verify.sh --only <section>[,<section>...]` to run a subset of
+sections (`shared`, `control-plane`, `docker`, `host-updater`, `bootstrap`),
+or `--quick` to run every section except `docker`. See `--help` for details.
+Neither is a substitute for the full, no-argument run before a release.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the contribution workflow and screenshot updates.
 
@@ -156,3 +164,8 @@ hosts. Report vulnerabilities through [SECURITY.md](SECURITY.md).
 
 [MIT License](LICENSE). Imported modules and bundled fonts retain their
 respective license notices.
+
+## Repository naming
+
+This repository was renamed from `3rr` to `3rr-cs2`; GitHub redirects the old
+links. The product, package, and data names are still `3rr`.

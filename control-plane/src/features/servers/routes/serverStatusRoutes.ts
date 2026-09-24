@@ -1,23 +1,20 @@
 import { currentExecutionOptions } from '../../../shared/executionContext';
-import type { RconObservationOptions } from '../../../integrations/rcon/rconTypes';
 import express from 'express';
 import type Database from 'better-sqlite3';
-import type { RconManager } from '../../../integrations/rcon/rcon';
 import type { RequestHandler } from 'express';
 import logger from '../../../infrastructure/logging';
-import { parseHostnameResponse } from '../../../integrations/rcon/rconResponse';
+import {
+  parseHostnameResponse,
+  type RconManager,
+  type RconObservationOptions,
+} from '../../../integrations/rcon';
 import type { ServerAccess } from '../../server-access/access';
-
-interface ServerListRow {
-  id: number;
-  serverIP: string;
-  serverPort: number;
-}
+import { createServersRepository, type ServerRow } from '../repository';
 
 type ServerListStatus = 'connected' | 'disconnected' | 'unknown' | 'error';
 type ServerListStatusSource = 'not_observed' | 'rcon_connection' | 'rcon_hostname';
 
-interface ServerListResult extends ServerListRow {
+interface ServerListResult extends ServerRow {
   hostname: string;
   connected: boolean;
   authenticated: boolean;
@@ -37,12 +34,10 @@ export function createServerStatusRoutes(
   db: Database.Database,
   rcon: RconManager,
   isAuthenticated: RequestHandler,
-  { selectAccessibleServersSql }: ServerAccess
+  _access: ServerAccess
 ): express.Router {
   const router = express.Router();
-  const selectAllServersStmt = db.prepare(
-    selectAccessibleServersSql('s.id, s.serverIP, s.serverPort')
-  );
+  const repository = createServersRepository(db);
 
   function connectionObservation(connection: ReturnType<typeof rcon.getConnectionInfo>) {
     if (!connection) {
@@ -62,7 +57,7 @@ export function createServerStatusRoutes(
     };
   }
 
-  function initialServerListResult(server: ServerListRow): ServerListResult {
+  function initialServerListResult(server: ServerRow): ServerListResult {
     return {
       ...server,
       hostname: '-',
@@ -114,7 +109,7 @@ export function createServerStatusRoutes(
   }
 
   async function serverListResult(
-    server: ServerListRow,
+    server: ServerRow,
     options: RconObservationOptions
   ): Promise<ServerListResult> {
     const serverId = String(server.id);
@@ -125,7 +120,7 @@ export function createServerStatusRoutes(
 
   router.get('/api/servers', isAuthenticated, async (req, res) => {
     try {
-      const servers = selectAllServersStmt.all(req.session.user?.id) as ServerListRow[];
+      const servers = repository.listAccessibleServers(req.session.user?.id);
       const options = { ...currentExecutionOptions(), refresh: req.query.refresh === '1' };
       res.json({
         servers:

@@ -8,6 +8,24 @@
   `server-bootstrap`, and `deploy` without changing the HTTP API,
   environment settings, SQLite v3 schema, `enc:v1` credential format, RCON
   behavior, updater commands and configuration, or installed updater paths.
+- The control plane now requires Node 26 (`>=26 <27`) and `better-sqlite3`
+  13. The container image is pinned to `node:26.9.0-bookworm-slim` by digest.
+- RCON code is reached only through `src/integrations/rcon/index.ts`, and its
+  SQLite access moved to `src/infrastructure/sqlite`. SQL in the control plane
+  now lives only in feature `repository.ts` modules and that directory; the
+  architecture check enforces both rules.
+- CI runs the verifier's sections as parallel jobs behind one `verify` check.
+  `scripts/verify.sh` gained `--only`, `--quick`, and `--help`, needs Bash 4,
+  and fails when tracked file modes drift from `scripts/executable-files.txt`.
+- The GitHub repository is now `3rr-cs2`; the Pages demo moved to
+  <https://sebastianspicker.github.io/3rr-cs2/> and includes a screenshot tour.
+
+### Added
+
+- Dependabot updates for npm, GitHub Actions, and the Docker base image.
+- CodeQL analysis for TypeScript/JavaScript and workflows.
+- HTTP-level integration tests for servers, users, workshop favorites, auth,
+  and health.
 
 ## [1.1.0-alpha.1] - 2026-07-23
 

@@ -15,7 +15,7 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "moduleResolution": "node",
-    // Current decision: keep server and test output on CommonJS for the Node 22
+    // Current decision: keep server and test output on CommonJS for the Node 26
     // contract. Startup uses require.main, tests mock compiled CommonJS modules,
     // and no ESM runtime contract exists yet.
     // Keep this suppression until a dedicated NodeNext migration is planned and
