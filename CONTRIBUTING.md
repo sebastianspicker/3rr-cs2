@@ -16,7 +16,7 @@ temporary reports, and tool state out of commits.
 
 ## Working on the code
 
-The control plane uses Node 22. Follow the module's setup instructions before
+The control plane uses Node 26. Follow the module's setup instructions before
 running its checks. `npm run check:architecture` checks the permitted import
 directions between application layers.
 
@@ -63,9 +63,13 @@ node scripts/capture-screenshots.mjs
 The [capture guide](docs/screenshots/README.md) lists the browser requirements.
 
 Run `./scripts/verify.sh` from the repository root when a change crosses
-modules or affects release requirements. If you cannot run a required check,
-include the command and the reason in your pull request. A skipped deployment
-check still needs to pass before release.
+modules or affects release requirements. Use `--only <section>[,<section>...]`
+(`shared`, `control-plane`, `docker`, `host-updater`, `bootstrap`) or `--quick`
+(every section except `docker`) while iterating; neither replaces the full,
+no-argument run before a release. The `shared` section also checks that
+tracked executable file modes match `scripts/executable-files.txt`. If you
+cannot run a required check, include the command and the reason in your pull
+request. A skipped deployment check still needs to pass before release.
 
 ## Opening a pull request
 

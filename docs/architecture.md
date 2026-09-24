@@ -34,7 +34,7 @@ runtime and does not run as a daemon.
 
 | Component           | Responsibility                                                                                                                        | Runtime and state boundary                                                                      |
 | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| `control-plane/`    | Authenticate operators, authorize server access, render the web interface, expose HTTP routes, and control existing servers over RCON | Node 22 process with SQLite, Redis in production, and outbound RCON connections                 |
+| `control-plane/`    | Authenticate operators, authorize server access, render the web interface, expose HTTP routes, and control existing servers over RCON | Node 26 process with SQLite, Redis in production, and outbound RCON connections                 |
 | `host-updater/`     | Compare local and remote Steam build IDs, then stop, update, verify, and restart the server                                           | Bash process running as root on a Linux host with systemd and SteamCMD; stores its lock and log |
 | `server-bootstrap/` | Supply reviewed CFG files, generate private administrator files, and build the CS2 startup command                                    | Scripts and static files consumed by the target CS2 runtime                                     |
 | `deploy/`           | Provide Compose and systemd examples                                                                                                  | Examples only; the operator chooses images, storage, networks, proxies, and secrets             |
@@ -76,6 +76,13 @@ The source dependencies follow these rules:
   `features`.
 - `shared` imports no application layer.
 - Feature-to-feature dependencies remain acyclic.
+- Code outside `src/integrations/rcon/` reaches RCON only through
+  `src/integrations/rcon/index.ts`.
+- RCON persistence (server credentials, inventory, and command history) lives
+  in `src/infrastructure/sqlite`, not in `src/integrations`.
+- SQL statements and transactions live only in a feature `repository.ts` (or
+  `*Repository.ts`) module or in `src/infrastructure/sqlite`; route, router,
+  and app files call repository methods instead of `better-sqlite3` directly.
 
 `npm run check:architecture` checks these import rules in source code.
 
