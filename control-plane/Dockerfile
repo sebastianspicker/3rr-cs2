@@ -1,5 +1,5 @@
 # Stage 1: Build - compile TypeScript and bundle client
-FROM node:22-bookworm-slim AS builder
+FROM node:26.9.0-bookworm-slim@sha256:582460f614631b59b824ac6020533b9bf339c7fdf3a6d7db31abb6b4065f0212 AS builder
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
   python3=3.11.2-1+b1 \
@@ -21,7 +21,7 @@ RUN npm run build && \
   rm -rf /root/.npm /tmp/*
 
 # Stage 2: Runtime - minimal image with only production artifacts
-FROM node:22-bookworm-slim
+FROM node:26.9.0-bookworm-slim@sha256:582460f614631b59b824ac6020533b9bf339c7fdf3a6d7db31abb6b4065f0212
 
 ENV NODE_ENV=production
 
