@@ -51,7 +51,7 @@
     "@fontsource-variable/syne": "^5.2.7",
     "@playwright/test": "1.63.0",
     "@types/bcrypt": "^6.0.0",
-    "@types/better-sqlite3": "^7.6.13",
+    "@types/better-sqlite3": "^9.6.0",
     "@types/express": "^5.0.6",
     "@types/express-session": "^1.18.2",
     "@types/node": "26.6.2",
