@@ -1,6 +1,6 @@
 # 3RR browser demo
 
-[Open the demo](https://sebastianspicker.github.io/3rr/).
+[Open the demo](https://sebastianspicker.github.io/3rr-cs2/).
 
 This static demo uses the current control plane's olive interface and
 **Server → Setup → Check result** workflow. All servers, players, observations,
@@ -25,6 +25,17 @@ Match and advanced buttons show local action notices. **Commands** or
 **Ctrl/Cmd+K** focuses the console. Account contains Appearance and demo notices
 for configuration pages. Theme choice persists; reloading resets other changes.
 
+Below the interactive demo, a screenshot tour shows five real captures of the
+control plane, clearly labeled as screenshots with simulated data. `build.mjs`
+reads their captions from [`docs/screenshots/manifest.json`](../docs/screenshots/manifest.json)
+and references them at `screenshots/<file>.png`. That folder is not tracked in
+Git; the [Pages workflow](../.github/workflows/pages.yml) copies
+`docs/screenshots/*.png` into it when publishing. Opening `index.html` directly
+from a checkout will not show these five images unless you first create that
+folder locally, for example with
+`ln -s ../docs/screenshots design-preview/screenshots` (untracked, and not to
+be committed).
+
 ## Source alignment
 
 `build.mjs` renders the maintained production EJS templates using fixed demo
@@ -46,8 +57,10 @@ node design-preview/verify.mjs
 
 The verifier runs `build.mjs --check` without writing files. It fails when
 tracked HTML, styles, texture, or mark differ from the current production
-sources, or when the demo references missing, external, or root-absolute
-assets or uses runtime network APIs. No npm installation is required.
+sources, when the demo references missing, external, or root-absolute assets
+or uses runtime network APIs, or when the screenshot tour's captions or file
+names do not match `docs/screenshots/manifest.json`. No npm installation is
+required.
 `preview.js` owns local interactions; `preview.css` contains only demo
 notices. Generated `index.html` and `panel.css` should be refreshed through
 the build script instead of edited directly.
@@ -62,9 +75,12 @@ python3 -m http.server 8080 --bind 127.0.0.1 --directory design-preview
 
 The [Pages workflow](../.github/workflows/pages.yml) verifies source alignment
 and publishes from `main`. Its artifact consists of `index.html`, `panel.css`,
-`preview.css`, `preview.js`, `olive-texture.png`, `3rr-mark.svg`, and `fonts/`
-including licenses. No build scripts or production server code are published.
-All browser asset URLs work under a repository subpath such as `/3rr/`.
+`preview.css`, `preview.js`, `olive-texture.png`, `3rr-mark.svg`, `fonts/`
+including licenses, and a `screenshots/` folder copied from
+`docs/screenshots/*.png` for the screenshot tour. No build scripts or
+production server code are published. All browser asset URLs work under a
+repository subpath such as `/3rr-cs2/`, the current Pages path for this
+repository.
 
 Before publishing, exercise server selection, setup submission, separate map
 observation, console, player filtering, keyboard tabs, account navigation,

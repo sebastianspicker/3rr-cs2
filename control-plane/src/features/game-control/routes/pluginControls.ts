@@ -4,7 +4,7 @@ import type { RequestHandler } from 'express';
 import type { ServerAccess } from '../../server-access/access';
 import logger from '../../../infrastructure/logging';
 import type { createGameRouteFactories } from './gameRouteFactories';
-import { parseConVarValue } from '../../../integrations/rcon/rconCommandPolicy';
+import { parseConVarValue } from '../../../integrations/rcon';
 import { sendGameRouteError } from './gameCommandExecution';
 
 function registerCfgToggle(

@@ -1,7 +1,7 @@
 /** Carries one deadline through an HTTP action, including command sequences. */
 import type { RequestHandler } from 'express';
 import { executionContext } from '../shared/executionContext';
-import type { RconManager } from '../integrations/rcon/rcon';
+import type { RconManager } from '../integrations/rcon';
 
 export function executionLifetime(rcon: RconManager): RequestHandler {
   return (req, res, next) => {

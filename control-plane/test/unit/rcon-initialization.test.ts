@@ -23,7 +23,7 @@ describe('initializeRconConnections', () => {
     let active = 0;
     let peak = 0;
     const initialization = initializeRconConnections({
-      db: { prepare: () => ({ all: () => servers }) } as never,
+      store: { getRconPassword: () => null, listRconServers: () => servers },
       hasConnection: (serverId) => serverId === '3',
       rememberServer: (server) => {
         remembered.push(server);

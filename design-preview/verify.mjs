@@ -40,6 +40,7 @@ const requiredIds = [
   "rconResultText",
   "playerSearch",
   "demo-notice",
+  "screenshot-tour",
 ];
 const failures = [];
 
@@ -118,7 +119,55 @@ if (/\bon[a-z]+\s*=/i.test(html))
   fail("index.html: inline event handlers are not allowed");
 
 for (const match of html.matchAll(/\b(?:href|src)=["']([^"']+)["']/gi)) {
+  // The screenshot tour references docs/screenshots/*.png, which the Pages
+  // workflow stages into a sibling screenshots/ directory at deploy time and
+  // which is checked separately below against the real capture directory.
+  if (/^screenshots\//.test(match[1])) continue;
   checkReference(match[1], "index.html");
+}
+
+const screenshotsDir = path.resolve(demoDir, "..", "docs", "screenshots");
+const tourSection = html.match(
+  /<section id="screenshot-tour"[\s\S]*?<\/section>/,
+);
+if (!tourSection) {
+  fail("index.html: missing the screenshot tour section");
+} else {
+  let manifest;
+  try {
+    manifest = JSON.parse(
+      readFileSync(path.join(screenshotsDir, "manifest.json"), "utf8"),
+    );
+  } catch (error) {
+    manifest = null;
+    fail(`docs/screenshots/manifest.json: missing or invalid (${error.message})`);
+  }
+  const figures = [
+    ...tourSection[0].matchAll(
+      /<figure><img src="screenshots\/([^"]+)" alt="([^"]*)"[^>]*><figcaption>([^<]*)<\/figcaption><\/figure>/g,
+    ),
+  ];
+  if (!figures.length) fail("index.html: screenshot tour has no images");
+  for (const [, file, , caption] of figures) {
+    if (!existsSync(path.join(screenshotsDir, file))) {
+      fail(`docs/screenshots/${file}: referenced by the screenshot tour but missing`);
+      continue;
+    }
+    const capture = manifest?.captures.find((entry) => entry.file === file);
+    if (!capture) {
+      fail(
+        `index.html: screenshot tour references ${file}, which is not in docs/screenshots/manifest.json`,
+      );
+    } else if (caption !== capture.title) {
+      fail(
+        `index.html: screenshot tour caption for ${file} does not match its docs/screenshots/manifest.json title`,
+      );
+    }
+  }
+  if (manifest && figures.length !== manifest.captures.length)
+    fail(
+      "index.html: screenshot tour is missing images listed in docs/screenshots/manifest.json",
+    );
 }
 
 const alignment = spawnSync(

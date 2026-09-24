@@ -18,3 +18,35 @@
 #demo-inventory[hidden] {
   display: none;
 }
+.screenshot-tour {
+  border-top: 1px solid var(--line);
+  margin-top: 24px;
+  padding: 24px;
+}
+.screenshot-tour-inner {
+  margin: 0 auto;
+  max-width: var(--content-max);
+}
+.screenshot-tour-inner p {
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+.screenshot-tour-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  margin-top: 16px;
+}
+.screenshot-tour-grid figure {
+  margin: 0;
+}
+.screenshot-tour-grid img {
+  border: 1px solid var(--line);
+  display: block;
+  width: 100%;
+}
+.screenshot-tour-grid figcaption {
+  color: var(--muted);
+  font-size: 0.8125rem;
+  margin-top: 6px;
+}

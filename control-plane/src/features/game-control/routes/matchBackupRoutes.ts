@@ -2,7 +2,7 @@ import { currentExecutionOptions } from '../../../shared/executionContext';
 /** Backup-list and restore endpoints with authenticated server ownership checks. */
 import express from 'express';
 import { parseGameBody } from './matchRouteValidation';
-import type { RconManager } from '../../../integrations/rcon/rcon';
+import type { RconManager } from '../../../integrations/rcon';
 import type { RequestHandler } from 'express';
 import type { ServerAccess } from '../../server-access/access';
 import logger from '../../../infrastructure/logging';

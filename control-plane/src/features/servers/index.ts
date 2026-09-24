@@ -1,7 +1,7 @@
 /** Stable composition root for server views, lifecycle APIs, status, and catalog routes. */
 import express from 'express';
 import type Database from 'better-sqlite3';
-import type { RconManager } from '../../integrations/rcon/rcon';
+import type { RconManager } from '../../integrations/rcon';
 import type { RequestHandler } from 'express';
 import type { RedisClient } from '../../infrastructure/redis';
 import { createServerAccess } from '../server-access/access';

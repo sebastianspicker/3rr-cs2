@@ -1,38 +1,22 @@
 import { currentExecutionOptions } from '../../../shared/executionContext';
 import express from 'express';
 import type Database from 'better-sqlite3';
-import type { RconManager } from '../../../integrations/rcon/rcon';
 import type { RequestHandler } from 'express';
 import { getMapsForMode, mapsConfig } from '../../game-catalog/mapsConfig';
 import logger from '../../../infrastructure/logging';
 import { parseServerId } from '../../server-access/parseServerId';
-import { parseHostnameResponse } from '../../../integrations/rcon/rconResponse';
+import { parseHostnameResponse, type RconManager } from '../../../integrations/rcon';
 import type { ServerAccess } from '../../server-access/access';
-
-interface ServerRow {
-  id: number;
-  serverIP: string;
-  serverPort: number;
-  requested_game_type?: string;
-  requested_game_mode?: string;
-  requested_map?: string;
-}
+import { createServersRepository, type ManageServerRow } from '../repository';
 
 export function createServerViewRoutes(
   db: Database.Database,
   rcon: RconManager,
   isAuthenticated: RequestHandler,
-  { renderManageResponse, selectAccessibleServerSql }: ServerAccess
+  { renderManageResponse }: ServerAccess
 ): express.Router {
   const router = express.Router();
-  const selectManageStmt = db.prepare(
-    selectAccessibleServerSql(`s.id,
-    s.serverIP,
-    s.serverPort,
-    s.last_game_type AS requested_game_type,
-    s.last_game_mode AS requested_game_mode,
-    s.last_map AS requested_map`)
-  );
+  const repository = createServersRepository(db);
 
   async function managedHostname(
     serverId: string
@@ -46,14 +30,14 @@ export function createServerViewRoutes(
     }
   }
 
-  function requestedType(server: ServerRow, gameTypes: string[]): string {
+  function requestedType(server: ManageServerRow, gameTypes: string[]): string {
     const requested = server.requested_game_type;
     if (requested && Object.hasOwn(mapsConfig.gameTypes, requested)) return requested;
     return gameTypes[0] ?? '';
   }
 
   function requestedMode(
-    server: ServerRow,
+    server: ManageServerRow,
     config: (typeof mapsConfig.gameTypes)[string] | undefined,
     modes: string[]
   ): string {
@@ -62,7 +46,7 @@ export function createServerViewRoutes(
     return modes[0] ?? '';
   }
 
-  function requestedMapName(server: ServerRow, maps: string[]): string {
+  function requestedMapName(server: ManageServerRow, maps: string[]): string {
     const requested = server.requested_map;
     if (typeof requested === 'string') {
       const allowed = maps.find((map) => map === requested);
@@ -71,7 +55,7 @@ export function createServerViewRoutes(
     return maps.at(0) ?? '';
   }
 
-  function requestedSetup(server: ServerRow) {
+  function requestedSetup(server: ManageServerRow) {
     const gameTypes = Object.keys(mapsConfig.gameTypes);
     const mapGroups = Object.entries(mapsConfig.mapGroups).map(([id, group]) => ({
       id,
@@ -89,7 +73,7 @@ export function createServerViewRoutes(
   }
 
   async function manageView(serverId: string, ownerId: number | undefined): Promise<object | null> {
-    const server = selectManageStmt.get(serverId, ownerId) as ServerRow | undefined;
+    const server = repository.findAccessibleServerForManage(serverId, ownerId);
     if (!server) return null;
     const managedServerId = String(server.id);
     const hostname = await managedHostname(managedServerId);
