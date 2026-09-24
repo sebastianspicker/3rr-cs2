@@ -3,7 +3,7 @@ import type { Router } from 'express';
 import type { RequestHandler } from 'express';
 import type { ServerAccess } from '../../server-access/access';
 import logger from '../../../infrastructure/logging';
-import { parseConVarValue, parseIntBody } from '../../../integrations/rcon/rconCommandPolicy';
+import { parseConVarValue, parseIntBody } from '../../../integrations/rcon';
 import { sendGameRouteError } from './gameCommandExecution';
 import type { createGameRouteFactories } from './gameRouteFactories';
 

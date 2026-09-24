@@ -1,6 +1,6 @@
 /** Bounded per-server command history for RCON convenience without unbounded retention. */
 import type Database from 'better-sqlite3';
-import { SQLITE_UTC_NOW } from '../../infrastructure/sqlite/index';
+import { SQLITE_UTC_NOW } from './migrations';
 
 export interface RconHistoryRow {
   id: number;

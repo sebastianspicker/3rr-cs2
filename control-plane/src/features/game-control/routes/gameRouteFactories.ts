@@ -1,6 +1,5 @@
 import type { NextFunction, RequestHandler } from 'express';
 import logger from '../../../infrastructure/logging';
-import type { RconManager } from '../../../integrations/rcon/rcon';
 import type { ServerAccess } from '../../server-access/access';
 import {
   runGameCmd as executeGameCmd,
@@ -12,7 +11,8 @@ import {
   parseIntBody,
   requireAllowlisted,
   sanitizeCfgName,
-} from '../../../integrations/rcon/rconCommandPolicy';
+  type RconManager,
+} from '../../../integrations/rcon';
 
 type FixedTemplateCommand = Readonly<{
   command: string;

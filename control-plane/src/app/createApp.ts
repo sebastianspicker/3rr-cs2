@@ -13,7 +13,7 @@ import { createConsoleRouter } from '../features/console/router';
 import { createWorkshopRouter } from '../features/workshop/router';
 import { createServerAccess } from '../features/server-access/access';
 import { createAuthentication } from './authentication';
-import type { RconManager } from '../integrations/rcon/rcon';
+import type { RconManager } from '../integrations/rcon';
 import type { RedisClient } from '../infrastructure/redis';
 import { configureSecurity } from './security';
 import { configureRateLimits } from './rateLimits';

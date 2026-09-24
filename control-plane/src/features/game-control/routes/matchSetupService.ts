@@ -1,10 +1,6 @@
 /** Converts validated setup choices into an ordered, safe RCON command sequence. */
 import { getMapsForMode, mapsConfig } from '../../game-catalog/mapsConfig';
-import {
-  sanitizeCfgName,
-  sanitizeString,
-  MAX_TEAM_NAME_LEN,
-} from '../../../integrations/rcon/rconCommandPolicy';
+import { sanitizeCfgName, sanitizeString, MAX_TEAM_NAME_LEN } from '../../../integrations/rcon';
 import type { createGameRouteFactories } from './gameRouteFactories';
 import type { z } from 'zod';
 import type { SetupGameBodySchema } from './matchContracts';

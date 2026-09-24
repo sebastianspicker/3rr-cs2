@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-- Node.js 22
+- Node.js 26
 - npm
 - Redis for production
 - Docker with Compose for the included container deployment

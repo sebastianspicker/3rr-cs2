@@ -18,8 +18,11 @@ tested.
 1. Choose one clean candidate commit from `main`.
 2. Align the tag, package and lockfile versions, updater version, and
    changelogs.
-3. Run `./scripts/verify.sh` with Node 22, the documented shell tools,
-   loopback networking, and a working Docker daemon.
+3. Run `./scripts/verify.sh` with Node 26, the documented shell tools,
+   loopback networking, and a working Docker daemon. The no-argument run is
+   the release gate; `./scripts/verify.sh --only <section>[,<section>...]`
+   and `./scripts/verify.sh --quick` are for iterating on one area and are
+   not a release gate substitute.
 4. Test a representative CS2/RCON deployment, including login, a
    CSRF-protected write, one read-only status request, and one controlled
    state-changing operation.

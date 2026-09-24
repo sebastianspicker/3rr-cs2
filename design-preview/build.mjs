@@ -84,10 +84,22 @@ const navbar = render("partials/navbar")
     /<form[\s\S]*?<\/form>/g,
     '<p class="small text-muted">Local demo · no account required</p>',
   );
+const screenshots = JSON.parse(
+  fs.readFileSync(
+    path.resolve(dir, "../docs/screenshots/manifest.json"),
+    "utf8",
+  ),
+).captures;
+const tour = `<section id="screenshot-tour" class="screenshot-tour" aria-labelledby="screenshot-tour-heading"><div class="screenshot-tour-inner"><h2 id="screenshot-tour-heading">Screenshots of the real control plane</h2><p>The interactive demo above is a simulated preview. These are screenshots of the actual 3RR control plane, captured with a disposable database and fixed RCON responses; no live CS2 server is shown.</p><div class="screenshot-tour-grid">${screenshots
+  .map(
+    (shot) =>
+      `<figure><img src="screenshots/${shot.file}" alt="${escape(shot.title)}" loading="lazy"><figcaption>${escape(shot.title)}</figcaption></figure>`,
+  )
+  .join("")}</div></div></section>`;
 const html = `<!DOCTYPE html>
 <!-- Built by build.mjs from control-plane/web/views. Edit the source templates or build script. -->
 <html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"><meta name="color-scheme" content="dark light"><title>3RR · Server control demo</title><link rel="icon" href="3rr-mark.svg" type="image/svg+xml"><link rel="stylesheet" href="panel.css"><link rel="stylesheet" href="preview.css"><script src="preview.js" defer></script></head>
-<body><script id="demo-catalog" type="application/json">${JSON.stringify(catalog).replaceAll("<", "\\u003c")}</script><a class="skip-link" href="#inventory-main">Skip to main content</a><div class="shell ops-shell">${navbar}<p class="demo-disclosure">Design demo · simulated data. All actions stay in this browser; no server connection.</p><div id="demo-inventory">${inventory}</div><div id="demo-manage" class="main main-manage" hidden>${manage}</div></div><p id="demo-notice" class="demo-notice alert" role="status" hidden></p></body></html>\n`
+<body><script id="demo-catalog" type="application/json">${JSON.stringify(catalog).replaceAll("<", "\\u003c")}</script><a class="skip-link" href="#inventory-main">Skip to main content</a><div class="shell ops-shell">${navbar}<p class="demo-disclosure">Design demo · simulated data. All actions stay in this browser; no server connection.</p><div id="demo-inventory">${inventory}</div><div id="demo-manage" class="main main-manage" hidden>${manage}</div></div>${tour}<p id="demo-notice" class="demo-notice alert" role="status" hidden></p></body></html>\n`
   .replace(/href="\/servers"/g, 'href="#servers"')
   .replace(
     /href="\/(?:add-server|settings|admin\/users)"/g,

@@ -8,9 +8,10 @@ afterEach(resetRconScenario);
 test('connectServer pins the validated DNS address instead of reconnecting by hostname', async () => {
   rconScenario.resolvedHost = '203.0.113.77';
   const { RconManager } = await import('../../src/integrations/rcon/rcon');
-  const manager = new RconManager(() => 'test-password', {
-    prepare: () => ({ all: () => [] }),
-  } as never);
+  const manager = new RconManager({
+    getRconPassword: () => 'test-password',
+    listRconServers: () => [],
+  });
   try {
     await manager.readyPromise;
     assert.equal(

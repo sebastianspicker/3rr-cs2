@@ -1,7 +1,8 @@
 import type { Express } from 'express';
 import type Database from 'better-sqlite3';
-import type { RconManager } from '../integrations/rcon/rcon';
+import type { RconManager } from '../integrations/rcon';
 import type { RedisClient } from '../infrastructure/redis';
+import { createDatabaseHealthCheck } from '../infrastructure/sqlite';
 
 export function registerHealthRoute(
   app: Express,
@@ -9,15 +10,7 @@ export function registerHealthRoute(
   rcon: RconManager,
   redisClient: RedisClient
 ): void {
-  const dbHealthStmt = db.prepare('SELECT 1');
-  const isDatabaseHealthy = (): boolean => {
-    try {
-      dbHealthStmt.get();
-      return true;
-    } catch {
-      return false;
-    }
-  };
+  const isDatabaseHealthy = createDatabaseHealthCheck(db);
   app.get('/api/health', (req, res) => {
     const rconInit = rcon.getInitSummary();
     const db = isDatabaseHealthy();

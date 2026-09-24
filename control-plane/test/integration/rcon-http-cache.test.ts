@@ -8,6 +8,7 @@ import { request as httpRequest } from 'node:http';
 import type { AddressInfo, Server } from 'node:net';
 import { performance } from 'node:perf_hooks';
 import { runMigrations } from '../../src/infrastructure/sqlite/migrations';
+import { createSqliteRconServerStore } from '../../src/infrastructure/sqlite/rconServerStore';
 import type { RconManager } from '../../src/integrations/rcon/rcon';
 import type {
   RconObservationOptions,
@@ -67,7 +68,7 @@ before(async () => {
     import('../../src/integrations/rcon/rcon'),
     import('../../src/app/createApp'),
   ]);
-  manager = new RconManager((id) => (id >= 1 && id <= 51 ? 'password' : null), database);
+  manager = new RconManager(createSqliteRconServerStore(database));
   await manager.readyPromise;
   server = createPanelApp('test', process.cwd(), {
     db: database,
@@ -298,7 +299,11 @@ test('an HTTP refresh and concurrent ordinary read join the same flights', async
   const refresh = request('/api/status/1?refresh=1', {
     headers: { ...authenticated.headers, cookie },
   });
-  await new Promise((resolve) => setImmediate(resolve));
+  // Send the ordinary read only after the refresh flight is in progress; one
+  // event-loop turn is not enough for the HTTP request to reach RCON on slow hosts.
+  while (rconScenario.executeCalls.length === before) {
+    await new Promise((resolve) => setTimeout(resolve, 1));
+  }
   const ordinary = request('/api/status/1', {
     headers: { ...authenticated.headers, cookie },
   });

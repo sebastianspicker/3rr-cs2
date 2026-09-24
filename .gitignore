@@ -5,6 +5,7 @@ node_modules/
 *.tsbuildinfo
 
 # Runtime and deployment state
+/design-preview/screenshots/
 /control-plane/data/
 /control-plane/tmp-3rr-*/
 /control-plane/tmp-cs2-*/
@@ -107,7 +108,6 @@ Thumbs.db
 /.vscode/
 /.mcp.json
 /.internal/
-/.repowise/
 /.serena/
 /.codegraph/
 

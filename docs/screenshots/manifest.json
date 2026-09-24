@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-09-14T09:15:01.653Z",
+  "capturedAt": "2026-09-24T20:56:14.331Z",
   "source": "control-plane Express/EJS application",
   "data": "Disposable SQLite and deterministic RCON fixture; no live CS2 server",
   "command": "cd control-plane && npm run build && node scripts/capture-screenshots.mjs",

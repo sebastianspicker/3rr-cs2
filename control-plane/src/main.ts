@@ -4,9 +4,9 @@ import logger from './infrastructure/logging';
 import { rconOptionsFromEnvironment } from './app/rconOptions';
 import { createPanelApp } from './app/createApp';
 import { parsePanelPort, registerUnhandledRejectionHandler, startPanelApp } from './app/lifecycle';
-import { createPanelDatabase } from './infrastructure/sqlite';
+import { createPanelDatabase, createSqliteRconServerStore } from './infrastructure/sqlite';
 import { createRedisClient } from './infrastructure/redis';
-import { createRconManager } from './integrations/rcon/rcon';
+import { createRconManager } from './integrations/rcon';
 
 export async function composePanelRuntime(nodeEnv = process.env.NODE_ENV ?? 'development') {
   const packageRoot =
@@ -22,7 +22,7 @@ export async function composePanelRuntime(nodeEnv = process.env.NODE_ENV ?? 'dev
     // Redis-backed rate-limit stores load Lua scripts during app construction.
     // Connect first so those initial commands cannot reject on a closed client.
     if (redisClient) await redisClient.connect();
-    rcon = createRconManager(db, rconOptions);
+    rcon = createRconManager(createSqliteRconServerStore(db), rconOptions);
     return {
       app: createPanelApp(nodeEnv, packageRoot, { db, rcon, redisClient }),
       db,
