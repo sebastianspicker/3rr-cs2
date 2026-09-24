@@ -54,7 +54,10 @@ describe('RconManager scheduling', () => {
       'startupConcurrency',
     ] as const) {
       for (const value of [0, -1, 1.5, Number.POSITIVE_INFINITY, 2_147_483_648]) {
-        assert.throws(() => new RconManager(store, { [name]: value }), new RegExp(name));
+        assert.throws(
+          () => new RconManager(store, { [name]: value }),
+          (error: unknown) => error instanceof Error && error.message.includes(name)
+        );
       }
     }
   });
