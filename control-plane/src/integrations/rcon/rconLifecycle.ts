@@ -1,6 +1,5 @@
 /** RCON connection lifecycle, removal ownership, and bounded shutdown. */
 import type Rcon from 'rcon-srcds';
-import type Database from 'better-sqlite3';
 import logger from '../../infrastructure/logging';
 import {
   createAuthenticatedRconConnection,
@@ -23,6 +22,7 @@ import {
   type RconObservation,
   type RconObservationOptions,
   type RconObservedCommand,
+  type RconServerStore,
   type RconShutdownSummary,
   type ServerInfo,
   type ServerRecord,
@@ -45,8 +45,7 @@ export class RconConnectionLifecycle {
   private shuttingDown = false;
 
   constructor(
-    private readonly passwordProvider: (serverId: number) => string | null,
-    private readonly db: Database.Database,
+    private readonly store: RconServerStore,
     options: RconManagerOptions = {}
   ) {
     this.authTimeoutMs = positiveInt(options.authTimeoutMs, limits.DEFAULT_AUTH_TIMEOUT_MS);
@@ -117,7 +116,7 @@ export class RconConnectionLifecycle {
   async init(): Promise<void> {
     this.initSummary = emptyInitSummary();
     this.initSummary = await initializeRconConnections({
-      db: this.db,
+      store: this.store,
       hasConnection: (serverId) => this.sockets.has(serverId),
       rememberServer: (server) => this.rememberServer(server),
       connect: (serverId, server) => this.connect(serverId, server),
@@ -206,7 +205,7 @@ export class RconConnectionLifecycle {
     }
 
     // Fetch the password on every connection attempt; server state never caches secrets.
-    const encryptedPassword = this.passwordProvider(server.id);
+    const encryptedPassword = this.store.getRconPassword(server.id);
     if (!encryptedPassword) {
       logger.error({ server_id: serverId }, '[rcon] No password found in DB');
       return false;

@@ -4,19 +4,20 @@ import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
 import { rateLimitClientKey } from '../../shared/clientAddress';
 import type Database from 'better-sqlite3';
-import type { RconManager } from '../../integrations/rcon/rcon';
 import type { RequestHandler } from 'express';
 import logger from '../../infrastructure/logging';
 import {
   isValidServerHost,
   isValidServerHostResolved,
-} from '../../integrations/rcon/networkValidation';
+  type RconManager,
+} from '../../integrations/rcon';
 import { makeRateLimitStore, type RedisClient } from '../../infrastructure/redis';
 import {
   encryptRconSecret,
   RconSecretDecryptError,
 } from '../../infrastructure/credentials/rconCredential';
 import type { ServerAccess } from '../server-access/access';
+import { createServersRepository } from './repository';
 
 export function createServerAddRouter(
   db: Database.Database,
@@ -26,22 +27,7 @@ export function createServerAddRouter(
   redisClient: RedisClient
 ): express.Router {
   const router = express.Router();
-  const insertServerStmt = db.prepare(
-    `INSERT OR IGNORE INTO servers (serverIP, serverPort, rconPassword, owner_id) VALUES (?, ?, ?, ?)`
-  );
-  const insertServerAccessStmt = db.prepare(
-    `INSERT OR IGNORE INTO server_access (user_id, server_id) VALUES (?, ?)`
-  );
-  const updateServerPasswordStmt = db.prepare(`UPDATE servers SET rconPassword = ? WHERE id = ?`);
-  const selectServerByIpPortStmt = db.prepare(
-    `SELECT id, rconPassword FROM servers WHERE serverIP = ? AND serverPort = ?`
-  );
-  const countServersByOwnerStmt = db.prepare(
-    `SELECT COUNT(*) AS count FROM server_access WHERE user_id = ?`
-  );
-  const selectServerAccessStmt = db.prepare(
-    `SELECT 1 FROM server_access WHERE user_id = ? AND server_id = ?`
-  );
+  const repository = createServersRepository(db);
 
   const AddServerBodySchema = z.object({
     server_ip: z.string().min(1),
@@ -73,7 +59,6 @@ export function createServerAddRouter(
     'Stored RCON credential could not be decrypted; check RCON_SECRET_KEY or saved credential';
 
   type AddServerData = z.infer<typeof AddServerBodySchema>;
-  type PersistServerResult = { serverId: number } | { serverId: null; maximumReached: true };
   type PersistAndConnectResult = 'connected' | 'connection_failed' | 'maximum_reached';
 
   function sendAddServerError(response: express.Response, error: unknown): express.Response {
@@ -128,57 +113,17 @@ export function createServerAddRouter(
     }
   }
 
-  function saveServerRecord(
-    input: AddServerData,
-    encryptedPassword: string,
-    ownerId: number,
-    existingId: number | undefined
-  ): number | null {
-    if (existingId !== undefined) {
-      updateServerPasswordStmt.run(encryptedPassword, existingId);
-      return existingId;
-    }
-    const insertResult = insertServerStmt.run(
-      input.server_ip,
-      input.server_port,
-      encryptedPassword,
-      ownerId
-    );
-    const inserted = selectServerByIpPortStmt.get(input.server_ip, input.server_port) as
-      | { id: number }
-      | undefined;
-    if (insertResult.changes === 0 && inserted) {
-      updateServerPasswordStmt.run(encryptedPassword, inserted.id);
-    }
-    return inserted?.id ?? null;
-  }
-
-  function ownerCannotAddServer(ownerId: number, existingId: number | undefined): boolean {
-    if (existingId !== undefined && selectServerAccessStmt.get(ownerId, existingId)) return false;
-    const { count } = countServersByOwnerStmt.get(ownerId) as { count: number };
-    return count >= 50;
-  }
-
-  const persistServerAndAccess = db.transaction(
-    (input: AddServerData, encryptedPassword: string, ownerId: number): PersistServerResult => {
-      const existing = selectServerByIpPortStmt.get(input.server_ip, input.server_port) as
-        | { id: number }
-        | undefined;
-      if (ownerCannotAddServer(ownerId, existing?.id))
-        return { serverId: null, maximumReached: true };
-      const serverId = saveServerRecord(input, encryptedPassword, ownerId, existing?.id);
-      if (serverId === null) throw new Error('Failed to add the server');
-      insertServerAccessStmt.run(ownerId, serverId);
-      return { serverId };
-    }
-  );
-
   async function persistAndConnectAuthenticatedServer(
     input: AddServerData,
     ownerId: number
   ): Promise<PersistAndConnectResult> {
     const encryptedPassword = encryptRconSecret(input.rcon_password);
-    const persisted = persistServerAndAccess(input, encryptedPassword, ownerId);
+    const persisted = repository.persistServerAndAccess(
+      input.server_ip,
+      input.server_port,
+      encryptedPassword,
+      ownerId
+    );
     if (persisted.serverId === null) return 'maximum_reached';
     const connected = await rcon.connectServer({
       id: persisted.serverId,
@@ -199,10 +144,8 @@ export function createServerAddRouter(
     try {
       const ownerId = authenticatedUserId(req);
       if (ownerId === null) return res.status(401).json({ error: 'Unauthorized' });
-      const existing = selectServerByIpPortStmt.get(input.server_ip, input.server_port) as
-        | { id: number; rconPassword: string }
-        | undefined;
-      if (ownerCannotAddServer(ownerId, existing?.id)) {
+      const existing = repository.findServerByIpPort(input.server_ip, input.server_port);
+      if (repository.ownerCannotAddServer(ownerId, existing?.id)) {
         return res.status(400).json({ error: 'Maximum server limit reached' });
       }
       if (!(await canAuthenticateServer(input, existing?.id))) {

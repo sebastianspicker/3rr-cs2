@@ -20,8 +20,7 @@ const deferred = <T>() => {
 const createManager = async (options: Record<string, number> = {}) => {
   const { RconManager } = await import('../../src/integrations/rcon/rcon');
   const manager = new RconManager(
-    () => 'test-password',
-    { prepare: () => ({ all: () => [] }) } as never,
+    { getRconPassword: () => 'test-password', listRconServers: () => [] },
     options
   );
   await manager.readyPromise;
@@ -47,7 +46,7 @@ describe('RconManager scheduling', () => {
 
   it('rejects invalid scheduler and startup manager options', async () => {
     const { RconManager } = await import('../../src/integrations/rcon/rcon');
-    const db = { prepare: () => ({ all: () => [] }) } as never;
+    const store = { getRconPassword: () => 'test-password', listRconServers: () => [] };
     for (const name of [
       'totalDeadlineMs',
       'maxQueuedPerServer',
@@ -55,10 +54,7 @@ describe('RconManager scheduling', () => {
       'startupConcurrency',
     ] as const) {
       for (const value of [0, -1, 1.5, Number.POSITIVE_INFINITY, 2_147_483_648]) {
-        assert.throws(
-          () => new RconManager(() => 'test-password', db, { [name]: value }),
-          new RegExp(name)
-        );
+        assert.throws(() => new RconManager(store, { [name]: value }), new RegExp(name));
       }
     }
   });

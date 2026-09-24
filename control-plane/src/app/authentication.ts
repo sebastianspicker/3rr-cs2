@@ -2,12 +2,7 @@
 import type { Request, Response, NextFunction } from 'express';
 import type Database from 'better-sqlite3';
 import logger from '../infrastructure/logging';
-
-interface SessionUserRow {
-  id: number;
-  username: string;
-  is_admin: number;
-}
+import { createAuthRepository } from '../features/auth/repository';
 
 function rejectUnauthenticated(req: Request, res: Response): void {
   const acceptHeader = req.headers.accept;
@@ -19,11 +14,7 @@ function rejectUnauthenticated(req: Request, res: Response): void {
 }
 
 export function createAuthentication(db: Database.Database) {
-  const selectSessionUserStmt = db.prepare(`
-    SELECT id, username, is_admin
-      FROM users
-     WHERE id = ?
-  `);
+  const repository = createAuthRepository(db);
 
   function isAuthenticated(req: Request, res: Response, next: NextFunction): void {
     const sessionUser = req.session.user;
@@ -32,7 +23,7 @@ export function createAuthentication(db: Database.Database) {
       return;
     }
 
-    const user = selectSessionUserStmt.get(sessionUser.id) as SessionUserRow | undefined;
+    const user = repository.findSessionUser(sessionUser.id);
     if (!user) {
       req.session.destroy((err) => {
         if (err) {

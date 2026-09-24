@@ -1,45 +1,22 @@
 import express from 'express';
 import type Database from 'better-sqlite3';
-import type { RconManager } from '../../../integrations/rcon/rcon';
 import type { RequestHandler } from 'express';
 import logger from '../../../infrastructure/logging';
-import { isValidServerHostResolved } from '../../../integrations/rcon/networkValidation';
+import { isValidServerHostResolved, type RconManager } from '../../../integrations/rcon';
 import { RconSecretDecryptError } from '../../../infrastructure/credentials/rconCredential';
 import type { ServerAccess } from '../../server-access/access';
+import { createServersRepository } from '../repository';
 const RCON_CREDENTIAL_STORAGE_ERROR =
   'Stored RCON credential could not be decrypted; check RCON_SECRET_KEY or saved credential';
-
-interface ServerFullRow {
-  id: number;
-  serverIP: string;
-  serverPort: number;
-  rconPassword: string;
-}
 
 export function createServerLifecycleRoutes(
   db: Database.Database,
   rcon: RconManager,
   isAuthenticated: RequestHandler,
-  { authenticatedUserId, requireServerId, selectAccessibleServerSql }: ServerAccess
+  { authenticatedUserId, requireServerId }: ServerAccess
 ): express.Router {
   const router = express.Router();
-  const selectServerByIdStmt = db.prepare(
-    selectAccessibleServerSql('s.id, s.serverIP, s.serverPort, s.rconPassword')
-  );
-  const deleteServerAccessStmt = db.prepare(
-    'DELETE FROM server_access WHERE server_id = ? AND user_id = ?'
-  );
-  const deleteOrphanServerStmt = db.prepare(
-    'DELETE FROM servers WHERE id = ? AND NOT EXISTS (SELECT 1 FROM server_access WHERE server_id = ?)'
-  );
-  const deleteServerAndAccess = db.transaction(
-    (serverId: string, ownerId: number): { found: boolean; serverDeleted: boolean } => {
-      const accessResult = deleteServerAccessStmt.run(serverId, ownerId);
-      if (accessResult.changes === 0) return { found: false, serverDeleted: false };
-      const orphanResult = deleteOrphanServerStmt.run(serverId, serverId);
-      return { found: true, serverDeleted: orphanResult.changes > 0 };
-    }
-  );
+  const repository = createServersRepository(db);
 
   async function cleanupDeletedServerRcon(
     serverId: string,
@@ -59,9 +36,7 @@ export function createServerLifecycleRoutes(
     try {
       const serverId = requireServerId(req, res);
       if (!serverId) return;
-      const server = selectServerByIdStmt.get(serverId, req.session.user?.id) as
-        | ServerFullRow
-        | undefined;
+      const server = repository.findAccessibleServerFull(serverId, req.session.user?.id);
       if (!server) return res.status(404).json({ error: 'Server not found' });
       if (!(await isValidServerHostResolved(server.serverIP))) {
         logger.warn(
@@ -94,7 +69,7 @@ export function createServerLifecycleRoutes(
       if (!serverId) return;
       const ownerId = authenticatedUserId(req);
       if (ownerId === null) return res.status(401).json({ error: 'Unauthorized' });
-      const deleted = deleteServerAndAccess(serverId, ownerId);
+      const deleted = repository.deleteServerAndAccess(serverId, ownerId);
       if (!deleted.found) return res.status(404).json({ error: 'Server not found' });
       if (!(await cleanupDeletedServerRcon(serverId, deleted.serverDeleted))) {
         return res.status(500).json({

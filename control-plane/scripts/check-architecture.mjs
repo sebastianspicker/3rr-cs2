@@ -61,10 +61,85 @@ function isWithin(candidate, directory) {
   return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
 }
 
+const SQL_STATEMENT_METHODS = new Set(['prepare', 'transaction', 'pragma']);
+
+// SQL text and transactions belong only in a feature repository.ts (or *Repository.ts) module,
+// or in src/infrastructure/sqlite. Every other file under src is a violation.
+function isAllowedSqlLocation(file, sourceRoot) {
+  if (isWithin(file, path.join(sourceRoot, 'infrastructure', 'sqlite'))) return true;
+  const base = path.basename(file);
+  return base === 'repository.ts' || base.endsWith('Repository.ts');
+}
+
+function sqlStatementViolations(file, relativeFile, source, sourceRoot) {
+  if (isAllowedSqlLocation(file, sourceRoot)) return [];
+  const violations = [];
+  const syntax = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
+
+  function visit(node) {
+    if (
+      ts.isCallExpression(node) &&
+      ts.isPropertyAccessExpression(node.expression) &&
+      ts.isIdentifier(node.expression.name)
+    ) {
+      const methodName = node.expression.name.text;
+      const receiver = node.expression.expression;
+      const isBareSqlCall = SQL_STATEMENT_METHODS.has(methodName);
+      const isDatabaseExecCall =
+        methodName === 'exec' &&
+        ts.isIdentifier(receiver) &&
+        (receiver.text === 'db' || receiver.text === 'database');
+      if (isBareSqlCall || isDatabaseExecCall) {
+        violations.push(
+          `${relativeFile}: SQL statements belong only in a repository.ts module or src/infrastructure/sqlite (.${methodName}(...))`
+        );
+      }
+    }
+    ts.forEachChild(node, visit);
+  }
+
+  visit(syntax);
+  return violations;
+}
+
 function targetAreaFor(file, specifier, sourceRoot) {
   const resolved = path.resolve(path.dirname(file), specifier);
   if (!isWithin(resolved, sourceRoot)) return undefined;
   return path.relative(sourceRoot, resolved).split(path.sep)[0];
+}
+
+function integrationNameFor(relativeParts) {
+  return relativeParts[0] === 'integrations' ? relativeParts[1] : undefined;
+}
+
+// A file outside src/integrations/<name>/ may reach that integration only through its
+// src/integrations/<name> entry point (index.ts), never a deeper path.
+function checkIntegrationEntryPoint(relativeFile, specifier, resolved, sourceRoot, violations) {
+  if (!isWithin(resolved, sourceRoot)) return;
+  const targetParts = path.relative(sourceRoot, resolved).split(path.sep);
+  const targetIntegration = integrationNameFor(targetParts);
+  if (!targetIntegration) return;
+  if (integrationNameFor(relativeFile.split(path.sep)) === targetIntegration) return;
+
+  const remainder = targetParts.slice(2);
+  const isEntryPoint =
+    remainder.length === 0 ||
+    (remainder.length === 1 && /^index(\.[cm]?[jt]sx?)?$/.test(remainder[0]));
+  if (isEntryPoint) return;
+
+  violations.push(
+    `${relativeFile}: must import the ${targetIntegration} integration only through src/integrations/${targetIntegration} (${specifier})`
+  );
+}
+
+// src/integrations must not reach SQLite persistence directly; that lives in src/infrastructure/sqlite.
+function isForbiddenSqlitePersistence(file, specifier, sourceRoot) {
+  if (specifier === 'better-sqlite3') return true;
+  if (!specifier.startsWith('.')) return false;
+  const resolved = path.resolve(path.dirname(file), specifier);
+  if (!isWithin(resolved, sourceRoot)) return false;
+  const parts = path.relative(sourceRoot, resolved).split(path.sep);
+  return parts[0] === 'infrastructure' && parts[1] === 'sqlite';
 }
 
 export async function collectArchitectureViolations({
@@ -77,12 +152,25 @@ export async function collectArchitectureViolations({
   for (const file of await sourceFiles(sourceRoot)) {
     const relativeFile = path.relative(sourceRoot, file);
     const sourceArea = relativeFile.split(path.sep)[0];
-    if (!guardedAreas.has(sourceArea)) continue;
+    const isGuardedArea = guardedAreas.has(sourceArea);
 
     const source = await readFile(file, 'utf8');
+    violations.push(...sqlStatementViolations(file, relativeFile, source, sourceRoot));
     for (const specifier of moduleSpecifiers(file, source)) {
+      if (
+        sourceArea === 'integrations' &&
+        isForbiddenSqlitePersistence(file, specifier, sourceRoot)
+      ) {
+        violations.push(
+          `${relativeFile}: integrations must not import SQLite persistence directly (${specifier})`
+        );
+      }
+
       if (!specifier.startsWith('.')) continue;
       const resolved = path.resolve(path.dirname(file), specifier);
+      checkIntegrationEntryPoint(relativeFile, specifier, resolved, sourceRoot, violations);
+
+      if (!isGuardedArea) continue;
       const targetArea = targetAreaFor(file, specifier, sourceRoot);
       if (!targetArea) continue;
 

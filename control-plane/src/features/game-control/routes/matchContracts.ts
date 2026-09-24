@@ -1,20 +1,6 @@
-/** Zod and persistence contracts shared across match-related route families. */
+/** Zod contracts shared across match-related route families. */
 import { z } from 'zod';
-import type Database from 'better-sqlite3';
-import { RCON_USERID_RE } from '../../../integrations/rcon/rconParsers';
-import { sanitizeBackupFileName } from '../../../integrations/rcon/rconCommandPolicy';
-
-export function createMatchContracts(db: Database.Database) {
-  return {
-    updateRequestedSetupStmt: db.prepare(`
-      UPDATE servers
-         SET last_map        = ?,
-             last_game_type  = ?,
-             last_game_mode  = ?
-       WHERE id = ?
-    `),
-  };
-}
+import { RCON_USERID_RE, sanitizeBackupFileName } from '../../../integrations/rcon';
 
 export const SetupGameBodySchema = z.object({
   game_type: z.string().min(1),

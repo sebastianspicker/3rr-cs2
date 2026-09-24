@@ -14,6 +14,12 @@ export interface ServerInfo {
   serverPort: number;
 }
 
+/** Port onto persisted server records; implemented by the SQLite infrastructure adapter. */
+export interface RconServerStore {
+  getRconPassword(serverId: number): string | null;
+  listRconServers(): ServerInfo[];
+}
+
 export interface ServerDetails {
   host: string;
   port: number;

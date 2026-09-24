@@ -1,9 +1,8 @@
 import { currentExecutionOptions } from '../../../shared/executionContext';
 /** RCON command validation and partial-success handling for operator requests. */
-import type { RconManager } from '../../../integrations/rcon/rcon';
-import type { RconHistoryRepository } from '../../../integrations/rcon/rconHistory';
+import type { RconHistoryRepository } from '../../../infrastructure/sqlite';
+import { isRconCommandAllowed, type RconManager } from '../../../integrations/rcon';
 import logger from '../../../infrastructure/logging';
-import { isRconCommandAllowed } from '../../../integrations/rcon/rconCommandPolicy';
 
 export function validatedRconCommand(value: unknown): string | null {
   if (!isRconCommandAllowed(value) || typeof value !== 'string') return null;

@@ -1,10 +1,15 @@
 /** Startup discovery and per-server RCON initialization accounting. */
-import type Database from 'better-sqlite3';
 import logger from '../../infrastructure/logging';
-import { emptyInitSummary, errorMessage, type RconInitSummary, type ServerInfo } from './rconTypes';
+import {
+  emptyInitSummary,
+  errorMessage,
+  type RconInitSummary,
+  type RconServerStore,
+  type ServerInfo,
+} from './rconTypes';
 
 interface RconInitializationDependencies {
-  db: Database.Database;
+  store: RconServerStore;
   hasConnection(serverId: string): boolean;
   rememberServer(server: ServerInfo): void;
   connect(serverId: string, server: ServerInfo): Promise<boolean>;
@@ -13,16 +18,14 @@ interface RconInitializationDependencies {
 
 /** Connect saved servers independently so one failed endpoint never blocks startup. */
 export async function initializeRconConnections({
-  db,
+  store,
   hasConnection,
   rememberServer,
   connect,
   concurrency,
 }: RconInitializationDependencies): Promise<RconInitSummary> {
   try {
-    const servers = db
-      .prepare('SELECT id, serverIP, serverPort FROM servers')
-      .all() as ServerInfo[];
+    const servers = store.listRconServers();
     const summary: RconInitSummary = {
       complete: false,
       total: servers.length,

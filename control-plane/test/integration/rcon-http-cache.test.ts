@@ -8,6 +8,7 @@ import { request as httpRequest } from 'node:http';
 import type { AddressInfo, Server } from 'node:net';
 import { performance } from 'node:perf_hooks';
 import { runMigrations } from '../../src/infrastructure/sqlite/migrations';
+import { createSqliteRconServerStore } from '../../src/infrastructure/sqlite/rconServerStore';
 import type { RconManager } from '../../src/integrations/rcon/rcon';
 import type {
   RconObservationOptions,
@@ -67,7 +68,7 @@ before(async () => {
     import('../../src/integrations/rcon/rcon'),
     import('../../src/app/createApp'),
   ]);
-  manager = new RconManager((id) => (id >= 1 && id <= 51 ? 'password' : null), database);
+  manager = new RconManager(createSqliteRconServerStore(database));
   await manager.readyPromise;
   server = createPanelApp('test', process.cwd(), {
     db: database,
