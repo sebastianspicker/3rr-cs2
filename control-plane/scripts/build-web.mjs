@@ -16,10 +16,6 @@ copyFileSync(
   resolve(generated, 'js/toast-inline.js')
 );
 copyFileSync(resolve(root, 'web/assets/3rr-mark.svg'), resolve(generated, '3rr-mark.svg'));
-copyFileSync(
-  resolve(root, 'web/assets/olive-texture.png'),
-  resolve(generated, 'olive-texture.png')
-);
 
 await build({
   entryPoints: [resolve(root, 'web/client/console.ts')],

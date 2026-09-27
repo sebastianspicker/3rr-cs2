@@ -1,14 +1,31 @@
-# Control plane operations
+# Running the panel (control plane)
 
-## Prerequisites
+## At a glance
+
+1. Install Node 26 and npm. For production you also need Redis, and Docker Compose if you use
+   the container setup.
+2. Create `.env` and set the session secret, the RCON encryption key, and the Redis address.
+3. Create the first administrator once, then turn default credentials off.
+4. Build and start the panel.
+5. Back up the database, and store the RCON encryption key somewhere else.
+
+Two mistakes cause the worst outcomes, and both are covered below:
+
+- **Losing the RCON encryption key** makes the stored RCON passwords unreadable.
+- **Copying the database while the panel is running** can produce a broken backup.
+
+## What you need
 
 - Node.js 26
 - npm
-- Redis for production
-- Docker with Compose for the included container deployment
-- `shellcheck`, `shfmt`, `jq`, and `ruby` for validation
+- Redis, for production
+- Docker with Compose, for the included container deployment
+- `shellcheck`, `shfmt`, `jq`, and `ruby`, for the code checks
 
-## Initial configuration
+The full repository check (`./scripts/verify.sh`) also needs `make`, `curl`, and a running
+Docker daemon; see the [README](../../README.md#for-contributors-checks).
+
+## Configure
 
 ```bash
 cd control-plane
@@ -17,32 +34,35 @@ cp -n .env.example .env
 chmod 0600 .env
 ```
 
-Production requires:
+`chmod 0600` makes the settings file readable and writable only by its owner.
 
-- `SESSION_SECRET` to a strong value of at least 32 characters; placeholders,
-  repeated or sequential values, and single-character-class values are rejected
-- `RCON_SECRET_KEY` to a 32-byte base64 or hex key
-- `REDIS_URL` to a reachable Redis instance
+Production requires three settings, and the panel checks each one:
 
-Keep `SESSION_COOKIE_SECURE=true` when the application runs behind HTTPS. Set
-`TRUST_PROXY` only to the known reverse-proxy hop count. The included Compose
-file starts Redis and publishes the control plane on the loopback interface.
+| Setting           | Requirement                                                                                                                                             |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SESSION_SECRET`  | A strong value of **at least 32 characters**. Placeholders, repeated or sequential values, and values that use only one kind of character are rejected. |
+| `RCON_SECRET_KEY` | The RCON encryption key: a **32-byte key in base64 or hex**.                                                                                            |
+| `REDIS_URL`       | The address of a Redis instance the panel can reach.                                                                                                    |
 
-## First administrator
+- Keep `SESSION_COOKIE_SECURE=true` when the panel runs behind HTTPS.
+- Set `TRUST_PROXY` only to the known number of reverse proxies in front of the panel (the
+  "hop count").
+- The included Compose file starts Redis and makes the panel reachable only from the host
+  itself (the loopback interface).
 
-For an empty database, set `ALLOW_DEFAULT_CREDENTIALS=true`, choose a
-`DEFAULT_USERNAME`, and set `DEFAULT_PASSWORD` to a value of at least 12
-characters.
+## Create the first administrator
 
-Production rejects known placeholder passwords even when they meet the minimum
-length.
+On an **empty** database:
 
-Start the control plane and sign in with this account. Then remove
-`DEFAULT_USERNAME` and `DEFAULT_PASSWORD`, set
-`ALLOW_DEFAULT_CREDENTIALS=false`, and restart the application.
+1. Set `ALLOW_DEFAULT_CREDENTIALS=true`, choose a `DEFAULT_USERNAME`, and set
+   `DEFAULT_PASSWORD` to **at least 12 characters**. In production, known placeholder
+   passwords are rejected even when they are long enough.
+2. Start the panel and sign in with this account.
+3. Remove `DEFAULT_USERNAME` and `DEFAULT_PASSWORD`, set `ALLOW_DEFAULT_CREDENTIALS=false`,
+   and restart.
 
-If the database already contains a user, the application does not create
-another administrator from these variables.
+If the database already contains a user, these settings do **not** create another
+administrator.
 
 ## Build and start
 
@@ -51,54 +71,61 @@ npm run build
 node --env-file=.env dist/src/main.js
 ```
 
-The process listens on `PORT`, which defaults to `3000`. `npm start` runs the
-same compiled entry point, but it only sees variables already present in the
-process environment and does not load `.env`.
+The panel listens on `PORT`, which defaults to `3000`.
 
-## Storage and migrations
+**Watch out:** `npm start` runs the same compiled program but does **not** load `.env`. It sees
+only variables already present in the process environment.
 
-`DB_PATH` sets the location of the SQLite database. The default is
-`/home/container/data/3rr.db`. When `DB_PATH` is unset outside production and
-the default path cannot be opened, the application can fall back to
-`./data/3rr.db`.
+## Database location, permissions, and upgrades
 
-In production, the database directory must be owned by the control-plane user
-or root and cannot be writable by the group or everyone. An existing database
-must be a regular file with one link, owned by the control-plane user or root,
-and have mode `0600`. New databases are created with mode `0600`. Startup
-rejects a database path that is a symbolic or hard link.
+**Location.** `DB_PATH` sets where the SQLite database lives. The default is
+`/home/container/data/3rr.db`. Outside production, if `DB_PATH` is unset and the default path
+cannot be opened, the panel can fall back to `./data/3rr.db`.
 
-Startup reads `PRAGMA user_version` and applies forward migrations. Schema
-version 3 is current. The application can open:
+**Permissions in production.** The panel refuses to start unless all of these hold:
 
-- an empty database
-- the compatible pre-versioned schema
-- schema versions 1 and 2
-- schema version 3
+- The database folder is owned by the panel's user or root, and neither the group nor anyone
+  else can write to it.
+- An existing database is a regular file with exactly one link, owned by the panel's user or
+  root, with mode `0600` (owner-only).
+- The database path is not a symbolic link or a hard link.
 
-A database with a newer version, or one that is missing required columns,
-causes startup to fail. Back up the database before upgrading.
+New databases are created with mode `0600`.
 
-If an installation still uses the former default filename `cspanel.db`, either
-set `DB_PATH` to that file or stop the application and rename it to `3rr.db`.
-The default session cookie is now named `3rr.sid`; sessions stored under the
-former name do not carry over.
+**Automatic upgrades.** At startup the panel reads the database's version number
+(`PRAGMA user_version`) and applies forward database migrations. Version 3 is current. The
+panel can open:
 
-## Health and shutdown
+- an empty database;
+- the compatible pre-versioned schema (from before version numbers were used);
+- schema versions 1 and 2;
+- schema version 3.
 
-Anyone can request `GET /api/health`. By default, its response contains only
-`ok` and `ready`. Authenticated callers, and deployments with
-`HEALTHCHECK_VERBOSE=true`, also receive database, Redis, and RCON
-initialization details.
+A database with a **newer** version, or one that is missing required columns, stops startup.
+**Back up the database before every upgrade.**
 
-The endpoint returns `503` when SQLite is unhealthy or a configured Redis
-connection is unhealthy.
+**Coming from an older install.**
 
-`SIGTERM` and `SIGINT` begin a graceful shutdown of the HTTP server, RCON
-connections, Redis client, and SQLite connection. The process has 15 seconds to
+- If you still use the former default filename `cspanel.db`, either point `DB_PATH` at it, or
+  stop the panel and rename the file to `3rr.db`.
+- The session cookie is now called `3rr.sid`. Sessions stored under the old name do not carry
+  over, so everyone signs in again once.
+
+## Health checks and shutdown
+
+- Anyone can request `GET /api/health`. By default the answer contains only `ok` and `ready`.
+- Signed-in callers, and deployments with `HEALTHCHECK_VERBOSE=true`, also see database,
+  Redis, and RCON startup details.
+- It returns HTTP `503` (service unavailable) when SQLite is unhealthy, or when a configured
+  Redis connection is unhealthy.
+- It does not check your CS2 servers or the updater (see
+  [Architecture](../../docs/architecture.md#deployment-startup-and-shutdown)).
+
+**Shutdown.** `SIGTERM` or `SIGINT` starts a graceful shutdown of the web server, the RCON
+connections, the Redis client, and the SQLite connection. The process has 15 seconds to
 finish. A second signal forces it to exit.
 
-## Validation
+## Checking the code before deploying
 
 ```bash
 npm run format:check
@@ -109,32 +136,60 @@ npm run build
 npm run validate -- --require-docker
 ```
 
-`npm run validate` does not require Docker unless you pass
-`--require-docker`. From the repository root, `./scripts/verify.sh` runs these
-checks together with the host-updater and server-bootstrap checks.
+`npm run validate` needs Docker only when you pass `--require-docker`. From the repository
+root, `./scripts/verify.sh` runs these checks together with the host-updater and
+server-bootstrap checks.
 
 ## Backup and recovery
 
-Stop the application before making a file-level SQLite backup. Copy `DB_PATH`
-and every existing `-wal`, `-shm`, and `-journal` sidecar together as one
-consistent set. Store the files in a private directory, set the database and
-sidecars to mode `0600`, and verify checksums before and after transferring
-them.
+**Back up**
 
-Store `RCON_SECRET_KEY` separately from the database backup. With the backup,
-record only the key's secret-manager reference and version. Without the matching
-key, the application cannot decrypt the stored `enc:v1` RCON credentials.
+1. **Stop the panel first.** Never copy the database while it is running.
+2. Copy the database file (`DB_PATH`) **together with** every companion file that exists
+   (`-wal`, `-shm`, `-journal`), as one consistent set.
+3. Store them in a private folder and set the database and companion files to mode `0600`.
+4. Verify checksums before and after moving the files.
 
-Restore into an empty private directory with a compatible application version,
-leaving the source backup unchanged. Verify checksums and permissions, then
-start the control plane with the restored database and matching key. Check
-`/api/health`, sign in, and make one authenticated, read-only server-status
-request before allowing operators to change server state.
+**The key**
 
-A normal recovery starts Redis with new sessions and rate-limit counters. Only
-restore Redis when the deployment has an explicit persistence policy that
-requires session continuity and a verified backup of that state.
+- Store the RCON encryption key (`RCON_SECRET_KEY`) **separately** from the database backup.
+- With the backup, record only where the key is kept (its secret-manager reference) and its
+  version, never the key itself.
+- Without the matching key, the panel cannot decrypt the stored `enc:v1` RCON credentials.
 
-See [the recovery guide](../../docs/recovery.md) for the complete stop,
-checksum, new-location restore, CS2 layout, plugin-version, rollback, and
-disposable rehearsal procedure.
+**Restore**
+
+1. Restore into an empty private folder with a compatible panel version. Leave the source
+   backup unchanged.
+2. Verify checksums and permissions.
+3. Start the panel with the restored database and the matching key.
+4. Check `/api/health`, sign in, and make one signed-in, **read-only** server-status request.
+5. Only after that, let operators change server state.
+
+**Redis after a restore.** A normal recovery starts Redis empty, with new sessions and
+rate-limit counters, so users sign in again. Restore Redis only if your deployment has an
+explicit persistence policy that needs session continuity, **and** you have a verified backup
+of that state.
+
+For the complete procedure, see the [recovery guide](../../docs/recovery.md). It covers
+stopping services, checksums, restoring to a new location, the CS2 layout, plugin versions,
+rollback, and a disposable rehearsal.
+
+## Glossary
+
+- **Checksum**: a fingerprint of a file (here SHA-256), used to prove a copy is identical.
+- **Companion files**: the `-wal`, `-shm`, and `-journal` files SQLite may keep next to the
+  database. They belong to it and must be copied with it. Also called sidecars.
+- **Database migration**: an automatic, forward-only upgrade of the database structure at
+  startup.
+- **`enc:v1`**: the format used for encrypted stored RCON passwords.
+- **File mode `0600`**: readable and writable by the owner only.
+- **Hard link / symbolic link**: a second name or pointer for a file; not allowed for the
+  database path.
+- **Loopback interface**: `127.0.0.1`, reachable only from the same machine.
+- **Panel (control plane)**: 3RR's web application.
+- **RCON encryption key (`RCON_SECRET_KEY`)**: the key that encrypts stored RCON passwords.
+- **Redis**: a data store for login sessions and rate limits in production.
+- **Reverse proxy**: the HTTPS web server in front of the panel.
+- **SIGTERM / SIGINT**: standard signals that ask a process to stop.
+- **SQLite**: the single-file database that holds the panel's data.

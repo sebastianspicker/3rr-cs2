@@ -1,6 +1,6 @@
 <section class="panel surface setup-panel session-panel" id="requested-setup" aria-labelledby="requested-setup-heading">
   <h2 id="requested-setup-heading" tabindex="-1">Prepare a session</h2>
-  <p>Choose the setup to send to this server.</p>
+  <p>Choose what to send. The live map is checked separately afterwards.</p>
   <p id="setup-status" class="alert" role="status" aria-live="polite" tabindex="-1" hidden></p>
   <button type="button" id="setup-retry" class="btn btn-secondary" hidden>Reload setup choices</button>
   <form id="server_setup_form">
@@ -36,7 +36,7 @@
           <p id="setup-review-mode">Loading choices…</p>
           <p id="setup-review-map" class="mono">—</p>
           <p id="setup-review-teams">Keep current team names</p>
-          <p class="small text-muted">This shows the setup that will be sent to the server (not live data).</p>
+          <p class="small text-muted">Draft only. Sending requests these settings; only the live map can be checked afterward.</p>
         </aside>
       </div>
     </fieldset>
@@ -49,17 +49,17 @@
   <summary>Workshop and advanced setup</summary>
   <button id="restart_game" type="button" class="btn btn-danger-outline setup-destructive">Restart round</button>
               <div class="mb-3">
-                <label for="workshopUrl" class="form-label">Or paste Workshop URL</label>
+                <label for="workshopUrl" class="form-label">Workshop map URL</label>
                 <div class="input-row">
                   <input type="text" id="workshopUrl" name="workshop_url" class="form-control"
                          placeholder="https://steamcommunity.com/sharedfiles/filedetails/?id=…" autocomplete="off">
                   <button type="button" id="loadWorkshopMap" class="btn btn-secondary">Load</button>
                 </div>
-                <small class="text-muted">Paste a Steam Workshop URL to load any workshop map</small>
+                <small class="text-muted">Loads the map immediately. Players on the server are interrupted.</small>
               </div>
               <div class="mb-3 workshop-favorites">
                 <div class="panel-subheader">
-                  <span class="section-label">Workshop Favorites</span>
+                  <span class="section-label">Workshop favorites</span>
                   <button type="button" id="refreshWorkshopFavorites" class="btn btn-ghost btn-sm">Refresh</button>
                 </div>
                 <div class="input-row">
@@ -72,16 +72,16 @@
                 </div>
               </div>
               <div class="mb-3">
-                <label for="workshopCollectionId" class="form-label">Or load Workshop Collection</label>
+                <label for="workshopCollectionId" class="form-label">Workshop collection</label>
                 <div class="input-row">
                   <input type="text" id="workshopCollectionId" name="workshop_collection_id" class="form-control"
                          placeholder="Collection ID (5–20 digits)" maxlength="20" autocomplete="off">
                   <button type="button" id="loadWorkshopCollection" class="btn btn-secondary">Load</button>
                 </div>
-                <small class="text-muted">Loads all maps in a Workshop Collection for rotation</small>
+                <small class="text-muted">Hosts the collection as the map rotation. Changes the map.</small>
               </div>
               <div class="mb-3">
-                <label for="mapGroupSelect" class="form-label">Set Map Group</label>
+                <label for="mapGroupSelect" class="form-label">Map group</label>
                 <div class="input-row">
                   <select id="mapGroupSelect" class="form-select">
                     <% mapGroups.forEach(function(group) { %>

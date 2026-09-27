@@ -3,7 +3,6 @@
       <div class="manage-identity">
         <h1 id="manage-title" tabindex="-1"><%= hostname && hostname !== '–' ? hostname : 'Server ' + server_id %></h1>
         <div class="server-addr">
-
           <span class="manage-endpoint" id="truth-rail-endpoint"><%= host %>:<%= port %></span>
           <span id="manage-status-dot" class="status-dot <%= initialStatusDotClass %>" aria-hidden="true"></span>
           <span id="manage-status-badge" class="badge <%= initialStatusBadgeClass %>" data-live-status-badge>
@@ -12,7 +11,7 @@
           <span id="manage-observed-at" class="manage-observed-at visually-hidden">No observation yet</span>
         </div>
       </div>
-
+      <div class="manage-header-actions"><button type="button" class="btn btn-secondary" id="command-palette-trigger" aria-haspopup="dialog">Commands <kbd>Ctrl K</kbd></button><button type="button" class="btn btn-secondary" id="manage-reconnect">Reconnect</button><button type="button" id="refresh_status" class="btn btn-secondary" aria-label="Refresh live status">Refresh observation</button></div>
     </div>
     <% if (initialRconUnknown) { %>
       <div class="alert alert-warning manage-initial-alert" id="manage-initial-alert" role="status">

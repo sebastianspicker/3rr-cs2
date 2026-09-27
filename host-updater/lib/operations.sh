@@ -159,17 +159,40 @@ get_remote_buildid() {
         return 0
     fi
 
-    # Best-effort: find buildid of public branch; fallback to first "buildid" in output (parse from file to avoid large variable).
+    # Parse only the public branch. A build ID from a beta branch must not be
+    # treated as the deployable public build because that could trigger
+    # unnecessary service downtime.
     buildid=$(
         awk -F'"' '
-            /"branches"/ { in_branches=1 }
-            in_branches && /"public"/ { in_public=1 }
-            in_public && $2=="buildid" && $4 != "" { print $4; exit }
+            {
+                key=$2
+                value=$4
+                gsub(/^[ \t]+|[ \t]+$/, "", key)
+                gsub(/^[ \t]+|[ \t]+$/, "", value)
+            }
+            key == "branches" && !in_branches {
+                branches_depth=depth
+                branches_opened=0
+                in_branches=1
+            }
+            in_branches && key == "public" && !in_public {
+                public_depth=depth
+                public_opened=0
+                in_public=1
+            }
+            in_public && key == "buildid" && value != "" { print value; exit }
+            {
+                structure=$0
+                opens=gsub(/\{/, "{", structure)
+                closes=gsub(/\}/, "}", structure)
+                depth += opens - closes
+                if (in_branches && opens > 0) branches_opened=1
+                if (in_public && opens > 0) public_opened=1
+                if (public_opened && depth <= public_depth) in_public=0
+                if (branches_opened && depth <= branches_depth) in_branches=0
+            }
         ' "$tmpfile" 2> /dev/null
     )
-    if [ -z "$buildid" ]; then
-        buildid=$(awk -F'"' '$2=="buildid" && $4 != "" { print $4; exit }' "$tmpfile" 2> /dev/null)
-    fi
 
     rm -f "$tmpfile"
     TMP_GET_REMOTE_BUILDID=""

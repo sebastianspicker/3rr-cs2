@@ -127,15 +127,7 @@ const outputs = new Map([
   ["index.html", Buffer.from(html.replace(/[ \t]+$/gm, ""))],
   [
     "panel.css",
-    Buffer.from(
-      css
-        .replaceAll("'/fonts/", "'fonts/")
-        .replaceAll("'/olive-texture.png'", "'olive-texture.png'"),
-    ),
-  ],
-  [
-    "olive-texture.png",
-    fs.readFileSync(path.join(web, "assets/olive-texture.png")),
+    Buffer.from(css.replaceAll("'/fonts/", "'fonts/")),
   ],
   ["3rr-mark.svg", fs.readFileSync(path.join(web, "assets/3rr-mark.svg"))],
 ]);

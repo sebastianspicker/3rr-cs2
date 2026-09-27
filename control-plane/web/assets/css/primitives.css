@@ -1,139 +1,146 @@
-/* Shared panels, forms, buttons, badges, and alerts. */
+/* Group boxes, fields, buttons, badges and alerts. */
 
-.panel,
-.card {
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  min-width: 0;
-}
-
+/* Group boxes are flat: they organise, they neither act nor report. */
 .panel {
-  padding: var(--space-5);
+  background: var(--window);
+  border: 1px solid var(--line);
+  min-width: 0;
+  padding: var(--s-5);
 }
 
 .panel-header,
 .panel-subheader {
   align-items: center;
   display: flex;
-  gap: var(--space-4);
+  gap: var(--s-4);
   justify-content: space-between;
 }
 
 .panel > .panel-header:first-child {
-  border-bottom: 1px solid var(--line);
-  margin: calc(var(--space-5) * -1) calc(var(--space-5) * -1) var(--space-5);
-  padding: var(--space-4) var(--space-5);
+  margin-bottom: var(--s-4);
 }
 
-.advanced-panel > .panel-header {
-  cursor: pointer;
-  list-style: none;
-}
-
-.advanced-panel > .panel-header::-webkit-details-marker {
-  display: none;
-}
-
-.advanced-panel > .panel-header::after,
-.inline-advanced > summary::after {
-  border-bottom: 1.5px solid currentColor;
-  border-right: 1.5px solid currentColor;
-  content: '';
-  height: 7px;
-  margin-left: auto;
-  transform: rotate(45deg);
-  transition: transform 140ms ease;
-  width: 7px;
-}
-
-.advanced-panel[open] > .panel-header::after,
-.inline-advanced[open] > summary::after {
-  transform: rotate(225deg);
-}
-
-.section-label,
-.form-label,
-.data-label,
-.rcon-response-label,
-.server-list-head,
-.player-list-head {
-  color: var(--muted-strong);
-  display: block;
-  font-size: 0.8rem;
-  font-weight: 550;
-  letter-spacing: 0;
-  text-transform: none;
+.panel-header h2 {
+  font-size: var(--fs-lead);
+  margin: 0;
 }
 
 .section-label {
-  border-top: 1px solid var(--line);
-  margin: var(--space-5) 0 var(--space-3);
-  padding-top: var(--space-4);
+  align-items: center;
+  display: flex;
+  gap: var(--s-3);
+  margin: var(--s-5) 0 var(--s-2);
+}
+
+.section-label::after {
+  background: var(--line);
+  content: '';
+  flex: 1 1 auto;
+  height: 1px;
+}
+
+.panel-subheader .section-label {
+  flex: 1 1 auto;
+  margin: 0;
 }
 
 .form-label {
-  margin-bottom: var(--space-2);
+  color: var(--text);
+  display: block;
+  font-size: var(--fs-small);
+  font-weight: 600;
+  margin-bottom: var(--s-1);
 }
 
+.form-help {
+  color: var(--muted);
+  font-size: var(--fs-small);
+  margin: var(--s-1) 0 0;
+}
+
+/* Fields are sunken: what you type into sits in the same well as what the server reports. */
 .form-control,
 .form-select,
 textarea {
   appearance: none;
-  background: var(--canvas);
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius);
-  color: var(--ink);
-  min-height: 44px;
-  padding: 0.62rem 0.72rem;
-  transition:
-    border-color 120ms ease,
-    box-shadow 120ms ease;
+  background: var(--sunken);
+  border: 1px solid;
+  border-color: var(--edge-sunken);
+  border-radius: 0;
+  color: var(--text-strong);
+  font-weight: 500;
+  min-height: var(--control-h);
+  padding: 0 var(--s-3);
   width: 100%;
 }
 
-.form-control:hover,
-.form-select:hover,
-textarea:hover {
-  border-color: var(--muted);
-}
-
-.form-control:focus,
-.form-select:focus,
-textarea:focus {
-  border-color: var(--action);
-  box-shadow: 0 0 0 3px rgb(91 124 250 / 22%);
-  outline: none;
+textarea {
+  padding-block: var(--s-2);
 }
 
 .form-control::placeholder,
 textarea::placeholder {
   color: var(--muted);
+  opacity: 1;
+}
+
+.form-control:focus-visible,
+.form-select:focus-visible,
+textarea:focus-visible {
+  outline-offset: 1px;
 }
 
 .form-control[aria-invalid='true'],
 .form-select[aria-invalid='true'] {
-  border-color: var(--danger);
+  border-color: var(--bad);
+  box-shadow: inset 0 0 0 1px var(--bad);
 }
 
+.form-control:disabled,
+.form-select:disabled {
+  background: transparent;
+  border-style: dashed;
+  border-color: var(--line);
+  color: var(--muted);
+}
+
+input[type='search']::-webkit-search-cancel-button {
+  filter: grayscale(1);
+}
+
+/* VGUI combo box: a raised arrow button docked in the field. */
 .form-select {
   background-image:
-    linear-gradient(45deg, transparent 50%, var(--muted) 50%),
-    linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='9' height='5'%3E%3Cpath d='M0 0h9L4.5 5z' fill='%23d8ded3'/%3E%3C/svg%3E"),
+    linear-gradient(var(--raised), var(--raised)), linear-gradient(var(--bevel-hi), var(--bevel-hi));
   background-position:
-    calc(100% - 16px) 51%,
-    calc(100% - 11px) 51%;
+    right 12px center,
+    right 1px top 1px,
+    right 32px top 1px;
   background-repeat: no-repeat;
   background-size:
-    5px 5px,
-    5px 5px;
-  padding-right: 2.2rem;
+    9px 5px,
+    32px calc(100% - 2px),
+    1px calc(100% - 2px);
+  cursor: pointer;
+  padding-right: 44px;
+}
+
+[data-theme='light'] .form-select {
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='9' height='5'%3E%3Cpath d='M0 0h9L4.5 5z' fill='%2322271c'/%3E%3C/svg%3E"),
+    linear-gradient(var(--raised), var(--raised)), linear-gradient(var(--bevel-lo), var(--bevel-lo));
+}
+
+.form-select:disabled {
+  background-image: none;
+  padding-right: var(--s-3);
 }
 
 .input-row {
   align-items: stretch;
   display: flex;
-  gap: var(--space-2);
+  gap: var(--s-2);
 }
 
 .input-row > .form-control,
@@ -142,168 +149,156 @@ textarea::placeholder {
   min-width: 0;
 }
 
+.input-row > .btn {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.panel > .form-help {
+  margin-bottom: var(--s-4);
+}
+
+/* Buttons are raised. Pressing inverts the bevel. */
 .btn {
   align-items: center;
-  background: var(--surface-subtle);
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius);
-  color: var(--ink);
+  background: var(--raised);
+  border: 1px solid;
+  border-color: var(--edge-raised);
+  border-radius: 0;
+  color: var(--text-strong);
   display: inline-flex;
-  font-size: 0.86rem;
-  font-weight: 650;
-  gap: var(--space-2);
+  font-size: var(--fs-body);
+  font-weight: 600;
+  gap: var(--s-2);
   justify-content: center;
-  line-height: 1.15;
-  min-height: 44px;
-  padding: 0.64rem 0.9rem;
+  line-height: var(--lh-tight);
+  min-height: var(--control-h);
+  padding: 0 var(--s-4);
+  position: relative;
   text-align: center;
   text-decoration: none;
-  transition:
-    background-color 120ms ease,
-    border-color 120ms ease,
-    color 120ms ease,
-    transform 120ms ease;
 }
 
 .btn:hover {
-  background: var(--surface-strong);
-  color: var(--ink);
+  background: color-mix(in srgb, var(--raised) 88%, var(--text-strong));
+  color: var(--text-strong);
 }
 
-.btn:active {
-  transform: translateY(1px);
+.btn:active:not(:disabled),
+.btn[aria-expanded='true'] {
+  background: var(--window);
+  border-color: var(--edge-sunken);
+  padding: 2px calc(var(--s-4) - 1px) 0 calc(var(--s-4) + 1px);
+}
+
+.btn:disabled {
+  background: var(--window);
+  border-color: var(--line);
+  color: var(--muted);
 }
 
 .btn-primary {
-  background: var(--action);
-  border-color: var(--action);
-  color: var(--on-action);
+  background: var(--gold);
+  border-color: var(--gold-hover) var(--bevel-lo) var(--bevel-lo) var(--gold-hover);
+  color: var(--on-gold);
+  font-weight: 700;
 }
 
 .btn-primary:hover {
-  background: var(--action-hover);
-  border-color: var(--action-hover);
-  color: var(--on-action);
+  background: var(--gold-hover);
+  color: var(--on-gold);
 }
 
-.btn-secondary {
-  background: var(--surface-subtle);
-  border-color: var(--line-strong);
-  color: var(--ink);
+.btn-primary:active:not(:disabled) {
+  background: var(--gold);
+  border-color: var(--bevel-lo) var(--gold-hover) var(--gold-hover) var(--bevel-lo);
 }
 
-.btn-secondary:hover {
-  background: var(--surface-strong);
-  border-color: var(--line-strong);
-}
-
-.btn-success {
-  background: var(--observed);
-  border-color: var(--observed);
-  color: var(--on-action);
-}
-
-.btn-success:hover {
-  background: rgb(52 168 124);
-  border-color: rgb(52 168 124);
-  color: var(--on-action);
-}
-
-.btn-danger {
-  background: var(--danger);
-  border-color: var(--danger);
-  color: var(--on-action);
-}
-
-.btn-danger:hover {
-  background: var(--coral-hover);
-  border-color: var(--coral-hover);
-  color: var(--on-action);
-}
-
-.btn-danger-outline {
+.btn-primary:disabled {
   background: transparent;
-  border-color: rgb(224 90 82 / 55%);
-  color: var(--danger);
+  border: 1px dashed var(--draft);
+  color: var(--muted);
 }
 
-.btn-danger-outline:hover {
-  background: var(--danger-soft);
-  border-color: var(--coral-hover);
-  color: var(--danger);
-}
-
-.btn-warning {
-  background: var(--warn-soft);
-  border-color: rgb(212 160 23 / 40%);
-  color: var(--warn);
-}
-
-.btn-warning:hover {
-  background: var(--warn-soft);
-  color: var(--warn);
-}
-
-.btn-active,
-.btn[aria-pressed='true'] {
-  background: var(--action-soft);
-  border-color: rgb(91 124 250 / 50%);
-  color: var(--action-hover);
-}
-
+.btn-secondary,
 .btn-info,
 .btn-outline-info {
-  background: var(--surface);
-  border-color: var(--line-strong);
-  color: var(--muted-strong);
+  background: var(--raised);
 }
 
 .btn-ghost {
   background: transparent;
   border-color: transparent;
-  color: var(--muted-strong);
+  color: var(--text);
 }
 
-.panel-nav .btn-ghost {
-  color: var(--muted-strong);
+.btn-ghost:hover {
+  background: var(--raised);
+  border-color: var(--edge-raised);
 }
 
-.panel-nav .btn-ghost:hover {
-  background: var(--surface-strong);
-  color: var(--ink);
+.btn-danger,
+.btn-danger-outline {
+  background: var(--bad-bg);
+  border-color: var(--edge-raised);
+  color: var(--bad);
+}
+
+.btn-danger:hover,
+.btn-danger-outline:hover {
+  background: color-mix(in srgb, var(--bad-bg) 85%, var(--bad));
+  color: var(--text-strong);
 }
 
 .btn-sm {
-  font-size: 0.8rem;
-  min-height: 44px;
-  padding: 0.42rem 0.65rem;
+  font-size: var(--fs-small);
+  min-height: 32px;
+  padding-inline: var(--s-3);
+}
+
+.btn-sm:active:not(:disabled) {
+  padding: 2px calc(var(--s-3) - 1px) 0 calc(var(--s-3) + 1px);
+}
+
+/* Last value sent from this page: drawn as a request, never as an observation. */
+.btn-active,
+.btn[aria-pressed='true'] {
+  color: var(--gold-ink);
+}
+
+.btn-active::after,
+.btn[aria-pressed='true']::after {
+  border: 1px dashed currentColor;
+  content: '';
+  inset: 3px;
+  pointer-events: none;
+  position: absolute;
 }
 
 .btn.btn-loading {
   color: transparent;
-  position: relative;
 }
 
-.btn-loading::after {
-  animation: spin 700ms linear infinite;
-  border: 2px solid currentColor;
+.btn-loading::before {
+  animation: spin 800ms steps(8) infinite;
+  border: 2px solid var(--text-strong);
   border-right-color: transparent;
-  border-top-color: var(--action);
   content: '';
-  height: 15px;
-  left: calc(50% - 7.5px);
+  height: 14px;
+  left: calc(50% - 7px);
   position: absolute;
-  top: calc(50% - 7.5px);
-  width: 15px;
+  top: calc(50% - 7px);
+  width: 14px;
+}
+
+.btn-primary.btn-loading::before {
+  border-color: var(--on-gold);
+  border-right-color: transparent;
 }
 
 .btn-grid {
   display: grid;
-  gap: var(--space-2);
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.btn-grid.cols-2 {
+  gap: var(--s-2);
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
@@ -319,203 +314,141 @@ textarea::placeholder {
   grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 
+.btn-grid > .btn {
+  padding-inline: var(--s-2);
+}
+
+/* On/off pairs read as one VGUI radio strip. */
 .btn-pair {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
 }
 
 .btn-pair .btn {
-  border-radius: 0;
+  padding-inline: var(--s-2);
 }
 
-.btn-pair .btn:first-child {
-  border-radius: var(--radius) 0 0 var(--radius);
+.btn-pair .btn + .btn {
+  border-left-color: var(--bevel-lo);
 }
 
-.btn-pair .btn:last-child {
-  border-left: 0;
-  border-radius: 0 var(--radius) var(--radius) 0;
+#theme-radiogroup {
+  grid-template-columns: 1fr 1fr;
+  max-width: 280px;
 }
 
+#theme-radiogroup .btn[aria-checked='true'] {
+  background: var(--select);
+  border-color: var(--edge-sunken);
+  color: var(--text-strong);
+}
+
+/* Alerts: tinted status surfaces with an edge in the status colour. */
 .alert {
-  background: var(--surface-strong);
-  border: 1px solid var(--line);
-  border-left: 3px solid var(--muted);
-  border-radius: var(--radius-sm);
+  background: var(--sunken);
+  border-left: 4px solid var(--line);
   color: var(--text);
-  font-size: 0.84rem;
-  padding: var(--space-3) var(--space-4);
+  font-size: var(--fs-small);
+  margin-bottom: var(--s-3);
+  padding: var(--s-2) var(--s-3);
 }
 
 .alert-success {
-  background: var(--observed-soft);
-  border-color: rgb(61 186 140 / 30%);
-  border-left-color: var(--observed);
-  color: var(--observed);
+  background: var(--ok-bg);
+  border-left-color: var(--ok);
 }
 
 .alert-danger,
 .alert-disconnected {
-  background: var(--danger-soft);
-  border-color: rgb(224 90 82 / 30%);
-  border-left-color: var(--danger);
-  color: var(--danger);
+  background: var(--bad-bg);
+  border-left-color: var(--bad);
 }
 
 .alert-warning {
-  background: var(--warn-soft);
-  border-color: rgb(212 160 23 / 30%);
+  background: var(--warn-bg);
   border-left-color: var(--warn);
-  color: var(--warn);
 }
 
 .alert-secondary {
-  border-left-color: var(--action);
+  border-left-color: var(--gold);
 }
 
+.alert:focus {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* Status chips are always sunken: the server said this. */
 .badge {
   align-items: center;
-  border: 1px solid transparent;
-  border-radius: 4px;
+  background: var(--sunken);
+  border: 1px solid;
+  border-color: var(--edge-sunken);
+  color: var(--text);
   display: inline-flex;
-  font-size: 0.8rem;
-  font-weight: 550;
-  gap: 0.35rem;
-  letter-spacing: 0;
+  font-size: var(--fs-small);
+  font-weight: 600;
+  gap: var(--s-2);
   line-height: 1;
-  min-height: 22px;
-  padding: 0.28rem 0.5rem;
+  min-height: 24px;
+  padding: 0 var(--s-2);
   white-space: nowrap;
 }
 
 .badge::before {
   background: currentColor;
-  border-radius: 50%;
   content: '';
   flex: 0 0 auto;
-  height: 0.4rem;
-  width: 0.4rem;
+  height: 7px;
+  width: 7px;
 }
 
-.badge-connected,
-.badge-success,
-.badge-online {
-  color: var(--observed);
+.badge-connected {
+  color: var(--ok);
 }
 
-.badge-disconnected,
-.badge-danger,
-.badge-offline {
-  color: var(--danger);
+.badge-disconnected {
+  color: var(--bad);
 }
 
-.badge-unknown,
-.badge-warning,
-.badge-secondary {
+.badge-unknown {
   color: var(--warn);
+}
+
+.badge-unknown::before {
+  background: transparent;
+  border: 1px solid currentColor;
 }
 
 .status-dot {
   background: var(--muted);
-  border-radius: 50%;
   display: inline-block;
   flex: 0 0 auto;
-  height: 8px;
-  width: 8px;
+  height: 7px;
+  width: 7px;
 }
 
 .status-dot.online {
-  background: var(--observed);
+  background: var(--ok);
 }
 
 .status-dot.offline {
-  background: var(--danger);
+  background: var(--bad);
 }
 
 .status-dot.unknown {
   background: var(--warn);
 }
 
-/* Raised controls and recessed fields echo the original VGUI affordances. */
-.panel,
-.card {
-  box-shadow:
-    inset 1px 1px 0 var(--bevel-light),
-    inset -1px -1px 0 var(--bevel-dark);
+kbd {
+  background: var(--sunken);
+  border: 1px solid;
+  border-color: var(--edge-sunken);
+  color: var(--text);
+  font-size: var(--fs-micro);
+  padding: 1px var(--s-1);
 }
-.btn {
-  border-width: 2px;
-  border-color: var(--bevel-light) var(--bevel-dark) var(--bevel-dark) var(--bevel-light);
-}
-.btn-primary,
-.btn-primary:hover {
-  background: var(--action-soft);
-  border-color: var(--action) var(--bevel-dark) var(--bevel-dark) var(--action);
-  box-shadow:
-    inset 1px 1px 0 var(--action-hover),
-    inset -1px -1px 0 var(--line);
-  color: var(--action);
-}
-.btn-primary:hover {
-  filter: brightness(1.12);
-}
-.btn-ghost {
-  box-shadow: none;
-  border-color: transparent;
-}
-.btn-success {
-  background: var(--observed-soft);
-  color: var(--observed);
-}
-.btn-danger {
-  background: var(--danger-soft);
-  color: var(--danger);
-}
-.btn[aria-pressed='true'] {
-  border-color: var(--action);
-}
-.form-control,
-.form-select,
-textarea {
-  background-color: var(--surface);
-  border-color: var(--bevel-dark) var(--line-strong) var(--line-strong) var(--bevel-dark);
-  border-radius: 0;
-  box-shadow: inset 1px 1px 0 rgb(0 0 0 / 30%);
-  min-height: 40px;
-  padding: 6px 12px;
-}
-.form-control:focus,
-.form-select:focus,
-textarea:focus {
-  border-color: var(--focus);
-  box-shadow: none;
-  outline: 2px solid var(--focus);
-  outline-offset: 2px;
-}
-.form-label {
-  color: var(--ink);
-  font-size: 1rem;
-  margin-bottom: 5px;
-}
-.badge {
-  border-radius: 0;
-}
-.form-select {
-  background-image:
-    linear-gradient(45deg, transparent 50%, var(--ink) 50%),
-    linear-gradient(135deg, var(--ink) 50%, transparent 50%),
-    linear-gradient(var(--surface-strong), var(--surface-subtle)),
-    linear-gradient(var(--line-strong), var(--line-strong));
-  background-position:
-    calc(100% - 19px) 51%,
-    calc(100% - 11px) 51%,
-    right 1px top 1px,
-    right 38px top;
-  background-size:
-    8px 8px,
-    8px 8px,
-    36px calc(100% - 2px),
-    1px 100%;
-  background-repeat: no-repeat;
-  padding-right: 48px;
+
+.btn kbd {
+  font-weight: 500;
 }

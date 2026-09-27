@@ -43,7 +43,7 @@ locals and a small, build-only renderer for their trusted syntax. It embeds
 `control-plane/src/features/game-catalog/maps.json` for the setup choices.
 It reads the stylesheet order directly from
 `control-plane/scripts/build-css.mjs`, bundles those CSS modules, and copies
-the production texture and mark. The build adapts asset and navigation links
+the production mark. The build adapts asset and navigation links
 and omits production scripts and sign-out behavior.
 The application runtime and production browser client remain independent.
 
@@ -56,7 +56,7 @@ node design-preview/verify.mjs
 ```
 
 The verifier runs `build.mjs --check` without writing files. It fails when
-tracked HTML, styles, texture, or mark differ from the current production
+tracked HTML, styles, or mark differ from the current production
 sources, when the demo references missing, external, or root-absolute assets
 or uses runtime network APIs, or when the screenshot tour's captions or file
 names do not match `docs/screenshots/manifest.json`. No npm installation is
@@ -75,7 +75,7 @@ python3 -m http.server 8080 --bind 127.0.0.1 --directory design-preview
 
 The [Pages workflow](../.github/workflows/pages.yml) verifies source alignment
 and publishes from `main`. Its artifact consists of `index.html`, `panel.css`,
-`preview.css`, `preview.js`, `olive-texture.png`, `3rr-mark.svg`, `fonts/`
+`preview.css`, `preview.js`, `3rr-mark.svg`, `fonts/`
 including licenses, and a `screenshots/` folder copied from
 `docs/screenshots/*.png` for the screenshot tour. No build scripts or
 production server code are published. All browser asset URLs work under a
@@ -89,7 +89,7 @@ do not validate a live CS2/RCON deployment.
 
 ## Fonts
 
-Bundled Inter, Syne, and JetBrains Mono fonts use the SIL Open Font License.
-Their existing notices remain in `fonts/` and are published with the demo.
-Production's native system typography is preserved; the bundled fonts remain
-available to the production stylesheet.
+Bundled Barlow Semi Condensed, Barlow Condensed and JetBrains Mono fonts use
+the SIL Open Font License. Their notices are in `fonts/` and are published
+with the demo. The files are the same ones production copies from its
+`@fontsource` packages.

@@ -48,10 +48,26 @@ content-hashed names.
 
 ## Fleet and server workflows
 
-The interface is built around a centered olive window with square, beveled
-controls, recessed fields, ivory text, and gold highlights. The shared Account
-menu contains server navigation, settings, appearance, administration, and
-logout.
+The interface is one centered VGUI-style window on a plain desk. It has a
+title bar, and the footer acts as its status bar. Depth carries meaning, and
+the rule is kept strictly:
+
+- **Raised** (bevelled) elements can be pressed.
+- **Sunken** elements show what the server reported: readouts, status chips,
+  console output, lists. Input fields share the sunken well.
+- **Flat with a dashed outline** marks what the operator requested and that is
+  not yet true. Examples are the setup review, the requested column of a
+  result, and the last preset sent from the page.
+- **Flat panels** only group content.
+
+Gold marks the single commit action on a screen and the current selection.
+Status colors appear only on sunken or tinted status surfaces, and each state
+also has a shape: a filled square for connected or error, a hollow square for
+unknown. Tokens live in `web/assets/css/tokens.css`. Barlow Semi Condensed is
+the interface font and Barlow Condensed is used for small captions. JetBrains
+Mono is reserved for machine values such as endpoints, maps, commands and
+times. The shared Account menu contains server navigation, settings,
+appearance, administration, and logout.
 
 On the fleet page, search and connection filters work with the server list
 already in the browser and do not send RCON commands. The summary counts cover
@@ -60,7 +76,9 @@ Refresh fetches new observations without clearing the current filters. Deleting
 a server remains inside the row's Actions menu and requires confirmation.
 
 The management header groups the endpoint with its observed connection, map,
-player count, and observation time. Setup appears first on the page. Its game
+player count, and observation time. Property-sheet tabs sit below it, in the
+order Setup, Console, Match, Players. The Server → Setup → Check result steps
+appear inside the Setup tab. Its game
 type, mode, and map choices come from the catalog APIs, and the operator can add
 team names before reviewing the request. Blank team names leave the names on
 the server unchanged. While the request is being submitted, the form is locked
@@ -75,7 +93,7 @@ setup even if the requested map later appears. A new setup invalidates result
 checks from earlier submissions. Submitted names and request times exist only
 in browser memory; they are not stored as a permanent record.
 
-The server tools provide Console, Match, Players, Reconnect, and Refresh. The
+Commands, Reconnect, and Refresh observation sit in the server header. The
 advanced setup section contains Workshop maps and collections, map groups,
 favorites, and round restart. Its state-changing controls are hidden while the
 guided setup result is open. On wider screens, the console places output beside
@@ -102,6 +120,7 @@ identify the affected field or move focus to the relevant message.
 a temporary SQLite database and fixed RCON responses. Assistive-technology and
 other-browser testing are still manual release checks.
 
-The low-contrast outer background comes from the decorative
-`web/assets/olive-texture.png`. The build copies it to `/olive-texture.png`.
-Controls and text remain HTML, and users can switch to the light appearance.
+The page uses no background imagery or texture. All controls and text are
+HTML, and users can switch to the light appearance. The design rationale and
+the directions considered are recorded in the repository's
+[design brief](../../DESIGN_BRIEF.md).
