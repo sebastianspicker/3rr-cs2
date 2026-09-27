@@ -252,6 +252,7 @@ run_shared() {
   run shellcheck \
     "${ROOT}/scripts/verify.sh" \
     "${ROOT}/scripts/check-deployment-contract.sh" \
+    "${ROOT}/scripts/check-deployment-contract.test.sh" \
     "${ROOT}/scripts/recovery-layout-rehearsal.test.sh" \
     "${ROOT}/server-bootstrap/scripts/bootstrap-admins.sh" \
     "${ROOT}/server-bootstrap/scripts/bootstrap-output.sh" \
@@ -262,6 +263,7 @@ run_shared() {
   run shfmt -d -i 2 -bn -ci \
     "${ROOT}/scripts/verify.sh" \
     "${ROOT}/scripts/check-deployment-contract.sh" \
+    "${ROOT}/scripts/check-deployment-contract.test.sh" \
     "${ROOT}/scripts/recovery-layout-rehearsal.test.sh" \
     "${ROOT}/server-bootstrap/scripts/bootstrap-admins.sh" \
     "${ROOT}/server-bootstrap/scripts/bootstrap-output.sh" \
@@ -272,6 +274,7 @@ run_shared() {
   run ruby -ryaml -e "YAML.safe_load(File.read('${ROOT}/deploy/compose/control-plane.compose.yaml'), aliases: false, filename: '${ROOT}/deploy/compose/control-plane.compose.yaml')" >/dev/null
   run ruby -ryaml -e "YAML.safe_load(File.read('${ROOT}/deploy/compose/server-runtime.compose.yaml'), aliases: false, filename: '${ROOT}/deploy/compose/server-runtime.compose.yaml')" >/dev/null
   run bash "${ROOT}/scripts/check-deployment-contract.sh"
+  run bash "${ROOT}/scripts/check-deployment-contract.test.sh"
   run bash "${ROOT}/scripts/recovery-layout-rehearsal.test.sh"
   run ruby "${ROOT}/scripts/check-doc-links.rb"
   for github_yaml in "${ROOT}"/.github/ISSUE_TEMPLATE/*.yml "${ROOT}"/.github/workflows/*.yml; do

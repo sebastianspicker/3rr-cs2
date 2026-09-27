@@ -1,17 +1,38 @@
+/* Design tokens and element defaults.
+   Concept: the Steam/VGUI server browser seen from the operator's side.
+   Depth carries meaning — raised: you can press it; sunken: the server reported
+   it; dashed: you requested it and it is not yet true. */
+
 @font-face {
-  font-family: 'Syne';
-  src: url('/fonts/syne-latin-wght-normal.woff2') format('woff2');
+  font-family: 'Barlow Semi Condensed';
+  src: url('/fonts/barlow-semi-condensed-latin-500-normal.woff2') format('woff2');
   font-display: swap;
   font-style: normal;
-  font-weight: 400 800;
+  font-weight: 500;
 }
 
 @font-face {
-  font-family: 'Inter';
-  src: url('/fonts/inter-latin-wght-normal.woff2') format('woff2');
+  font-family: 'Barlow Semi Condensed';
+  src: url('/fonts/barlow-semi-condensed-latin-600-normal.woff2') format('woff2');
   font-display: swap;
   font-style: normal;
-  font-weight: 100 900;
+  font-weight: 600;
+}
+
+@font-face {
+  font-family: 'Barlow Semi Condensed';
+  src: url('/fonts/barlow-semi-condensed-latin-700-normal.woff2') format('woff2');
+  font-display: swap;
+  font-style: normal;
+  font-weight: 700;
+}
+
+@font-face {
+  font-family: 'Barlow Condensed';
+  src: url('/fonts/barlow-condensed-latin-600-normal.woff2') format('woff2');
+  font-display: swap;
+  font-style: normal;
+  font-weight: 600;
 }
 
 @font-face {
@@ -22,97 +43,117 @@
   font-weight: 100 800;
 }
 
-/* VGUI-inspired olive defaults; the account menu retains an explicit light theme. */
 :root,
 [data-theme='dark'] {
   color-scheme: dark;
-  --canvas: #20271d;
-  --shell: #3b4432;
-  --surface: #293122;
-  --surface-subtle: #343d2b;
-  --surface-strong: #434c38;
-  --ink: #f4efd5;
-  --ink-raised: #20271d;
-  --text: #eee9d1;
-  --muted: #c2c2a4;
-  --muted-strong: #dedbc0;
-  --line: #7c8467;
-  --line-strong: #a5aa88;
-  --bevel-light: #9aa17d;
-  --bevel-dark: #11170e;
-  --action: #f0c52d;
-  --action-hover: #ffe273;
-  --action-soft: #554917;
-  --on-action: #fff0a2;
-  --observed: #5edb63;
-  --observed-soft: #294b25;
-  --danger: #ffb2a0;
-  --danger-soft: #512e25;
-  --warn: #ffda42;
-  --warn-soft: #494018;
-  --focus: #ffe273;
-  --row-hover: #3d472f;
-  --overlay: rgb(12 18 10 / 72%);
-  --glow-primary: transparent;
-  --glow-observed: transparent;
-  --blue: var(--action);
-  --blue-hover: var(--action-hover);
-  --blue-soft: var(--action-soft);
-  --green: var(--observed);
-  --green-soft: var(--observed-soft);
-  --coral: var(--danger);
-  --coral-hover: #ffd0bf;
-  --coral-soft: var(--danger-soft);
-  --amber: var(--warn);
-  --amber-soft: var(--warn-soft);
-  --font-body: 'Trebuchet MS', Tahoma, Arial, sans-serif;
-  --font-display: 'Arial Narrow', 'Liberation Sans Narrow', 'Trebuchet MS', Arial, sans-serif;
-  --font-mono: 'JetBrains Mono', Consolas, monospace;
-  --space-1: 0.25rem;
-  --space-2: 0.5rem;
-  --space-3: 0.75rem;
-  --space-4: 1rem;
-  --space-5: 1.25rem;
-  --space-6: 1.5rem;
-  --space-8: 2rem;
-  --space-10: 2.5rem;
-  --radius-sm: 0;
-  --radius: 0;
-  --radius-lg: 0;
-  --shadow-float: 3px 4px 0 rgb(0 0 0 / 45%);
-  --content-max: 1170px;
-  --rail-width: 0px;
-  --truthbar-height: 44px;
+
+  /* Surfaces, from the desk behind the window to the deepest readout. */
+  --desk: #1d2119;
+  --window: #3e4637;
+  --raised: #4c5844;
+  --sunken: #2a3023;
+  --sunken-deep: #22271b;
+  --select: #58531f;
+
+  /* Text. Muted text is AA on window and sunken, never on raised faces. */
+  --text: #d8ded3;
+  --text-strong: #f0f2e8;
+  --muted: #b3bca6;
+
+  /* Edges. */
+  --line: #5e6852;
+  --draft: #9aa190;
+  --bevel-hi: #8c9284;
+  --bevel-lo: #1b1f15;
+
+  /* Gold is the one commit action per screen and the current selection. */
+  --gold: #c4b550;
+  --gold-hover: #d6c762;
+  --on-gold: #1c2016;
+  --gold-ink: #e3d36b;
+
+  /* Status colours appear only on sunken or tinted status surfaces. */
+  --ok: #8fd06a;
+  --ok-bg: #26351c;
+  --warn: #e8a04c;
+  --warn-bg: #3a2e18;
+  --bad: #f08a6c;
+  --bad-bg: #3d2620;
+
+  --focus: #ffe58a;
+  --overlay: rgb(14 17 11 / 72%);
+  --shadow-float: 2px 3px 0 rgb(0 0 0 / 45%);
 }
+
 [data-theme='light'] {
   color-scheme: light;
-  --canvas: #b3b69a;
-  --shell: #d2d3b9;
-  --surface: #e3e3cc;
-  --surface-subtle: #d4d7bd;
-  --surface-strong: #c4c9aa;
-  --ink: #252c1c;
-  --ink-raised: #f4f3e5;
-  --text: #303724;
-  --muted: #525c40;
-  --muted-strong: #414b31;
-  --line: #909875;
-  --line-strong: #626e4c;
-  --bevel-light: #f6f7df;
-  --bevel-dark: #586044;
-  --action: #725700;
-  --action-hover: #594400;
-  --action-soft: #e3cb71;
-  --on-action: #332600;
-  --observed: #236a22;
-  --observed-soft: #cedeb9;
-  --danger: #9b3520;
-  --danger-soft: #f0cfc1;
-  --warn: #725200;
-  --warn-soft: #ede0a8;
-  --focus: #755900;
-  --row-hover: #d4d7b7;
+  --desk: #aeb39c;
+  --window: #d9dccb;
+  --raised: #e7e9da;
+  --sunken: #f1f2e6;
+  --sunken-deep: #f7f8ef;
+  --select: #e6dc9a;
+  --text: #22271c;
+  --text-strong: #151911;
+  --muted: #4a5340;
+  --line: #a4ab92;
+  --draft: #6f7862;
+  --bevel-hi: #fbfcf3;
+  --bevel-lo: #6f7862;
+  --gold: #c4b550;
+  --gold-hover: #d3c55f;
+  --on-gold: #1c2016;
+  --gold-ink: #5f5510;
+  --ok: #2d6620;
+  --ok-bg: #dbe8cc;
+  --warn: #8a4f0c;
+  --warn-bg: #f1e2c4;
+  --bad: #9c3520;
+  --bad-bg: #f2d8cf;
+  --focus: #4a3d00;
   --overlay: rgb(30 37 21 / 45%);
+  --shadow-float: 2px 3px 0 rgb(40 46 32 / 35%);
+}
+
+:root {
+  /* Type: Barlow speaks for the interface, Barlow Condensed captions it,
+     and mono is reserved for machine values (endpoints, maps, cvars, times). */
+  --font-ui: 'Barlow Semi Condensed', 'Arial Narrow', Arial, sans-serif;
+  --font-caption: 'Barlow Condensed', 'Arial Narrow', Arial, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, Consolas, monospace;
+
+  --fs-micro: 0.75rem;
+  --fs-caption: 0.8125rem;
+  --fs-small: 0.875rem;
+  --fs-body: 1rem;
+  --fs-lead: 1.125rem;
+  --fs-title: 1.375rem;
+  --fs-display: 1.75rem;
+  --lh-tight: 1.15;
+  --lh-body: 1.4;
+
+  /* 4px grid. */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 20px;
+  --s-6: 24px;
+  --s-8: 32px;
+  --s-10: 40px;
+
+  --control-h: 40px;
+  --target: 44px;
+  --row-h: 48px;
+  --content-max: 1180px;
+
+  /* Depth recipes. */
+  --edge-raised: var(--bevel-hi) var(--bevel-lo) var(--bevel-lo) var(--bevel-hi);
+  --edge-sunken: var(--bevel-lo) var(--bevel-hi) var(--bevel-hi) var(--bevel-lo);
+
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+  --t-fast: 80ms;
+  --t-settle: 160ms;
 }
 
 *,
@@ -122,47 +163,48 @@
 }
 
 html {
-  background: var(--canvas);
+  background: var(--desk);
   color: var(--text);
-  font-family: var(--font-body);
-  font-size: 18px;
-  line-height: 1.35;
+  font-family: var(--font-ui);
+  font-size: 100%;
+  font-weight: 500;
+  line-height: var(--lh-body);
   min-width: 320px;
-  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 body {
-  background: var(--canvas);
+  background: var(--desk);
   color: var(--text);
   margin: 0;
   min-height: 100vh;
-  text-rendering: optimizeLegibility;
 }
 
 [hidden] {
   display: none !important;
 }
 
-body::selection,
 ::selection {
-  background: color-mix(in srgb, var(--action) 35%, transparent);
-  color: var(--ink);
+  background: var(--select);
+  color: var(--text-strong);
 }
 
 a {
-  color: var(--action-hover);
+  color: var(--gold-ink);
   text-decoration-thickness: 1px;
-  text-underline-offset: 0.18em;
+  text-underline-offset: 0.2em;
 }
 
 a:hover {
-  color: var(--action-hover);
+  text-decoration-thickness: 2px;
 }
 
 button,
 input,
 select,
 textarea {
+  color: inherit;
   font: inherit;
 }
 
@@ -172,7 +214,8 @@ a {
   -webkit-tap-highlight-color: transparent;
 }
 
-button {
+button,
+summary {
   cursor: pointer;
 }
 
@@ -181,7 +224,6 @@ input:disabled,
 select:disabled,
 textarea:disabled {
   cursor: not-allowed;
-  opacity: 0.55;
 }
 
 :focus-visible {
@@ -199,32 +241,35 @@ p {
 h1,
 h2,
 h3 {
-  color: var(--ink);
-  letter-spacing: 0.01em;
+  color: var(--text-strong);
+  font-weight: 700;
+  letter-spacing: 0;
+  line-height: var(--lh-tight);
 }
 
 h1 {
-  font-family: var(--font-display);
-  font-size: 2rem;
-  line-height: 1.08;
-  margin-bottom: var(--space-2);
+  font-size: var(--fs-display);
+  margin-bottom: var(--s-1);
 }
 
 h2 {
-  font-family: var(--font-body);
-  font-size: 1.05rem;
-  line-height: 1.25;
-  margin-bottom: 0;
+  font-size: var(--fs-title);
+  margin-bottom: var(--s-1);
 }
 
 h3 {
-  font-family: var(--font-body);
-  font-size: 0.95rem;
-  margin-bottom: var(--space-2);
+  font-size: var(--fs-lead);
+  margin-bottom: var(--s-2);
+}
+
+p {
+  margin-bottom: var(--s-3);
 }
 
 code,
+kbd,
 pre,
+.mono,
 .manage-endpoint,
 .server-address-cell,
 .data-value,
@@ -232,24 +277,27 @@ pre,
 .compact-row-meta,
 .player-meta {
   font-family: var(--font-mono);
+  font-variant-ligatures: none;
+}
+
+code {
+  font-size: 0.92em;
 }
 
 .skip-link {
-  background: var(--surface);
-  border: 2px solid var(--action);
-  color: var(--ink);
+  background: var(--gold);
+  color: var(--on-gold);
   font-weight: 700;
-  left: var(--space-4);
-  padding: var(--space-2) var(--space-4);
+  left: var(--s-4);
+  padding: var(--s-2) var(--s-4);
   position: fixed;
-  top: var(--space-3);
+  top: var(--s-3);
   transform: translateY(-200vh);
-  transition: transform 120ms ease;
   z-index: 1000;
 }
 
 .skip-link:focus {
-  transform: translateY(0);
+  transform: none;
 }
 
 .visually-hidden {

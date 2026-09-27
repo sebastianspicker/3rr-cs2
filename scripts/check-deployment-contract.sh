@@ -14,23 +14,66 @@ fail() {
 }
 
 validate_image() {
-  local image
+  local image reference repository last_component tag first_component component
+  local path_component_re registry_re tag_re
+  local -a components
+  local path_start index
+
   image="$1"
-  if [[ ! "${image}" =~ ^[^[:space:]]+@sha256:[0-9a-fA-F]{64}$ ]]; then
+  if [[ "${image}" =~ [[:space:]] ]]; then
+    fail "CS2_IMAGE must not contain whitespace"
+  fi
+  if [[ ! "${image}" =~ ^(.+)@sha256:[0-9a-fA-F]{64}$ ]]; then
     fail "CS2_IMAGE must be an immutable image reference ending in @sha256:<64 hex characters>"
   fi
+
+  reference="${BASH_REMATCH[1]}"
+  repository="${reference}"
+  last_component="${reference##*/}"
+  tag_re='^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$'
+  if [[ "${last_component}" == *:* ]]; then
+    tag="${last_component##*:}"
+    [[ "${tag}" =~ ${tag_re} ]] || fail "CS2_IMAGE contains an invalid image tag"
+    repository="${reference%:*}"
+  fi
+
+  [[ "${repository}" != /* && "${repository}" != */ && "${repository}" != *//* ]] \
+    || fail "CS2_IMAGE contains an invalid Docker/OCI image name"
+
+  IFS='/' read -r -a components <<<"${repository}"
+  ((${#components[@]} > 0)) || fail "CS2_IMAGE contains an invalid Docker/OCI image name"
+
+  # Docker/OCI repository path components are lowercase. A first component
+  # containing a dot or port (or named localhost) is a registry authority.
+  path_component_re='^[a-z0-9]+(([._]|__|-+)[a-z0-9]+)*$'
+  registry_re='^([a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*|\[[0-9A-Fa-f:.]+\])(:[0-9]+)?$'
+  first_component="${components[0]}"
+  path_start=0
+  if ((${#components[@]} > 1)) \
+    && [[ "${first_component}" == *.* || "${first_component}" == *:* || "${first_component}" == "localhost" || "${first_component}" == \[* ]]; then
+    [[ "${first_component}" =~ ${registry_re} ]] || fail "CS2_IMAGE contains an invalid registry name"
+    path_start=1
+  fi
+
+  for ((index = path_start; index < ${#components[@]}; index++)); do
+    component="${components[index]}"
+    [[ "${component}" =~ ${path_component_re} ]] || fail "CS2_IMAGE contains an invalid Docker/OCI image name"
+  done
 }
 
 image=""
+image_supplied=0
 while (($# > 0)); do
   case "$1" in
     --image)
       (($# >= 2)) || fail "--image requires a value"
       image="$2"
+      image_supplied=1
       shift 2
       ;;
     --image=*)
       image="${1#--image=}"
+      image_supplied=1
       shift
       ;;
     *) fail "unknown argument: $1" ;;
@@ -63,7 +106,7 @@ for field in \
   grep -Fq "${field}=" "${DEPLOYMENT_DOC}" || fail "deployment record is missing ${field}"
 done
 
-if [[ -n "${image}" ]]; then
+if ((image_supplied)); then
   validate_image "${image}"
 fi
 

@@ -11,6 +11,7 @@ run_update_flow_suite() {
     run_case "stop-timeout-after-state-change" "100" "200" "0"
     run_case "signal-during-stop" "100" "200" "0"
     run_case "unknown-remote" "100" "" "0"
+    run_case "unknown-public-buildid" "100" "200" "0" "active" "public-missing-buildid"
     run_case "no-update-service-inactive" "100" "100" "0" "inactive"
     run_lock_case "stale-lock-recovery" "prepare_stale_lock_with_dead_pid" 0 "Recovered stale lock and acquired a new lock."
     run_lock_case "live-lock-metadata-mismatch-fails-closed" "prepare_stale_lock_with_live_pid_mismatched_metadata" 1 "ownership metadata cannot be verified"

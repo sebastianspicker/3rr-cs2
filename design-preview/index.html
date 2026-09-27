@@ -47,15 +47,15 @@
 
 <p class="demo-disclosure">Design demo · simulated data. All actions stay in this browser; no server connection.</p><div id="demo-inventory"><main class="container main workbench route-shell route-shell--inventory" id="inventory-main">
       <ol class="session-steps" aria-label="Session preparation progress">
-        <li class="session-step" aria-current="step"><span aria-hidden="true">1</span> Server</li>
-        <li class="session-step"><span aria-hidden="true">2</span> Setup</li>
-        <li class="session-step"><span aria-hidden="true">3</span> Check result</li>
+        <li class="session-step" aria-current="step"><span class="session-step-n" aria-hidden="true">1</span> Server</li>
+        <li class="session-step"><span class="session-step-n" aria-hidden="true">2</span> Setup</li>
+        <li class="session-step"><span class="session-step-n" aria-hidden="true">3</span> Check result</li>
       </ol>
       <section class="session-panel session-server-picker" aria-labelledby="servers-heading">
         <div class="page-header route-header fleet-head">
           <div>
             <h1 id="servers-heading">Choose a server</h1>
-            <p>Select the server you want to prepare.</p>
+            <p>Pick the server you are about to change. Nothing is sent until you confirm the setup.</p>
           </div>
         </div>
         <div class="fleet-stats" aria-label="Fleet summary">
@@ -88,7 +88,7 @@
         <div class="session-observation-strip" aria-label="Selected server observation">
           <div><span>Observed</span> <strong id="selected-server-observed">Unknown</strong></div>
           <div><span>Map</span> <strong id="selected-server-map">Unknown</strong></div>
-          <div><strong id="selected-server-players">Unknown</strong></div>
+          <div><span>Players</span> <strong id="selected-server-players">Unknown</strong></div>
         </div>
       </section>
       <p class="session-warning" id="selected-server-warning" hidden>
@@ -96,7 +96,7 @@
       </p>
       <div class="session-actions" id="selected-server-actions" hidden>
         <a class="btn btn-primary" id="prepare-selected-server" href="#servers">Prepare server</a>
-        <a href="#demo-only">Add server</a>
+        <a href="#demo-only">Add another server</a>
       </div>
     </main></div><div id="demo-manage" class="main main-manage" hidden><main class="container manage-workbench workbench" id="manage-main" data-server-id="1">
         <nav class="manage-breadcrumb" aria-label="Breadcrumb" hidden><a href="#servers">Choose server</a><span aria-hidden="true">/</span><span id="manage-breadcrumb-title">EU Scrim #1</span></nav>
@@ -104,7 +104,6 @@
       <div class="manage-identity">
         <h1 id="manage-title" tabindex="-1">EU Scrim #1</h1>
         <div class="server-addr">
-
           <span class="manage-endpoint" id="truth-rail-endpoint">192.0.2.10:27015</span>
           <span id="manage-status-dot" class="status-dot online" aria-hidden="true"></span>
           <span id="manage-status-badge" class="badge badge-connected" data-live-status-badge>
@@ -113,7 +112,7 @@
           <span id="manage-observed-at" class="manage-observed-at visually-hidden">No observation yet</span>
         </div>
       </div>
-
+      <div class="manage-header-actions"><button type="button" class="btn btn-secondary" id="command-palette-trigger" aria-haspopup="dialog">Commands <kbd>Ctrl K</kbd></button><button type="button" class="btn btn-secondary" id="manage-reconnect">Reconnect</button><button type="button" id="refresh_status" class="btn btn-secondary" aria-label="Refresh live status">Refresh observation</button></div>
     </div>
 
 
@@ -127,11 +126,15 @@
 </div>
 
 
-        <nav class="session-steps" aria-label="Session preparation">
-          <a class="session-step" href="#servers">1 <span>Server</span></a>
-          <button class="session-step" type="button" id="session-step-setup" aria-current="step">2 <span>Setup</span></button>
-          <button class="session-step" type="button" id="session-step-result" disabled>3 <span>Check result</span></button>
-        </nav>
+        <div class="server-tools">
+          <h2 class="visually-hidden">Server tools</h2>
+          <div class="tabs manage-tabs" id="manage-tabs" role="tablist" aria-label="Server workbench">
+            <button type="button" id="manage-tab-setup" role="tab" aria-selected="true" aria-controls="manage-panel-setup" data-manage-tab="setup">Setup</button>
+            <button type="button" id="manage-tab-console" role="tab" aria-selected="false" tabindex="-1" aria-controls="manage-panel-console" data-manage-tab="console">Console</button>
+            <button type="button" id="manage-tab-match" role="tab" aria-selected="false" aria-controls="manage-panel-match" data-manage-tab="match" tabindex="-1">Match</button>
+            <button type="button" id="manage-tab-players" role="tab" aria-selected="false" aria-controls="manage-panel-players" data-manage-tab="players" tabindex="-1">Players <span class="tab-meta" id="manage-tab-player-count">–</span></button>
+          </div>
+        </div>
 
         <section class="tabpanel manage-tabpanel" id="manage-panel-console" role="tabpanel" aria-labelledby="manage-tab-console" hidden>
           <section class="console-panel" id="console" aria-labelledby="console-heading">
@@ -205,6 +208,7 @@
 
         </section>
         <section class="tabpanel manage-tabpanel" id="manage-panel-match" role="tabpanel" aria-labelledby="manage-tab-match" hidden>
+          <p class="match-legend">A dashed outline marks the last value sent from this page. The server does not report these settings back.</p>
 
 <section class="panel surface match-panel" aria-labelledby="match-controls-heading">
           <div class="panel-header">
@@ -306,7 +310,7 @@
             <div class="practice-group">
               <div class="section-label">MatchZy</div>
           <div class="btn-grid cols-3">
-            <button id="matchzy_practice" class="btn btn-primary">Practice Mode</button>
+            <button id="matchzy_practice" class="btn btn-secondary">Practice Mode</button>
             <button id="matchzy_exitprac" class="btn btn-secondary">Exit Practice</button>
             <button id="matchzy_playout"  class="btn btn-secondary">Force Playout</button>
           </div>
@@ -485,9 +489,14 @@
 
         </section>
         <section class="tabpanel manage-tabpanel" id="manage-panel-setup" role="tabpanel" aria-labelledby="manage-tab-setup">
+          <nav class="session-steps" aria-label="Session preparation">
+            <a class="session-step" href="#servers"><span class="session-step-n" aria-hidden="true">1</span> Server</a>
+            <button class="session-step" type="button" id="session-step-setup" aria-current="step"><span class="session-step-n" aria-hidden="true">2</span> Setup</button>
+            <button class="session-step" type="button" id="session-step-result" disabled><span class="session-step-n" aria-hidden="true">3</span> Check result</button>
+          </nav>
           <section class="panel surface setup-panel session-panel" id="requested-setup" aria-labelledby="requested-setup-heading">
   <h2 id="requested-setup-heading" tabindex="-1">Prepare a session</h2>
-  <p>Choose the setup to send to this server.</p>
+  <p>Choose what to send. The live map is checked separately afterwards.</p>
   <p id="setup-status" class="alert" role="status" aria-live="polite" tabindex="-1" hidden></p>
   <button type="button" id="setup-retry" class="btn btn-secondary" hidden>Reload setup choices</button>
   <form id="server_setup_form">
@@ -527,7 +536,7 @@
           <p id="setup-review-mode">Loading choices…</p>
           <p id="setup-review-map" class="mono">—</p>
           <p id="setup-review-teams">Keep current team names</p>
-          <p class="small text-muted">This shows the setup that will be sent to the server (not live data).</p>
+          <p class="small text-muted">Draft only. Sending requests these settings; only the live map can be checked afterward.</p>
         </aside>
       </div>
     </fieldset>
@@ -585,17 +594,17 @@
   <summary>Workshop and advanced setup</summary>
   <button id="restart_game" type="button" class="btn btn-danger-outline setup-destructive">Restart round</button>
               <div class="mb-3">
-                <label for="workshopUrl" class="form-label">Or paste Workshop URL</label>
+                <label for="workshopUrl" class="form-label">Workshop map URL</label>
                 <div class="input-row">
                   <input type="text" id="workshopUrl" name="workshop_url" class="form-control"
                          placeholder="https://steamcommunity.com/sharedfiles/filedetails/?id=…" autocomplete="off">
                   <button type="button" id="loadWorkshopMap" class="btn btn-secondary">Load</button>
                 </div>
-                <small class="text-muted">Paste a Steam Workshop URL to load any workshop map</small>
+                <small class="text-muted">Loads the map immediately. Players on the server are interrupted.</small>
               </div>
               <div class="mb-3 workshop-favorites">
                 <div class="panel-subheader">
-                  <span class="section-label">Workshop Favorites</span>
+                  <span class="section-label">Workshop favorites</span>
                   <button type="button" id="refreshWorkshopFavorites" class="btn btn-ghost btn-sm">Refresh</button>
                 </div>
                 <div class="input-row">
@@ -608,16 +617,16 @@
                 </div>
               </div>
               <div class="mb-3">
-                <label for="workshopCollectionId" class="form-label">Or load Workshop Collection</label>
+                <label for="workshopCollectionId" class="form-label">Workshop collection</label>
                 <div class="input-row">
                   <input type="text" id="workshopCollectionId" name="workshop_collection_id" class="form-control"
                          placeholder="Collection ID (5–20 digits)" maxlength="20" autocomplete="off">
                   <button type="button" id="loadWorkshopCollection" class="btn btn-secondary">Load</button>
                 </div>
-                <small class="text-muted">Loads all maps in a Workshop Collection for rotation</small>
+                <small class="text-muted">Hosts the collection as the map rotation. Changes the map.</small>
               </div>
               <div class="mb-3">
-                <label for="mapGroupSelect" class="form-label">Set Map Group</label>
+                <label for="mapGroupSelect" class="form-label">Map group</label>
                 <div class="input-row">
                   <select id="mapGroupSelect" class="form-select">
 
@@ -683,14 +692,4 @@
 </section>
 </details>
         </section>
-        <div class="server-tools">
-          <h2 class="visually-hidden">Server tools</h2>
-        <div class="tabs manage-tabs" id="manage-tabs" role="tablist" aria-label="Server workbench">
-          <button type="button" id="manage-tab-console" role="tab" aria-selected="false" tabindex="-1" aria-controls="manage-panel-console" data-manage-tab="console">Console</button>
-          <button type="button" id="manage-tab-match" role="tab" aria-selected="false" aria-controls="manage-panel-match" data-manage-tab="match" tabindex="-1">Match</button>
-          <button type="button" id="manage-tab-players" role="tab" aria-selected="false" aria-controls="manage-panel-players" data-manage-tab="players" tabindex="-1">Players <span class="tab-meta" id="manage-tab-player-count">–</span></button>
-          <button type="button" id="manage-tab-setup" role="tab" aria-selected="true" aria-controls="manage-panel-setup" data-manage-tab="setup">Setup</button>
-        </div>
-          <div class="manage-header-actions"><button type="button" class="btn btn-secondary" id="command-palette-trigger" aria-haspopup="dialog">Commands <kbd>Ctrl K</kbd></button><button type="button" class="btn btn-secondary" id="manage-reconnect">Reconnect</button><button type="button" id="refresh_status" class="btn btn-secondary" aria-label="Refresh live status">Refresh observation</button></div>
-        </div>
       </main></div></div><section id="screenshot-tour" class="screenshot-tour" aria-labelledby="screenshot-tour-heading"><div class="screenshot-tour-inner"><h2 id="screenshot-tour-heading">Screenshots of the real control plane</h2><p>The interactive demo above is a simulated preview. These are screenshots of the actual 3RR control plane, captured with a disposable database and fixed RCON responses; no live CS2 server is shown.</p><div class="screenshot-tour-grid"><figure><img src="screenshots/01-servers.png" alt="Choose an existing server" loading="lazy"><figcaption>Choose an existing server</figcaption></figure><figure><img src="screenshots/02-setup.png" alt="Review the requested session setup" loading="lazy"><figcaption>Review the requested session setup</figcaption></figure><figure><img src="screenshots/03-commands-sent.png" alt="Setup commands sent; live state still needs checking" loading="lazy"><figcaption>Setup commands sent; live state still needs checking</figcaption></figure><figure><img src="screenshots/04-map-observed.png" alt="Compare the requested map with a fresh observation" loading="lazy"><figcaption>Compare the requested map with a fresh observation</figcaption></figure><figure><img src="screenshots/05-mobile.png" alt="Session result on a narrow screen" loading="lazy"><figcaption>Session result on a narrow screen</figcaption></figure></div></div></section><p id="demo-notice" class="demo-notice alert" role="status" hidden></p></body></html>

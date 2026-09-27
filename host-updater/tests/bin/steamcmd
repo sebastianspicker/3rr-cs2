@@ -9,6 +9,7 @@ manifest="${cs2_dir%/}/steamapps/appmanifest_${app_id}.acf"
 remote="${REMOTE_BUILDID:-}"
 update_exit="${STEAMCMD_UPDATE_EXIT:-0}"
 appinfo_exit="${STEAMCMD_APPINFO_EXIT:-0}"
+appinfo_shape="${STEAMCMD_APPINFO_SHAPE:-public}"
 update_buildid="${STEAMCMD_UPDATE_BUILDID:-${remote}}"
 calls_file="${STEAMCMD_CALLS_FILE:-}"
 
@@ -38,6 +39,24 @@ if grep -Fq "+app_info_print" <<< "$args"; then
     if [ "$appinfo_exit" -ne 0 ]; then
         echo "ERROR! app_info_print simulated failure" >&2
         exit "$appinfo_exit"
+    fi
+    if [ "$appinfo_shape" = "public-missing-buildid" ]; then
+        cat << EOF
+"$app_id"
+{
+  "branches"
+  {
+    "public"
+    {
+    }
+    "beta"
+    {
+      "buildid" "$remote"
+    }
+  }
+}
+EOF
+        exit 0
     fi
     cat << EOF
 "$app_id"

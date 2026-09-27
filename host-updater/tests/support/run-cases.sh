@@ -27,6 +27,7 @@ run_validation_test() {
     export REMOTE_BUILDID="100"
     export STEAMCMD_UPDATE_EXIT="0"
     export STEAMCMD_APPINFO_EXIT="0"
+    export STEAMCMD_APPINFO_SHAPE="public"
     export STEAMCMD_UPDATE_BUILDID="100"
     export STEAMCMD_TIMEOUT_SECS="1800"
     export SYSTEMCTL_TIMEOUT_SECS="90"
@@ -62,12 +63,13 @@ run_validation_test() {
     pass
 }
 run_case() {
-    local name local_build remote_build update_exit initial_state rc calls stdout stderr events
+    local name local_build remote_build update_exit initial_state appinfo_shape rc calls stdout stderr events
     name="$1"
     local_build="$2"
     remote_build="$3"
     update_exit="$4" # 0 or 1
     initial_state="${5:-active}"
+    appinfo_shape="${6:-public}"
 
     echo "==> $name"
 
@@ -90,6 +92,7 @@ run_case() {
     export REMOTE_BUILDID="$remote_build"
     export STEAMCMD_UPDATE_EXIT="$update_exit"
     export STEAMCMD_APPINFO_EXIT="0"
+    export STEAMCMD_APPINFO_SHAPE="$appinfo_shape"
     export STEAMCMD_UPDATE_BUILDID="$remote_build"
     export STEAMCMD_TIMEOUT_SECS="1800"
     export SYSTEMCTL_TIMEOUT_SECS="90"
@@ -206,7 +209,7 @@ run_case() {
             assert_no_event "steamcmd app_update"
             [ "$(grep -c '^start$' "$SYSTEMCTL_CALLS_FILE")" -eq 1 ] || fail "signal cleanup must restore the service exactly once"
             ;;
-        "unknown-remote")
+        "unknown-remote" | "unknown-public-buildid")
             [ "$rc" -ne 0 ] || fail "expected non-zero rc, got $rc"
             assert_contains "refusing to stop the service while remote status is unknown" "$stdout"
             assert_not_contains "stop" "$calls"
@@ -275,6 +278,7 @@ run_with_args_case() {
     export REMOTE_BUILDID="200"
     export STEAMCMD_UPDATE_EXIT="0"
     export STEAMCMD_APPINFO_EXIT="0"
+    export STEAMCMD_APPINFO_SHAPE="public"
     export STEAMCMD_UPDATE_BUILDID="200"
     export STEAMCMD_TIMEOUT_SECS="1800"
     export SYSTEMCTL_TIMEOUT_SECS="90"
@@ -330,6 +334,7 @@ run_lock_case() {
     export REMOTE_BUILDID="100"
     export STEAMCMD_UPDATE_EXIT="0"
     export STEAMCMD_APPINFO_EXIT="0"
+    export STEAMCMD_APPINFO_SHAPE="public"
     export STEAMCMD_UPDATE_BUILDID="100"
     export STEAMCMD_TIMEOUT_SECS="1800"
     export SYSTEMCTL_TIMEOUT_SECS="90"

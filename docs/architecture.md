@@ -1,11 +1,21 @@
 # Architecture
 
-3RR has separate modules for live server control, host maintenance, and server
-configuration. You can deploy each operational module on its own. They share
-configuration conventions and documentation, but they do not call one another
-at runtime.
+## In short
 
-## System context
+- 3RR is made of **separate modules**: the panel (control plane) for live server control, the
+  updater for host maintenance, and the bootstrap files for server configuration. You can
+  deploy each one on its own. They share configuration conventions and documentation but
+  **never call one another while running**.
+- The panel reaches CS2 **only through RCON**. It never runs host shell commands or SteamCMD.
+
+- The panel sends each server **one command at a time**, and every operation has a timeout.
+  It **never automatically retries** a state-changing command that it has already sent.
+
+- These are **design rules**. Automated checks enforce some of them in the code, but local
+  checks cannot confirm behaviour against a live CS2, RCON, SteamCMD, systemd, Redis, backup,
+  network, or accessibility environment.
+
+## How the parts connect
 
 ```mermaid
 flowchart LR
@@ -25,29 +35,38 @@ flowchart LR
     Deploy -. configure .-> CS2
 ```
 
-The control plane talks to CS2 only through RCON; it does not invoke a host
-shell or SteamCMD. The updater is a local command-line tool rather than a web
-or RCON service. Server-bootstrap provides files and startup values for a CS2
-runtime and does not run as a daemon.
+How to read the diagram:
 
-## Components
+- Your browser reaches the panel over HTTPS through a reverse proxy **that you run**.
+- The panel keeps its data in SQLite, plus Redis in production.
+- The panel talks to each CS2 server over RCON. Commands are checked first ("validated") and
+  sent one at a time per server ("serialized").
+- The **updater** is a local command-line tool, not a web or RCON service. It asks SteamCMD
+  whether a newer build exists, and uses systemd to stop, update, start, and verify the server.
+- The **bootstrap** module is not a running service. It supplies CFG files, administrator
+  files, and startup values that the CS2 server reads.
+- The **deploy examples** are templates you adapt; they run nothing by themselves.
 
-| Component           | Responsibility                                                                                                                        | Runtime and state boundary                                                                      |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| `control-plane/`    | Authenticate operators, authorize server access, render the web interface, expose HTTP routes, and control existing servers over RCON | Node 26 process with SQLite, Redis in production, and outbound RCON connections                 |
-| `host-updater/`     | Compare local and remote Steam build IDs, then stop, update, verify, and restart the server                                           | Bash process running as root on a Linux host with systemd and SteamCMD; stores its lock and log |
-| `server-bootstrap/` | Supply reviewed CFG files, generate private administrator files, and build the CS2 startup command                                    | Scripts and static files consumed by the target CS2 runtime                                     |
-| `deploy/`           | Provide Compose and systemd examples                                                                                                  | Examples only; the operator chooses images, storage, networks, proxies, and secrets             |
-| `design-preview/`   | Show the current operator interface with fixed mock data                                                                              | Static pages built from panel templates and styles; local interactions without production connections |
+## The components
 
-The control plane, updater, and bootstrap module can each be built, tested, and
-deployed independently. The static demo is separate from the deployed system.
+| Component                    | Responsibility                                                                                                                    | Where it runs and what it stores                                                                              |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `control-plane/` (the panel) | Sign operators in, check which servers each one may control, render the web interface, expose HTTP routes, control existing servers over RCON | A Node 26 process with SQLite, Redis in production, and outbound RCON connections                             |
+| `host-updater/`              | Compare the local and remote Steam build IDs; if they differ, stop, update, verify, and restart the server                        | A Bash process running as root on a Linux host with systemd and SteamCMD; keeps its own lock and log          |
+| `server-bootstrap/`          | Supply reviewed CFG files, generate private administrator files, and build the CS2 startup command                                | Scripts and static files that the CS2 runtime reads                                                           |
+| `deploy/`                    | Provide Compose and systemd examples                                                                                              | Examples only; you choose images, storage, networks, proxies, and secrets                                     |
+| `design-preview/`            | Show the current interface with fixed sample data                                                                                 | Static pages built from the panel's templates and styles; local interactions without production connections |
 
-## Control-plane structure
+The panel, updater, and bootstrap module can each be built, tested, and deployed
+independently. The static demo is separate from the deployed system.
 
-`control-plane/src/main.ts` is the only entry point that assembles the process.
-It opens SQLite, creates the Redis and RCON services, builds the Express
-application, and manages startup and shutdown.
+## Inside the panel: code layers
+
+*This section is mainly for contributors.*
+
+`control-plane/src/main.ts` is the only file that assembles the running process. It opens
+SQLite, creates the Redis and RCON services, builds the Express web application, and manages
+startup and shutdown.
 
 ```mermaid
 flowchart TB
@@ -68,31 +87,40 @@ flowchart TB
     Infrastructure --> Shared
 ```
 
-The source dependencies follow these rules:
+What each layer holds:
 
-- `features`, `infrastructure`, and `integrations` do not import `app`.
-- `infrastructure` does not import `features` or `integrations`.
-- `integrations` may use infrastructure adapters but does not import
-  `features`.
-- `shared` imports no application layer.
-- Feature-to-feature dependencies remain acyclic.
-- Code outside `src/integrations/rcon/` reaches RCON only through
+- `app`: assembly, lifecycle, security, and health.
+- `features`: what each HTTP route does.
+- `infrastructure`: SQLite, Redis, logging, and credentials.
+- `integrations`: the RCON network boundary.
+- `shared`: small utilities that depend on nothing else.
+
+Dependencies point *away* from the assembly code. The rules below keep each layer replaceable
+and testable, and `npm run check:architecture` checks them in the source code:
+
+- `features`, `infrastructure`, and `integrations` never import `app`.
+- `infrastructure` never imports `features` or `integrations`.
+- `integrations` may use infrastructure adapters but never imports `features`.
+- `shared` imports no other layer.
+- Features may depend on one another, but never in a cycle.
+- Code outside `src/integrations/rcon/` reaches RCON **only** through
   `src/integrations/rcon/index.ts`.
-- RCON persistence (server credentials, inventory, and command history) lives
-  in `src/infrastructure/sqlite`, not in `src/integrations`.
-- SQL statements and transactions live only in a feature `repository.ts` (or
-  `*Repository.ts`) module or in `src/infrastructure/sqlite`; route, router,
-  and app files call repository methods instead of `better-sqlite3` directly.
+- Stored RCON data (server credentials, the server list, and command history) lives in
+  `src/infrastructure/sqlite`, not in `src/integrations`.
+- SQL statements and transactions appear only in a feature's `repository.ts` (or
+  `*Repository.ts`) or in `src/infrastructure/sqlite`. Route, router, and app files call
+  repository methods instead of calling `better-sqlite3` directly.
 
-`npm run check:architecture` checks these import rules in source code.
+Where specific responsibilities live:
 
-Credential encoding belongs in
-`src/infrastructure/credentials/rconCredential.ts`, server authorization in
-`src/features/server-access`, catalog data in
-`src/features/game-catalog`, and RCON command parsing and policy in
-`src/integrations/rcon/rconCommandPolicy.ts`.
+| Responsibility                                     | Location                                          |
+| -------------------------------------------------- | ------------------------------------------------- |
+| Encoding stored RCON credentials                   | `src/infrastructure/credentials/rconCredential.ts` |
+| Checking server access                             | `src/features/server-access`                      |
+| Game and map catalog data                          | `src/features/game-catalog`                       |
+| Parsing RCON commands and deciding which are allowed | `src/integrations/rcon/rconCommandPolicy.ts`    |
 
-### HTTP and RCON flow
+## What happens when you press a button
 
 ```mermaid
 sequenceDiagram
@@ -116,123 +144,150 @@ sequenceDiagram
     F-->>B: Documented HTTP response
 ```
 
-Before a request reaches a feature route, middleware applies security headers,
-body limits, sessions, CSRF protection, and rate limits. Protected requests
-reload the user from SQLite. Administrator rights and per-server access grants
-are checked separately. Unless the API documents an exception, an
-authenticated request that changes state requires a CSRF token.
+**Before any server is touched**:
 
-Before connecting, RCON validation resolves the endpoint and pins an acceptable
-address. The manager sends one command at a time to each server and tracks
-connection and authentication separately. Every operation has a timeout. The
-free-form console accepts one printable ASCII command, rejects separators, and
-blocks verbs that could change process, credential, logging, plugin, or RCON
-configuration.
+- Every request passes security headers, request-size limits, the login session, CSRF
+  protection, and rate limits.
+- Protected requests reload your user account from the database, so a removed or changed
+  account takes effect immediately.
+- Administrator rights and per-server access grants are checked separately.
+- Unless the [API documentation](../control-plane/docs/API.md) documents an exception, a
+  signed-in request that changes something must carry a CSRF token.
 
-The manager schedules regular commands in FIFO order. It allows one active
-command and 32 waiting commands per server, with 256 waiting across all servers
-by default. Each server also has one reserved heartbeat slot, and overlapping
-heartbeats are combined. A twelve-second deadline covers initialization, queue
-time, reconnects, and command execution.
+**RCON guarantees**:
 
-Cancelling an HTTP request also cancels work that is still queued. Once a
-command has been dispatched, cancellation reports an uncertain outcome; the
-manager never retries a state-changing command automatically. At startup,
-stored servers are registered before four connection workers begin. The
-initialization summary follows the database order.
+- Before connecting, the panel resolves the server's address, checks it, and uses only that
+  checked address ("pins" it).
+- It sends one command at a time to each server.
+- It tracks "connected" and "authenticated" separately, so you can tell a network problem from
+  a wrong password.
+- Every operation has a timeout.
+- The free-form console accepts a single command in printable ASCII (plain keyboard
+  characters). It rejects command separators. It also blocks commands that could change the
+  server process, credentials, logging, plugins, or RCON configuration.
 
-Successful observations of `hostname`, `status`, `sv_visiblemaxplayers`, and
-`users` are cached for five seconds. Authorized inventory, management, status,
-and player routes reuse both work in progress and its observation time. One
-caller can cancel without affecting the others; the underlying work is
-cancelled when every caller has left. Generation numbers stop invalidated
-results from returning to the cache. Changes to server state or connections,
-server removal, and shutdown all invalidate observations.
+## Queueing, timeouts, and cached observations
 
-The navigation rail loads the server list without starting observations. On
-the fleet page, at most four status HTTP requests run at once.
+An **observation** is a status reading the panel took from a server, together with the time
+it was taken.
 
-### Browser sources
+**Queue.** Regular commands are handled first come, first served. Per server, 1 command runs
+while up to 32 wait. Across all servers, up to 256 can wait by default. Each server also has
+one slot reserved for its heartbeat (the regular connection check), and overlapping heartbeats
+are merged into one.
 
-- `web/views/` contains EJS pages and partials.
-- `web/client/` contains browser TypeScript.
-- `web/assets/` contains stylesheet and image sources.
-- `web/generated/` is generated build output and must not be edited.
+**Deadline.** A single 12-second deadline covers the whole operation: setup, waiting in the
+queue, reconnecting, and running the command.
 
-Browser code and tests depend on template IDs and `data-*` attributes, so they
-are part of the interface between templates and scripts. See the [frontend
-guide](../control-plane/docs/FRONTEND.md) for details.
+**Cancelling.** If you cancel a web request while its command is still waiting, the command
+is dropped. If the command was already sent, the outcome is reported as **uncertain**. The
+panel never retries a state-changing command on its own.
 
-## State ownership
+**Startup.** Stored servers are registered first, then four connection workers begin. The
+startup summary lists servers in database order.
 
-SQLite stores durable control-plane data: users, administrator flags, server
-inventory, access grants, preferences, Workshop favorites, requested setups,
-and sent-command history. Migrations run in transactions and move forward
-through `PRAGMA user_version`; schema version 3 is current. The application
-refuses to start with a newer or malformed schema.
+**Reusing observations.**
 
-In production, Redis stores sessions and shared rate-limit state. Server
-inventory and users remain in SQLite.
+- Successful observations of `hostname`, `status`, `sv_visiblemaxplayers`, and `users` are
+  reused for five seconds.
+- When several authorized views ask for the same observation at once (inventory, management,
+  status, and player views), they share both the work in progress and its observation time.
+- One caller can cancel without affecting the others. The shared work stops only when every
+  caller has left.
+- Generation numbers keep an invalidated result from returning to the cache.
+- Changes to server state or connections, server removal, and shutdown all discard cached
+  observations.
 
-When `RCON_SECRET_KEY` is configured, stored RCON passwords use the `enc:v1`
-format. The key is required in production. Changing or removing it without
-migrating the credentials can make them unreadable.
+**Fleet page load.** The navigation rail loads the server list without starting any
+observations. On the fleet page, at most four status HTTP requests run at once.
 
-The updater writes only its host-local configuration, lock directory, log, and
-the CS2 installation and service during an update. Bootstrap output and CS2
-runtime state are files on the operator's server and are not control-plane
-data.
+## Browser code
 
-## Deployment and lifecycle
+*For contributors*:
 
-The control-plane Compose example starts the application and Redis, stores their
-data in volumes, and publishes the application on the loopback interface by
-default. It does not terminate TLS. The CS2 runtime Compose example uses an
-external image and needs to be adapted to the target host. The updater runs
-directly on a Linux host with systemd and SteamCMD, outside the control-plane
-container.
+- `web/views/`: EJS page templates and partials.
+- `web/client/`: browser TypeScript.
+- `web/assets/`: stylesheet and image sources.
+- `web/generated/`: generated build output. **Never edit it by hand.**
 
-At startup, the control plane applies compatible database migrations before it
-serves requests. It connects to Redis before creating session and rate-limit
-middleware, then initializes the RCON services. `SIGTERM` and `SIGINT` begin a
-graceful shutdown of HTTP, RCON, Redis, and SQLite, with a 15-second deadline.
+Browser scripts and tests find page elements by template IDs and `data-*` attributes. That
+makes these attributes part of the contract between templates and scripts: renaming one breaks
+behaviour. See the [frontend guide](../control-plane/docs/FRONTEND.md).
 
-`GET /api/health` reports whether the control-plane process is alive and ready.
-It does not report the health of the updater or CS2 server, or of the deployment
-as a whole. The Compose example does not define a control-plane healthcheck;
-deployment checks call the endpoint separately.
+## Where data lives
 
-## Adding or changing behavior
+**SQLite** holds everything the panel must keep: users, administrator flags, the server list,
+access grants, preferences, Workshop favourites, requested setups, and sent-command history.
+Database migrations run inside transactions and only move forward, tracked by SQLite's
+`PRAGMA user_version`. Version 3 is current. The panel refuses to start on a database with a
+newer or malformed structure.
 
-Add operator behavior to a feature without creating a feature dependency cycle.
-External protocols belong under `src/integrations`, while local persistence and
-service adapters belong under `src/infrastructure`. Add browser behavior in the
-source directories and preserve the DOM attributes used by existing scripts and
-tests.
+**Redis** holds login sessions and shared rate-limit counters in production. The server list
+and users stay in SQLite.
 
-Keep these compatibility and safety requirements in place:
+**Stored RCON passwords.** When the RCON encryption key (`RCON_SECRET_KEY`) is set, stored RCON
+passwords use the `enc:v1` format. The key is required in production. **If you change or remove
+the key without migrating the stored credentials, they can become unreadable.**
+
+**Updater and bootstrap data.** The updater writes only its host configuration, lock directory,
+and log, plus the CS2 installation and service during an update. Bootstrap output and CS2's
+own runtime files are files on your server, not panel data.
+
+## Deployment, startup, and shutdown
+
+- The panel's Compose example starts the panel and Redis, keeps their data in volumes, and by
+  default makes the panel reachable only from the host itself. It does **not** handle HTTPS.
+- The CS2 runtime Compose example uses an external image; you need to adapt it to your host.
+- The updater runs directly on a Linux host with systemd and SteamCMD, outside the panel's
+  container.
+
+**Startup order:**
+
+1. Apply compatible database migrations. No request is served before this finishes.
+2. Connect to Redis.
+3. Set up sessions and rate limits.
+4. Start the RCON services.
+
+**Shutdown.** `SIGTERM` or `SIGINT` starts a graceful shutdown of HTTP, RCON, Redis, and
+SQLite, with a 15-second deadline.
+
+**Health endpoint.** `GET /api/health` reports only whether the **panel process** is alive and
+ready. It says nothing about the updater, the CS2 servers, or the deployment as a whole. The
+Compose example defines no health check for the panel; deployment checks call the endpoint
+separately. Details are in the [runbook](../control-plane/docs/RUNBOOK.md#health-checks-and-shutdown).
+
+## Changing 3RR safely
+
+*For contributors*:
+
+- Add operator behaviour to a feature without creating a cycle between features.
+- New external protocols go under `src/integrations`. Local storage and service adapters go
+  under `src/infrastructure`.
+- Add browser behaviour in the source folders, and keep the DOM attributes that existing
+  scripts and tests depend on.
+
+These compatibility and safety guarantees must stay in place:
 
 - documented HTTP routes and response shapes;
-- session, proxy, CSRF, authorization, and rate-limit behavior;
+- session, proxy, CSRF, authorization, and rate-limit behaviour;
 - SQLite migration compatibility and the `enc:v1` credential format;
-- per-server RCON serialization, network validation, state, and timeouts;
-- updater CLI, configuration, systemd names, and the
-  `/opt/3rr/apps/maintain/updater` installation path;
-- the relationship between the bootstrap capability manifest and the shipped
-  files.
+- per-server RCON serialization, network validation, connection state, and timeouts;
+- the updater's command-line interface, configuration, systemd unit names, and the
+  `/opt/3rr/apps/maintain/updater` install path;
+- the match between the bootstrap capability manifest and the shipped files.
 
 ## What 3RR does not provide
 
-3RR does not provision operating systems, install CS2 or plugins, provide a
-Pterodactyl egg, host a managed service, or terminate TLS. A control backed by a
-CFG file only works when the target server has the required file and any
-supporting plugin or map. Local repository checks cannot confirm behavior in a
-live CS2, RCON, SteamCMD, systemd, Redis, backup, network, or accessibility
-environment.
+- 3RR does not provision operating systems, install CS2 or plugins, provide a Pterodactyl
+  egg, run as a hosted service, or handle HTTPS.
+- A control backed by a CFG file works only if the target server has that file and any plugin
+  or map it needs. See the [CS2 server requirements](../control-plane/docs/SERVER-SETUP.md).
+- Local repository checks cannot confirm behaviour in a live CS2, RCON, SteamCMD, systemd,
+  Redis, backup, network, or accessibility environment.
 
 ## Related documentation
 
-- [Control-plane README](../control-plane/README.md)
+- [Panel README](../control-plane/README.md)
 - [HTTP API](../control-plane/docs/API.md)
 - [Operations runbook](../control-plane/docs/RUNBOOK.md)
 - [Environment variables and updater settings](reference/env.md)
@@ -240,3 +295,29 @@ environment.
 - [Server bootstrap](../server-bootstrap/README.md)
 - [Provisioning](workflows/provision-server.md) and
   [disaster recovery](workflows/disaster-recovery.md)
+- [Backup and recovery rehearsal](recovery.md) (step-by-step procedure)
+
+## Glossary
+
+- **Access grant**: permission for one user to control one server.
+- **Composition root**: the single place where the application's parts are created and wired
+  together (`src/main.ts`).
+- **CSRF protection**: a safeguard that stops another website from triggering actions in your
+  signed-in panel.
+- **Database migration**: an automatic, forward-only upgrade of the database structure at
+  startup.
+- **`enc:v1`**: the format used for encrypted stored RCON passwords.
+- **Express / EJS**: the web framework and the HTML template system that the panel uses.
+- **FIFO**: first in, first out; the order in which queued commands run.
+- **Generation number**: a counter that marks a cached result as outdated.
+- **Heartbeat**: the panel's regular connection check to each server.
+- **Mermaid**: a text format for diagrams that GitHub renders as pictures.
+- **Observation**: a status reading the panel took from a server, with its time.
+- **Rate limit**: a cap on how many requests are accepted in a period.
+- **RCON**: the password-protected remote-console protocol for game servers.
+- **RCON encryption key (`RCON_SECRET_KEY`)**: the key that encrypts stored RCON passwords.
+- **Redis**: a data store for sessions and rate limits in production.
+- **SIGTERM / SIGINT**: standard signals that ask a process to stop.
+- **SQLite**: a single-file database.
+- **SteamCMD**: Valve's command-line tool for installing and updating game servers.
+- **systemd**: the Linux service manager.

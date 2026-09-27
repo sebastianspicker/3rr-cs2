@@ -66,7 +66,7 @@ jobs:
       - name: Stage public demo files
         run: |
           mkdir -p "$RUNNER_TEMP/3rr-pages/fonts" "$RUNNER_TEMP/3rr-pages/screenshots"
-          cp design-preview/index.html design-preview/panel.css design-preview/preview.css design-preview/preview.js design-preview/olive-texture.png design-preview/3rr-mark.svg "$RUNNER_TEMP/3rr-pages/"
+          cp design-preview/index.html design-preview/panel.css design-preview/preview.css design-preview/preview.js design-preview/3rr-mark.svg "$RUNNER_TEMP/3rr-pages/"
           cp design-preview/fonts/*.woff2 design-preview/fonts/*-LICENSE.txt "$RUNNER_TEMP/3rr-pages/fonts/"
           cp docs/screenshots/*.png "$RUNNER_TEMP/3rr-pages/screenshots/"
       - name: Upload demo artifact
