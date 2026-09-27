@@ -17,15 +17,15 @@
     <%- include('partials/navbar') %>
     <main class="container main workbench route-shell route-shell--inventory" id="main">
       <ol class="session-steps" aria-label="Session preparation progress">
-        <li class="session-step" aria-current="step"><span aria-hidden="true">1</span> Server</li>
-        <li class="session-step"><span aria-hidden="true">2</span> Setup</li>
-        <li class="session-step"><span aria-hidden="true">3</span> Check result</li>
+        <li class="session-step" aria-current="step"><span class="session-step-n" aria-hidden="true">1</span> Server</li>
+        <li class="session-step"><span class="session-step-n" aria-hidden="true">2</span> Setup</li>
+        <li class="session-step"><span class="session-step-n" aria-hidden="true">3</span> Check result</li>
       </ol>
       <section class="session-panel session-server-picker" aria-labelledby="servers-heading">
         <div class="page-header route-header fleet-head">
           <div>
             <h1 id="servers-heading">Choose a server</h1>
-            <p>Select the server you want to prepare.</p>
+            <p>Pick the server you are about to change. Nothing is sent until you confirm the setup.</p>
           </div>
         </div>
         <div class="fleet-stats" aria-label="Fleet summary">
@@ -58,7 +58,7 @@
         <div class="session-observation-strip" aria-label="Selected server observation">
           <div><span>Observed</span> <strong id="selected-server-observed">Unknown</strong></div>
           <div><span>Map</span> <strong id="selected-server-map">Unknown</strong></div>
-          <div><strong id="selected-server-players">Unknown</strong></div>
+          <div><span>Players</span> <strong id="selected-server-players">Unknown</strong></div>
         </div>
       </section>
       <p class="session-warning" id="selected-server-warning" hidden>
@@ -66,7 +66,7 @@
       </p>
       <div class="session-actions" id="selected-server-actions" hidden>
         <a class="btn btn-primary" id="prepare-selected-server" href="/servers">Prepare server</a>
-        <a href="/add-server">Add server</a>
+        <a href="/add-server">Add another server</a>
       </div>
     </main>
   </div>

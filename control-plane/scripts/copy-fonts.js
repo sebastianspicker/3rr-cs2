@@ -3,19 +3,20 @@
 const fs = process.getBuiltinModule('fs');
 const path = process.getBuiltinModule('path');
 
-const src = path.join(__dirname, '..', 'node_modules', '@fontsource-variable');
+const modules = path.join(__dirname, '..', 'node_modules');
 const dest = path.join(__dirname, '..', 'web', 'generated', 'fonts');
 
+/** Barlow carries the interface voice; JetBrains Mono marks machine values. */
+const FONTS = [
+  ['@fontsource/barlow-semi-condensed', 'barlow-semi-condensed-latin-500-normal.woff2'],
+  ['@fontsource/barlow-semi-condensed', 'barlow-semi-condensed-latin-600-normal.woff2'],
+  ['@fontsource/barlow-semi-condensed', 'barlow-semi-condensed-latin-700-normal.woff2'],
+  ['@fontsource/barlow-condensed', 'barlow-condensed-latin-600-normal.woff2'],
+  ['@fontsource-variable/jetbrains-mono', 'jetbrains-mono-latin-wght-normal.woff2'],
+];
+
+fs.rmSync(dest, { force: true, recursive: true });
 fs.mkdirSync(dest, { recursive: true });
-fs.copyFileSync(
-  path.join(src, 'syne', 'files', 'syne-latin-wght-normal.woff2'),
-  path.join(dest, 'syne-latin-wght-normal.woff2')
-);
-fs.copyFileSync(
-  path.join(src, 'jetbrains-mono', 'files', 'jetbrains-mono-latin-wght-normal.woff2'),
-  path.join(dest, 'jetbrains-mono-latin-wght-normal.woff2')
-);
-fs.copyFileSync(
-  path.join(src, 'inter', 'files', 'inter-latin-wght-normal.woff2'),
-  path.join(dest, 'inter-latin-wght-normal.woff2')
-);
+for (const [pkg, file] of FONTS) {
+  fs.copyFileSync(path.join(modules, pkg, 'files', file), path.join(dest, file));
+}

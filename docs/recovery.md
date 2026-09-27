@@ -1,28 +1,59 @@
-# Recovery rehearsal and restore
+# Backup, restore, and recovery rehearsal
 
-This guide covers the control-plane SQLite database and a CS2 runtime. Rehearse
-the steps with disposable paths before relying on a backup. Scheduling backups
-and running these commands in production remain deployment responsibilities.
+## In short
 
-## Record the backup and protect the key
+This guide covers the panel's (control plane's) SQLite database and a CS2 runtime.
+**Rehearse every step on disposable paths before you rely on a backup.** Scheduling backups
+and running these commands in production are your deployment's job; 3RR does not do them for
+you.
 
-Before stopping any service, create a private recovery record. Include the
-repository revision, current and candidate CS2 image digests, installed CS2
-build ID, plugin package names and versions, the checksum of
-`server-bootstrap/capabilities.json`, the repository CFG checksum manifest, the
-backup checksum manifest, the backup time, and the name of the person who tested
-the restore. [The deployment guide](../deploy/README.md) lists the exact field
-names.
+The order of work:
 
-Keep `RCON_SECRET_KEY` outside the database backup. Store it in the deployment's
-secret manager or in offline recovery escrow, under a separately controlled key
-reference. The recovery record may contain that reference and key version, but
-never the key itself. Before making a change, confirm that you can access both
-the database backup and its matching key. Credentials stored as `enc:v1` cannot
-be decrypted with a missing or different key.
+1. Write a recovery record and confirm you can reach the RCON encryption key.
+2. Stop the updater, CS2, and the panel.
+3. Back up the database and its companion files as one set.
+4. Back up CS2.
+5. Restore the database **into a new location** and check it.
+6. Restore CS2 **into a new location** and check it, including rollback.
+7. Decide how to handle Redis.
+8. Start services again in order, and switch automation back on last.
 
-Set `BACKUP_ROOT` to a private filesystem away from the running host. These
-commands create a timestamped directory and stop if that path already exists:
+Rules that apply throughout:
+
+- Never copy data while a service can still write it.
+- Never overwrite or reuse an earlier backup.
+- Never restore over the original.
+- Never store the key with the backup.
+
+## Before you start: the recovery record and the key
+
+**The recovery record.** Before you stop any service, create a private record with:
+
+- the repository revision;
+- the current and candidate CS2 image digests;
+- the installed CS2 build ID;
+- plugin package names and versions;
+- the checksum of `server-bootstrap/capabilities.json`;
+- the repository CFG checksum manifest;
+- the backup checksum manifest;
+- the backup time;
+- the name of the person who tested the restore.
+
+The [deployment guide](../deploy/README.md) lists the exact field names.
+
+**The RCON encryption key** (`RCON_SECRET_KEY`):
+
+- Keep it **outside** the database backup, in your secret manager or in offline recovery
+  escrow, under a separately controlled key reference.
+- The recovery record may contain that reference and the key version, but **never the key
+  itself**.
+- Before you change anything, confirm that you can reach both the database backup and its
+  matching key. Credentials stored as `enc:v1` cannot be decrypted with a missing or
+  different key.
+
+**Create a fresh backup folder.** Set `BACKUP_ROOT` to a private filesystem away from the
+running host. These commands create a timestamped folder and stop if that path already
+exists:
 
 ```bash
 : "${BACKUP_ROOT:?Set BACKUP_ROOT to a private backup filesystem}"
@@ -32,13 +63,15 @@ sudo test ! -e "$BACKUP_DIR" || exit 1
 sudo install -d -m 0700 "$BACKUP_DIR"
 ```
 
-Do not reuse or overwrite a prior backup.
+Do not reuse or overwrite an earlier backup.
 
 ## Stop services before copying data
 
-Disable updater automation first. For a CS2 server managed by systemd, use the
-systemd stop command. For the supplied Compose runtime, use the Compose stop
-command. Run both only when both deployments exist.
+Stop the updater's automation **first**. Then stop CS2 and the panel:
+
+- If CS2 is managed by systemd, use the systemd commands.
+- If you use the supplied Compose runtime, use the Compose command.
+- Run both only if both deployments exist.
 
 ```bash
 sudo systemctl stop 3rr-update.timer
@@ -52,17 +85,20 @@ docker compose --env-file deploy/compose/panel.env \
   -f deploy/compose/control-plane.compose.yaml stop panel redis
 ```
 
-Before copying any files, confirm that the CS2 runtime and panel are stopped.
-`systemctl is-active` should report `inactive`, and `docker compose ps` should
-show no running `cs2-runtime` or `panel` container. Never copy the SQLite main
-file while a process can still write its journal or WAL.
+**Confirm they are stopped before copying anything:**
 
-## Back up the SQLite files
+- `systemctl is-active` should report `inactive`.
+- `docker compose ps` should show no running `cs2-runtime` or `panel` container.
 
-Set `DB_PATH_ON_HOST` to the actual host file behind `DB_PATH`. If you use the
-supplied named volume, inspect it to find the file instead of assuming a Docker
-data-root path. Once the panel is stopped, copy the main database and every
-sidecar that exists as one set:
+Never copy the main SQLite file while a process can still write its journal or WAL file.
+
+## Back up the database
+
+1. Set `DB_PATH_ON_HOST` to the actual file on the host behind `DB_PATH`. If you use the
+   supplied named volume, inspect the volume to find the file; don't assume a Docker
+   data-root path.
+2. With the panel stopped, copy the main database and every companion file that exists, as
+   one set:
 
 ```bash
 : "${DB_PATH_ON_HOST:?Set DB_PATH_ON_HOST to the resolved SQLite file}"
@@ -83,27 +119,37 @@ sudo chmod 0600 "$BACKUP_DIR/control-plane/SHA256SUMS"
 sudo sh -c 'cd "$1" && sha256sum -c SHA256SUMS' sh "$BACKUP_DIR/control-plane"
 ```
 
-The backup must contain the main database. A sidecar is optional only if it did
-not exist after the clean stop. Keep any `-wal`, `-shm`, and `-journal` files
-with the main file while checking and restoring the backup. Never mix in a
-sidecar from another backup.
+The commands above:
+
+- copy the database and each companion file with owner-only permissions;
+- write a `SHA256SUMS` checksum file;
+- immediately check the copies against it.
+
+**Rules for the set:**
+
+- The backup **must** contain the main database.
+- A companion file (`-wal`, `-shm`, `-journal`) may be missing only if it did not exist after
+  the clean stop.
+- Keep companion files with the main file while checking and restoring.
+- **Never mix in a companion file from another backup.**
 
 ## Back up CS2
 
 Include all of the following:
 
 - the complete persistent CS2 installation or Compose volume, including
-  `steamapps/appmanifest_730.acf`;
-- private bootstrap files such as `admins.json` and `admin_groups.json`, with
-  their owner-only permissions;
-- private server CFG and generated `3rr-secrets.cfg`, or independently held
-  source secrets sufficient to recreate it;
-- the repository CFG bundle from `server-bootstrap/assets/cfg` and the exact
-  repository revision;
-- every installed map and plugin, with package name, version, and upstream
-  artifact checksum where available.
+  `steamapps/appmanifest_730.acf` (the file where Steam records the installed build);
+- private bootstrap files such as `admins.json` and `admin_groups.json`, with their
+  owner-only permissions;
+- private server CFG files and the generated `3rr-secrets.cfg`, or source secrets held
+  separately that are enough to recreate it;
+- the repository CFG bundle from `server-bootstrap/assets/cfg`, and the exact repository
+  revision;
+- every installed map and plugin, with package name, version, and upstream artifact checksum
+  where available.
 
-Read and record the installed build ID from the stopped volume:
+Read and record the installed build ID from the stopped volume, and record the repository
+checksums:
 
 ```bash
 : "${CS2_VOLUME:?Set CS2_VOLUME to the stopped CS2 installation root}"
@@ -115,15 +161,18 @@ find server-bootstrap/assets/cfg -type f -print0 | sort -z | xargs -0 sha256sum 
 sudo chmod 0600 "$BACKUP_DIR/repository-cfg.SHA256SUMS"
 ```
 
-Copy the stopped CS2 volume, private bootstrap files, repository CFG bundle,
-and plugin-version list into private subdirectories under `BACKUP_DIR`.
-Preserve their ownership and modes. Generate and check a checksum manifest for
-the complete backup with the same `find | sort | sha256sum` pattern used for
-SQLite. Check it again after transferring the backup off the host.
+Then:
 
-## Restore SQLite in a separate location
+1. Copy the stopped CS2 volume, the private bootstrap files, the repository CFG bundle, and
+   the plugin-version list into private subfolders under `BACKUP_DIR`. Keep their ownership
+   and modes.
+2. Generate and check a checksum manifest for the **complete** backup, using the same
+   `find | sort | sha256sum` pattern as for the database.
+3. Check it again after moving the backup off the host.
 
-Restore into an empty private directory and leave the original untouched:
+## Restore the database in a separate location
+
+Restore into an empty private folder and leave the original untouched:
 
 ```bash
 : "${RESTORE_ROOT:?Set RESTORE_ROOT to a private restore filesystem}"
@@ -144,17 +193,23 @@ sudo sh -eu -c '
 ' sh "$BACKUP_DIR/control-plane" "$RESTORE_DB_DIR" "$DB_BASENAME"
 ```
 
-Set the restored directory and files to the actual panel runtime owner. Inspect
-the deployed image or existing volume to find the correct UID, and add it to the
-recovery record. Create a private Compose override that mounts `RESTORE_DB_DIR`
-at `/home/container/data`. In that override, set `DB_PATH` to
-`/home/container/data/` plus the restored database basename and provide the
-matching `RCON_SECRET_KEY` from its separate storage. Set `RECOVERY_OVERRIDE` to
-the path of the override file.
+The checksums are checked both before and after copying.
 
-Add the new, empty Redis volume described below to the private override before
-starting any service. Keep the original Redis volume intact. Start Redis and
-the panel, then check the restored database and credentials:
+**Prepare the restored panel:**
+
+1. Give the restored folder and files to the actual user the panel runs as. Inspect the
+   deployed image or the existing volume to find the correct UID (numeric user ID), and add
+   it to the recovery record.
+2. Create a private Compose override file. In it:
+   - mount `RESTORE_DB_DIR` at `/home/container/data`;
+   - set `DB_PATH` to `/home/container/data/` followed by the restored database's file name;
+   - provide the matching `RCON_SECRET_KEY` from its separate storage.
+3. Set `RECOVERY_OVERRIDE` to the path of that override file.
+4. Before you start any service, add the new, empty Redis volume to the override. See
+   [Redis: fresh start or restore](#redis-fresh-start-or-restore). Keep the original Redis
+   volume intact.
+
+Start Redis and the panel, then check the restored database and credentials:
 
 ```bash
 docker compose --env-file deploy/compose/panel.env \
@@ -164,58 +219,81 @@ docker compose --env-file deploy/compose/panel.env \
 curl --fail --silent --show-error http://127.0.0.1:3000/api/health
 ```
 
-Sign in and make one authenticated, read-only server status request. As part of
-the rehearsal, provide a known wrong key and confirm that the panel cannot
-decrypt a stored RCON credential. Restore the correct key before continuing.
-Confirm that restored directories use mode `0700` and that database, sidecar,
-bootstrap, and private CFG files use mode `0600`. Compare the source and backup
-checksums again to make sure the rehearsal did not modify either copy.
+**Checks:**
+
+- Sign in and make one signed-in, **read-only** server status request.
+- **Wrong-key test** (rehearsal): provide a known wrong key and confirm that the panel
+  *cannot* decrypt a stored RCON credential. Restore the correct key before you continue.
+- Confirm that restored folders use mode `0700`, and that the database, companion,
+  bootstrap, and private CFG files use mode `0600`.
+- Compare the source and backup checksums again to make sure the rehearsal changed neither
+  copy.
 
 ## Restore CS2 in a separate location
 
-Restore the CS2 volume to an empty path or a new named volume. Check the full
-backup manifest before copying and check it again at the destination. Confirm:
+Restore the CS2 volume to an empty path or a new named volume. Check the full backup manifest
+before copying, and check it again at the destination. Then confirm:
 
 1. `appmanifest_730.acf` contains the recorded build ID.
-2. Repository CFG checksums match the recorded repository revision.
-3. Bootstrap and private CFG files are owner-only and contain the intended
-   deployment data.
-4. Every required plugin ID in `server-bootstrap/capabilities.json` maps to an
-   installed, recorded plugin package and version.
-5. The selected `CS2_IMAGE` equals the recorded immutable candidate digest.
+2. The repository CFG checksums match the recorded repository revision.
+3. The bootstrap and private CFG files are owner-only and contain the intended deployment
+   data.
+4. Every required plugin ID in `server-bootstrap/capabilities.json` maps to an installed,
+   recorded plugin package and version.
+5. The selected `CS2_IMAGE` equals the recorded, immutable candidate digest.
 
-Keep the original volume and previous image digest intact. Start the restored
-runtime against the new volume and check CS2 startup, the configured map, local
-RCON authentication, and plugin loading. Stop it, then confirm that the previous
-image can still start with the original volume. This completes the rollback
-rehearsal.
+**Rollback rehearsal.** Keep the original volume and the previous image digest intact, then:
 
-## Choose how to recover Redis
+1. Start the restored runtime against the new volume.
+2. Check CS2 startup, the configured map, local RCON login, and plugin loading.
+3. Stop the restored runtime.
+4. Confirm that the previous image still starts with the original volume.
 
-By default, recovery starts Redis with no existing data. This invalidates active
-sessions and resets rate-limit counters. In a private Compose override, replace
-the `redis` service's `/data` mount with a new named volume such as
-`redis-recovery-data`. Keep the existing `panel-redis` volume. Confirm that the
-new volume is empty, then start Redis with the override before starting the
-restored panel.
+That last check completes the rollback rehearsal.
 
-Restore Redis data only when your deployment requires session continuity. In
-that case, document the decision, stop Redis after the panel, back up its volume
-separately, and rehearse that restore separately. If you cannot confirm the
-copy's integrity or key continuity, discard it and require users to sign in
-again.
+## Redis: fresh start or restore
+
+**Default: start Redis empty.** This ends all active logins and resets rate-limit counters.
+
+1. In the private Compose override, replace the `redis` service's `/data` mount with a new
+   named volume, for example `redis-recovery-data`.
+2. Keep the existing `panel-redis` volume.
+3. Confirm the new volume is empty.
+4. Start Redis with the override **before** starting the restored panel.
+
+**Restore Redis data only if your deployment needs logins to survive.** In that case:
+
+1. Document the decision.
+2. Stop Redis after the panel.
+3. Back up the Redis volume separately.
+4. Rehearse that restore separately.
+
+If you cannot confirm the copy's integrity or that the key matches, discard it and make users
+sign in again.
 
 ## Bring services back in order
 
-After the separate restore passes its checks, start Redis, then the panel, then
-the CS2 runtime. Check `/api/health`, sign-in, read-only status, local RCON, the
-build ID, CFG checksums, and plugin versions. Run the updater once with
-`--dry-run`, followed by one supervised normal run. Re-enable
-`3rr-update.timer` only after every check passes. Keep controls that change
-server state disabled until both the control plane and CS2 work as expected.
+After the separate restore passes its checks:
 
-The repository also includes checks for the backup and restore directory
-layout:
+1. Start Redis, then the panel, then the CS2 runtime.
+2. Check:
+   - `/api/health`;
+   - sign-in;
+   - a read-only status request;
+   - local RCON;
+   - the build ID;
+   - CFG checksums;
+   - plugin versions.
+3. Run the updater once with `--dry-run` (it reports what it would do without doing it), then
+   once as a normal run while you watch.
+4. Turn `3rr-update.timer` back on **only after every check passes**.
+
+Keep the controls that change server state disabled until both the panel and CS2 work as
+expected.
+
+## What the repository's own tests cover
+
+The repository includes checks for the backup and restore **folder layout**:
 
 ```bash
 bash scripts/recovery-layout-rehearsal.test.sh
@@ -224,5 +302,38 @@ npm run build
 node --test --test-name-pattern='recovery rehearsal' dist/test/integration/recovery-rehearsal.test.js
 ```
 
-These commands do not test a production backup, secret manager, Docker volume,
-CS2, RCON, Redis, SteamCMD, systemd, or network path.
+**These commands do not test:**
+
+- a production backup;
+- a secret manager;
+- a Docker volume;
+- CS2 or RCON;
+- Redis;
+- SteamCMD or systemd;
+- a network path.
+
+Only your own rehearsal on disposable paths shows that your backups can actually be restored.
+
+See also: the [panel runbook](../control-plane/docs/RUNBOOK.md#backup-and-recovery) for the
+short version, and [Architecture](architecture.md#where-data-lives) for what data lives where.
+
+## Glossary
+
+- **Checksum / `SHA256SUMS`**: a fingerprint of each file, and the file that lists them. Used
+  to prove a copy is identical to the original.
+- **Companion files**: the `-wal`, `-shm`, and `-journal` files SQLite may keep next to the
+  database. Also called sidecars.
+- **Compose override**: an extra Compose file that changes settings of the main one without
+  editing it.
+- **Dry run (`--dry-run`)**: running the updater so it reports what it would do without doing
+  it.
+- **`enc:v1`**: the format used for encrypted stored RCON passwords.
+- **Escrow**: keeping a secret with a trusted custodian, offline, for recovery.
+- **Image digest**: a fixed identifier for one exact container image version.
+- **Named volume**: storage that Docker manages for a container.
+- **Panel (control plane)**: 3RR's web application.
+- **RCON encryption key (`RCON_SECRET_KEY`)**: the key that encrypts stored RCON passwords.
+- **Redis**: the data store for login sessions and rate limits.
+- **Rollback**: going back to the previous working version.
+- **systemd timer**: a scheduled trigger; `3rr-update.timer` starts the updater automatically.
+- **UID**: the numeric ID of a Linux user.

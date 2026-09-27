@@ -4,6 +4,15 @@
 
 ### Changed
 
+- Redesigned the control-plane interface as a strict VGUI system: raised
+  elements can be pressed, sunken elements show what the server reported, and
+  dashed outlines show requested values that are not yet true. Barlow Semi
+  Condensed and Barlow Condensed replace system fonts (Inter and Syne, which
+  were unused, are removed). The olive texture is gone, and gold is limited to
+  the commit action and the current selection. Tool tabs moved to the top of
+  the server page, with the session steps inside Setup. Routes, IDs,
+  `data-*` attributes, and behavior are unchanged.
+
 - Reorganized the repository around `control-plane`, `host-updater`,
   `server-bootstrap`, and `deploy` without changing the HTTP API,
   environment settings, SQLite v3 schema, `enc:v1` credential format, RCON
@@ -26,6 +35,14 @@
 - CodeQL analysis for TypeScript/JavaScript and workflows.
 - HTTP-level integration tests for servers, users, workshop favorites, auth,
   and health.
+
+### Fixed
+
+- Keep the host updater in its fail-closed unknown state when the public Steam
+  branch has no build ID, even if another branch does, and reject malformed
+  digest-pinned image names in the deployment preflight.
+- Pin patched transitive releases for request query parsing and the ESLint
+  filesystem helper.
 
 ## [1.1.0-alpha.1] - 2026-07-23
 

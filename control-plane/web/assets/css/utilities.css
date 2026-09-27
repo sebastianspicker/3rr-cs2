@@ -1,19 +1,15 @@
-/* Utilities */
-
-.mono {
-  font-family: var(--font-mono);
-}
+/* Utilities. */
 
 .mb-3 {
-  margin-bottom: var(--space-4);
+  margin-bottom: var(--s-4);
 }
 
 .mb-sm {
-  margin-bottom: var(--space-2);
+  margin-bottom: var(--s-2);
 }
 
 .mt-sm {
-  margin-top: var(--space-2);
+  margin-top: var(--s-2);
 }
 
 .w-100 {
@@ -22,7 +18,7 @@
 
 .small,
 small {
-  font-size: 0.75rem;
+  font-size: var(--fs-small);
 }
 
 .text-muted {
@@ -30,20 +26,14 @@ small {
 }
 
 .text-danger {
-  color: var(--danger) !important;
+  color: var(--bad) !important;
 }
 
-.app-footer,
-.site-footer {
-  color: var(--muted);
-  font-size: 0.72rem;
-  margin-inline: auto;
-  max-width: var(--content-max);
-  padding: 0 clamp(var(--space-4), 3vw, var(--space-10)) var(--space-6);
-}
-
-.site-footer p {
-  margin: 0;
+/* Standalone error text gets its tinted surface so it stays AA on the window. */
+p.text-danger {
+  background: var(--bad-bg);
+  border-left: 4px solid var(--bad);
+  padding: var(--s-1) var(--s-3);
 }
 
 @keyframes spin {
@@ -53,19 +43,7 @@ small {
 }
 
 @keyframes skeleton {
-  0% {
-    background-position: 200% 0;
+  to {
+    opacity: 0.7;
   }
-  100% {
-    background-position: -200% 0;
-  }
-}
-
-.site-footer {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 24px;
-  font-size: 0.7rem;
-  padding: 0 4px 24px;
-  width: calc(100% - 32px);
 }

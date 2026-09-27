@@ -30,6 +30,9 @@ paths used by those releases.
 
 ### Fixed
 
+- Treat a missing public-branch build ID as unknown even when Steam metadata
+  contains a build ID for another branch, so the updater keeps the service
+  running.
 - Restore and confirm the CS2 service after update failure, timeout, partial
   stop failure, or termination while stopping.
 - Reject malformed config lines and unterminated quoted values.
