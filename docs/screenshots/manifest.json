@@ -2,7 +2,6 @@
   "capturedAt": "2026-09-27T06:47:55.501Z",
   "source": "control-plane Express/EJS application",
   "data": "Disposable SQLite and deterministic RCON fixture; no live CS2 server",
-  "command": "cd control-plane && npm run build && node scripts/capture-screenshots.mjs",
   "browser": "Chromium 153.0.8010.12",
   "captures": [
     {

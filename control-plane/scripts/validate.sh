@@ -95,7 +95,7 @@ if [[ $require_docker -eq 1 ]]; then
   log "validate: docker"
   docker_ok || die "$(docker_unavailable_message)"
 
-  run docker build -t 3rr-control-plane:local "${ROOT}"
+  run docker build -f "${ROOT}/Dockerfile" -t 3rr-control-plane:local "${REPOSITORY_ROOT}"
 
   if docker compose version >/dev/null 2>&1; then
     run docker compose -f "${REPOSITORY_ROOT}/deploy/compose/control-plane.compose.yaml" config -q

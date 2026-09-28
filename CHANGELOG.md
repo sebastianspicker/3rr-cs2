@@ -22,10 +22,8 @@
 - RCON code is reached only through `src/integrations/rcon/index.ts`, and its
   SQLite access moved to `src/infrastructure/sqlite`. SQL in the control plane
   now lives only in feature `repository.ts` modules and that directory; the
-  architecture check enforces both rules.
-- CI runs the verifier's sections as parallel jobs behind one `verify` check.
-  `scripts/verify.sh` gained `--only`, `--quick`, and `--help`, needs Bash 4,
-  and fails when tracked file modes drift from `scripts/executable-files.txt`.
+  architecture rules define both boundaries.
+- CI runs build and deployment checks in parallel behind one `verify` check.
 - The GitHub repository is now `3rr-cs2`; the Pages demo moved to
   <https://sebastianspicker.github.io/3rr-cs2/> and includes a screenshot tour.
 
@@ -33,16 +31,13 @@
 
 - Dependabot updates for npm, GitHub Actions, and the Docker base image.
 - CodeQL analysis for TypeScript/JavaScript and workflows.
-- HTTP-level integration tests for servers, users, workshop favorites, auth,
-  and health.
 
 ### Fixed
 
 - Keep the host updater in its fail-closed unknown state when the public Steam
   branch has no build ID, even if another branch does, and reject malformed
   digest-pinned image names in the deployment preflight.
-- Pin patched transitive releases for request query parsing and the ESLint
-  filesystem helper.
+- Pin a patched transitive release for request query parsing.
 
 ## [1.1.0-alpha.1] - 2026-07-23
 

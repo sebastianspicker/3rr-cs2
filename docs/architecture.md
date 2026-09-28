@@ -57,7 +57,7 @@ How to read the diagram:
 | `deploy/`                    | Provide Compose and systemd examples                                                                                              | Examples only; you choose images, storage, networks, proxies, and secrets                                     |
 | `design-preview/`            | Show the current interface with fixed sample data                                                                                 | Static pages built from the panel's templates and styles; local interactions without production connections |
 
-The panel, updater, and bootstrap module can each be built, tested, and deployed
+The panel, updater, and bootstrap module can each be built, validated, and deployed
 independently. The static demo is separate from the deployed system.
 
 ## Inside the panel: code layers
@@ -95,8 +95,7 @@ What each layer holds:
 - `integrations`: the RCON network boundary.
 - `shared`: small utilities that depend on nothing else.
 
-Dependencies point *away* from the assembly code. The rules below keep each layer replaceable
-and testable, and `npm run check:architecture` checks them in the source code:
+Dependencies point *away* from the assembly code. The rules below keep each layer replaceable:
 
 - `features`, `infrastructure`, and `integrations` never import `app`.
 - `infrastructure` never imports `features` or `integrations`.
@@ -210,7 +209,7 @@ observations. On the fleet page, at most four status HTTP requests run at once.
 - `web/assets/`: stylesheet and image sources.
 - `web/generated/`: generated build output. **Never edit it by hand.**
 
-Browser scripts and tests find page elements by template IDs and `data-*` attributes. That
+Browser scripts find page elements by template IDs and `data-*` attributes. That
 makes these attributes part of the contract between templates and scripts: renaming one breaks
 behaviour. See the [frontend guide](../control-plane/docs/FRONTEND.md).
 
@@ -264,7 +263,7 @@ separately. Details are in the [runbook](../control-plane/docs/RUNBOOK.md#health
 - New external protocols go under `src/integrations`. Local storage and service adapters go
   under `src/infrastructure`.
 - Add browser behaviour in the source folders, and keep the DOM attributes that existing
-  scripts and tests depend on.
+  scripts depend on.
 
 These compatibility and safety guarantees must stay in place:
 

@@ -10,10 +10,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /build
 
-COPY package.json package-lock.json .npmrc ./
+COPY control-plane/package.json control-plane/package-lock.json control-plane/.npmrc ./
 RUN npm ci && rm -rf /root/.npm /tmp/*
 
-COPY . .
+COPY control-plane/ .
+COPY LICENSE ./LICENSE
 
 RUN npm run build && \
   find dist -name '*.map' -delete && \

@@ -52,15 +52,11 @@ Run from the repository root after changing templates, catalog, or styles:
 ```bash
 node design-preview/build.mjs
 node --check design-preview/preview.js
-node design-preview/verify.mjs
+node design-preview/build.mjs --check
 ```
 
-The verifier runs `build.mjs --check` without writing files. It fails when
-tracked HTML, styles, or mark differ from the current production
-sources, when the demo references missing, external, or root-absolute assets
-or uses runtime network APIs, or when the screenshot tour's captions or file
-names do not match `docs/screenshots/manifest.json`. No npm installation is
-required.
+The `--check` mode compares tracked HTML, styles, and the mark with current
+production sources without writing files. No npm installation is required.
 `preview.js` owns local interactions; `preview.css` contains only demo
 notices. Generated `index.html` and `panel.css` should be refreshed through
 the build script instead of edited directly.

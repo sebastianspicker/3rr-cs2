@@ -7,5 +7,5 @@
 - `server-bootstrap` is a rewrite of bootstrap concepts from
   `cs2-modded-server-egg`; it is not a restored Pterodactyl runtime.
 
-The root repository is MIT licensed. Imported module directories retain their
-upstream license and notice files where applicable.
+The root repository is MIT licensed. Bundled third-party assets retain their
+license notices where applicable.

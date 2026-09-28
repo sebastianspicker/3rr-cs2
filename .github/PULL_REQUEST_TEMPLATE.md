@@ -12,8 +12,7 @@
 
 <!-- List the commands you ran and their results. Explain any checks you could not run. -->
 
-- [ ] Tests cover the changed behavior, where applicable.
-- [ ] `./scripts/verify.sh` passed, or I listed the checks I could not run below.
+- [ ] Relevant build and deployment checks passed, or I listed what I could not run below.
 - [ ] Documentation matches the change.
 - [ ] The changes and attachments contain no credentials, personal paths, temporary reports, or private notes.
 

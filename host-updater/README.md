@@ -79,8 +79,8 @@ When run as root, the configured log directory and existing log file must be
 root-owned and must not be group- or world-writable. Keep `LOGFILE` outside the
 `steam` account's writable home directory.
 
-`ALLOW_NONROOT` and `NO_SLEEP` are reserved for the test suite. Do not add them
-to the configuration file.
+`ALLOW_NONROOT` and `NO_SLEEP` are diagnostic settings. Do not add them to the
+configuration file.
 
 ## Requirements
 
@@ -124,13 +124,6 @@ sudo systemctl enable --now 3rr-update.timer
 Monitor the CS2 service and updater log while the second command runs. Enable
 the timer only after the dry run and supervised update both succeed.
 
-## Development checks
-
-Run the updater checks from `host-updater/`:
-
-```bash
-make ci
-```
-
-The updater has no web interface and does not require the control plane. Run the
-repository-wide checks from the repository root when preparing a release.
+The updater has no web interface and does not require the control plane.
+Before installation, run `shellcheck -x -P host-updater host-updater/3rr-update.sh
+host-updater/lib/*.sh` from the repository root.

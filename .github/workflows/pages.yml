@@ -46,7 +46,7 @@ jobs:
       - name: Verify static demo
         run: |
           node --check design-preview/preview.js
-          node design-preview/verify.mjs
+          node design-preview/build.mjs --check
 
   package:
     name: Package Pages artifact

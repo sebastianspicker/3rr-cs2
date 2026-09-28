@@ -20,10 +20,7 @@ Two mistakes cause the worst outcomes, and both are covered below:
 - npm
 - Redis, for production
 - Docker with Compose, for the included container deployment
-- `shellcheck`, `shfmt`, `jq`, and `ruby`, for the code checks
-
-The full repository check (`./scripts/verify.sh`) also needs `make`, `curl`, and a running
-Docker daemon; see the [README](../../README.md#for-contributors-checks).
+- `shellcheck`, `shfmt`, `jq`, and `ruby`, for configuration validation
 
 ## Configure
 
@@ -128,17 +125,12 @@ finish. A second signal forces it to exit.
 ## Checking the code before deploying
 
 ```bash
-npm run format:check
-npm run lint
 npm run typecheck
-npm test
 npm run build
 npm run validate -- --require-docker
 ```
 
-`npm run validate` needs Docker only when you pass `--require-docker`. From the repository
-root, `./scripts/verify.sh` runs these checks together with the host-updater and
-server-bootstrap checks.
+`npm run validate` needs Docker only when you pass `--require-docker`.
 
 ## Backup and recovery
 

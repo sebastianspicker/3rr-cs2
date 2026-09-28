@@ -111,7 +111,7 @@ The updater reads these keys from `3rr-update.conf`:
 
 The updater rejects unknown keys, duplicate active keys, malformed lines, and
 empty values for safety-critical settings. `ALLOW_NONROOT` and `NO_SLEEP` are
-reserved for tests and cannot be set in the configuration file.
+diagnostic flags and cannot be set in the configuration file.
 
 Each `systemctl` start, stop, and status check runs under GNU
 `timeout --foreground` with a ten-second kill grace period. If you change the

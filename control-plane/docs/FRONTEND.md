@@ -28,12 +28,13 @@ session flow, with its own local interaction code and no production connections.
 Edit the source directories above rather than `web/generated`.
 
 After changing panel templates or styles, run `node design-preview/build.mjs`
-from the repository root and review the browser demo. Its verifier rejects
-stale generated markup or styling; see the [demo guide](../../design-preview/README.md).
+from the repository root and review the browser demo. Use
+`node design-preview/build.mjs --check` to detect stale generated markup or
+styling; see the [demo guide](../../design-preview/README.md).
 
 ## Templates and requests
 
-Browser modules and tests use template IDs and `data-*` attributes, so changing
+Browser modules use template IDs and `data-*` attributes, so changing
 them can break behavior even when the rendered page looks the same. Requests
 that change state stay on the same origin and include the rendered
 `X-CSRF-Token`. As described in the [HTTP API](API.md), the interface keeps
@@ -116,11 +117,7 @@ list scrolls inside a limited-height area. Standard radio-button keyboard
 controls keep every server reachable. Theme choices support arrow keys. Validation failures
 identify the affected field or move focus to the relevant message.
 
-`npm run test:browser` runs Chromium against the real Express application with
-a temporary SQLite database and fixed RCON responses. Assistive-technology and
-other-browser testing are still manual release checks.
+Assistive-technology and browser compatibility checks require manual review.
 
 The page uses no background imagery or texture. All controls and text are
-HTML, and users can switch to the light appearance. The design rationale and
-the directions considered are recorded in the repository's
-[design brief](../../DESIGN_BRIEF.md).
+HTML, and users can switch to the light appearance.

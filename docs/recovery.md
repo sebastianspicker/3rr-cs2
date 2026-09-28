@@ -291,18 +291,10 @@ After the separate restore passes its checks:
 Keep the controls that change server state disabled until both the panel and CS2 work as
 expected.
 
-## What the repository's own tests cover
+## Verify your recovery procedure
 
-The repository includes checks for the backup and restore **folder layout**:
-
-```bash
-bash scripts/recovery-layout-rehearsal.test.sh
-cd control-plane
-npm run build
-node --test --test-name-pattern='recovery rehearsal' dist/test/integration/recovery-rehearsal.test.js
-```
-
-**These commands do not test:**
+A disposable recovery rehearsal should cover your own backup layout and
+deployment. The repository build checks do not exercise:
 
 - a production backup;
 - a secret manager;

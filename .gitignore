@@ -38,9 +38,6 @@ admin_groups.json
 .env
 .env.*
 *.env
-# Updater CI manifests contain tool versions and source-file lists.
-!/host-updater/scripts/ci-tools-versions.env
-!/host-updater/scripts/shell-files.env
 !.env.example
 !**/.env.example
 !.env.sample
@@ -81,14 +78,6 @@ coverage.xml
 .gitleaks-report.json
 .eslintcache
 
-# Codacy CLI state; the concise tool manifest remains tracked
-/.codacy/.gitignore
-/.codacy/cli-config.yaml
-/.codacy/codacy.config.json
-/.codacy/generated/
-/.codacy/logs/
-/.codacy/tools-configs/
-
 # Logs and temporary files
 *.log
 *.pid
@@ -101,15 +90,23 @@ coverage.xml
 *.swo
 *~
 
-# Editor, operating-system, and local analysis state
+# Editor, operating-system, and local tool state
 .DS_Store
 Thumbs.db
 /.idea/
 /.vscode/
 /.mcp.json
 /.internal/
+/.codacy/
 /.serena/
 /.codegraph/
+/.repowise/
+/.impeccable/
+/.continue/
+/.windsurf/
+/.history/
+/.cache/
+.aider*/
 
 # Development-assistant files and private working notes
 AGENT.md
@@ -130,6 +127,7 @@ GEMINI.md
 .kilo/
 prompts/
 prompt/
+*.prompt.md
 agent-prompts/
 ai-prompts/
 copilot-instructions.md
@@ -179,3 +177,56 @@ development-log*
 
 # Local design research; public captures belong in docs/screenshots/
 /design-exploration/
+
+# Linked worktrees and nested checkouts
+/.worktrees/
+/worktrees/
+/.claude/worktrees/
+/.codex/worktrees/
+
+# Tests, fixtures, and coverage files
+**/test/
+**/tests/
+**/__tests__/
+**/__snapshots__/
+**/fixtures/
+pytest.ini
+conftest.py
+jest.config.*
+playwright*.config.*
+.coverage*
+
+# Local development helpers and work-in-progress documents
+**/scripts/verify.sh
+**/scripts/capture-screenshots.mjs
+**/scripts/check-doc-links.rb
+**/scripts/check-architecture.mjs
+**/scripts/format.sh
+**/scripts/executable-files.txt
+**/scripts/*-rehearsal.test.sh
+/scripts/validate.sh
+/scripts/check-deployment-contract.test.sh
+/apps/maintain/updater/scripts/
+/host-updater/scripts/
+/apps/maintain/updater/Makefile
+/host-updater/Makefile
+/apps/operate/panel/scripts/validate.sh
+eslint.config.*
+.prettierignore
+.prettierrc*
+.gitleaks.toml
+/DESIGN_BRIEF.md
+/docs/RELEASING.md
+/docs/archive/
+/docs/migration-ledger.md
+/docs/*-followup.md
+/docs/*-notes.md
+/docs/*-cleanup.md
+/docs/*-report.md
+/docs/repo-audit-*.md
+**/ADR/
+**/adrs/
+**/roadmap/
+**/planning/
+TODO*
+*_draft.md

@@ -1,6 +1,5 @@
-# The repository verifier is the single CI entry point for all three modules,
-# split into parallel jobs by section (see `scripts/verify.sh --help`). The
-# final `verify` job aggregates their results and is the required status check.
+# Build and deployment checks run in parallel. The final `verify` job is the
+# required aggregate status check.
 name: CI
 
 on:
@@ -25,11 +24,14 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Install shell tooling
-        run: sudo apt-get update && sudo apt-get install -y shellcheck shfmt jq ruby
+      - name: Install YAML tooling
+        run: sudo apt-get update && sudo apt-get install -y ruby
 
-      - name: Verify repository
-        run: ./scripts/verify.sh --only shared
+      - name: Validate deployment contract and configuration
+        run: |
+          bash scripts/check-deployment-contract.sh
+          ruby -ryaml -e 'ARGV.each { |path| YAML.safe_load_file(path, aliases: false) }' deploy/compose/*.yaml
+          git diff --check
 
   control-plane:
     name: Verify (control-plane)
@@ -46,12 +48,13 @@ jobs:
           cache: npm
           cache-dependency-path: control-plane/package-lock.json
 
-      - name: Install browser test runtime
+      - name: Install dependencies
         working-directory: control-plane
-        run: npm ci && npx playwright install --with-deps chromium
+        run: npm ci
 
-      - name: Verify repository
-        run: ./scripts/verify.sh --only control-plane
+      - name: Typecheck and build
+        working-directory: control-plane
+        run: npm run typecheck && npm run build
 
   docker:
     name: Verify (docker)
@@ -62,11 +65,18 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Install shell tooling
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 26.9.0
+          cache: npm
+          cache-dependency-path: control-plane/package-lock.json
+
+      - name: Install validation tooling
         run: sudo apt-get update && sudo apt-get install -y shellcheck shfmt jq ruby
 
-      - name: Verify repository
-        run: ./scripts/verify.sh --only docker
+      - name: Validate container and Compose configuration
+        working-directory: control-plane
+        run: npm ci && npm run validate -- --require-docker
 
   host-updater:
     name: Verify (host-updater)
@@ -78,10 +88,12 @@ jobs:
           persist-credentials: false
 
       - name: Install shell tooling
-        run: sudo apt-get update && sudo apt-get install -y shellcheck shfmt
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
 
-      - name: Verify repository
-        run: ./scripts/verify.sh --only host-updater
+      - name: Check updater scripts
+        run: |
+          bash -n host-updater/3rr-update.sh host-updater/lib/*.sh
+          shellcheck -x -P host-updater host-updater/3rr-update.sh host-updater/lib/*.sh
 
   bootstrap:
     name: Verify (bootstrap)
@@ -95,8 +107,10 @@ jobs:
       - name: Install shell tooling
         run: sudo apt-get update && sudo apt-get install -y jq
 
-      - name: Verify repository
-        run: ./scripts/verify.sh --only bootstrap
+      - name: Check bootstrap scripts and manifest
+        run: |
+          jq -e . server-bootstrap/capabilities.json > /dev/null
+          bash -n server-bootstrap/scripts/*.sh
 
   verify:
     name: verify

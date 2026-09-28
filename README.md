@@ -14,9 +14,9 @@ Browser control and host tooling for self-hosted Counter-Strike 2 (CS2) servers.
 - **Who it's for.** Community operators and server administrators who **already have a CS2
   host**. Each part of 3RR works on its own, so you can use only what you need.
 
-- **Status: alpha.** Test it on a non-critical server before you use it for a scheduled
-  match. The [release checklist](docs/RELEASING.md) lists the deployment and recovery
-  checks.
+- **Status: alpha.** Try it on a non-critical server before you use it for a scheduled
+  match. Review the [deployment examples](deploy/README.md) and
+  [recovery guide](docs/recovery.md) before a real deployment.
 - **The core idea.** 3RR never treats "command sent" as "done". It shows what you
   *requested* separately from what the server actually *reports*.
 
@@ -27,7 +27,7 @@ Browser control and host tooling for self-hosted Counter-Strike 2 (CS2) servers.
 ## Screenshot tour
 
 These screenshots show the current panel with fictional servers and simulated RCON replies.
-The [capture guide](docs/screenshots/README.md) explains how to reproduce them.
+The [screenshot notes](docs/screenshots/README.md) describe the simulated data.
 
 ### 1. Choose a server
 
@@ -95,8 +95,7 @@ cp -n .env.example .env
 chmod 600 .env
 ```
 
-The last command makes the settings file readable only by you. Edit `.env` before you start
-:
+The last command makes the settings file readable only by you. Edit `.env` before you start:
 
 - Set `SESSION_SECRET` (signs login sessions) and `RCON_SECRET_KEY` (the RCON encryption key,
   which encrypts stored RCON passwords) to **two different** random values. Run
@@ -127,36 +126,21 @@ it. Then add an existing CS2 server with its address, port, and RCON password.
   [CS2 server requirements](control-plane/docs/SERVER-SETUP.md): the panel can only trigger
   what is installed on the server.
 
-## For contributors: checks
+## Check a local build
 
 Run these from the repository root:
 
 ```bash
-(cd control-plane && npm ci && npm run check)
+(cd control-plane && npm ci && npm run typecheck && npm run build)
 (cd control-plane && npm run validate -- --require-docker)
-(cd host-updater && make ci)
+node design-preview/build.mjs --check
+bash scripts/check-deployment-contract.sh
 ```
 
-The full repository check is:
-
-```bash
-./scripts/verify.sh
-```
-
-It needs Node 26 (or its Docker fallback), a working Docker daemon with Compose, `make`,
-`shellcheck`, `shfmt`, `jq`, `ruby`, and `curl`. It checks the documentation, configuration,
-the panel and its container, updater behaviour, and bootstrap scripts. It also checks that
-tracked executable file permissions match `scripts/executable-files.txt`.
-
-**What it cannot check:** live CS2 and RCON, SteamCMD, systemd, production Redis, and
-off-host recovery. These still need testing in a real deployment. The static demo has its
-[own checks](design-preview/README.md#source-alignment).
-
-To run only some sections, use `./scripts/verify.sh --only <section>[,<section>...]`. The
-sections are `shared`, `control-plane`, `docker`, `host-updater`, and `bootstrap`. Use
-`--quick` to run everything except `docker`, and `--help` for details. Neither option replaces
-the full run with no arguments before a release. See [CONTRIBUTING.md](CONTRIBUTING.md) for
-the contribution workflow and screenshot updates.
+The container validation requires Docker with Compose, plus `shellcheck`, `shfmt`,
+`jq`, and `ruby`. These checks do not exercise live CS2 and RCON, SteamCMD,
+systemd, production Redis, or off-host recovery. See
+[CONTRIBUTING.md](CONTRIBUTING.md) for the contribution workflow.
 
 ## Documentation map
 
@@ -171,7 +155,6 @@ the contribution workflow and screenshot updates.
 - [Migrate from Pterodactyl](docs/workflows/migrate-from-pterodactyl.md)
 - [Product principles](PRODUCT.md) and
   [module provenance](docs/reference/provenance.md)
-- [Design brief for the current interface](DESIGN_BRIEF.md)
 
 ## Security and license
 
@@ -179,7 +162,7 @@ Never commit session secrets, RCON keys or passwords, Game Server Login Tokens,
 administrator files, or databases to Git. Allow RCON only from trusted hosts. Report
 vulnerabilities as described in [SECURITY.md](SECURITY.md).
 
-[MIT License](LICENSE). Imported modules and bundled fonts keep their own license notices.
+[MIT License](LICENSE). Bundled fonts keep their own license notices.
 
 ## Repository name
 

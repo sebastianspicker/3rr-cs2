@@ -68,20 +68,6 @@ paths used by those releases.
 - `df -Pk` (POSIX portable) replaces platform-specific flags.
 - Systemd unit and README quick-start now reference the same `/opt/cs2-server-ops/…` install layout.
 
-### Tests
-
-- Added tests for unchanged build IDs after reported success, failed remote
-  lookups in `--status`, reused PIDs in stale locks, and stop/start retry
-  failures.
-
-### Added
-
-- 19 new test cases (40 total): `--help`, `--version`, `--status`, `-c FILE`, validation edge cases, disk space, webhook, config file parsing, stale lock without PID file.
-- Configurable `df` mock (`DF_AVAILABLE`) and `curl` mock for webhook tests.
-- Test counter and summary output.
-- `make help` and `make clean` Makefile targets.
-- Pinned shfmt SHA-256 checksums in `ci-tools-versions.env`.
-
 ### Changed
 
 - Trap now handles `SIGTERM`, `SIGINT`, `SIGHUP` in addition to `EXIT`.
@@ -90,8 +76,6 @@ paths used by those releases.
 - Webhook JSON escaping handles backslashes, newlines, carriage returns, and tabs.
 - Logfile created with mode `0640` and log directory with `0750` (not world-readable).
 - `run_as_steam()` removes redundant `return $?` and trims trailing space in `su` command string.
-- Reset all environment variables in `run_validation_test()` so one test
-  cannot affect the next.
 - `CONTRIBUTING.md` expanded with local setup, formatting style, and CODEOWNERS info.
 - README config table now includes `DRY_RUN`, `ALLOW_NONROOT`, `NO_SLEEP`; documents all CLI flag forms.
 
@@ -106,8 +90,6 @@ paths used by those releases.
 
 ### Additional security changes
 
-- Pinned shfmt checksums locally instead of downloading them alongside the
-  release being checked.
 - Signal handling: cleanup trap covers SIGTERM/SIGINT/SIGHUP to prevent lock leaks on kill.
 - File permissions: new logfiles are not world-readable.
 
@@ -146,9 +128,6 @@ paths used by those releases.
   `CONFIG_AND_TRIM_VARS` lists the permitted keys and values to trim.
 - Moved defaults into `apply_defaults()`, called after loading configuration
   and again after trimming values.
-- Tests: removed redundant `tests/bin/df` (inline mock in `run.sh` only); added `run_validation_test()` helper for validation tests.
-- Documented that the Makefile `ci` target runs checks in the same order as
-  the CI workflow.
 
 ## [1.5.0] - 2026-02-19
 
@@ -158,24 +137,20 @@ paths used by those releases.
 - `LOG_LEVEL=quiet|normal|verbose` (quiet: only ERROR/WARNING).
 - Optional config file: `CONFIG_FILE` or `cs2-auto-update.conf` next to script; same keys as env.
 - Optional webhook notification on successful update: `NOTIFY_WEBHOOK_URL` (e.g. Discord/Slack).
-- Added `scripts/shell-files.env` as the shared file list for `lint.sh` and
-  `fmt.sh`.
 - LOGFILE path validation (no `..`).
 
 ### Changed
 
 - `.gitignore`: added `.cursor/`; slimmer (Bash-only repo).
-- README: exit codes, config file, webhook, and repository structure (`shell-files.env`).
+- README: exit codes, config file, and webhook.
 
 ## [1.4.0] - 2026-01-31
 
 ### Added
 
 - Remote buildid check via `steamcmd +app_info_print` to avoid unnecessary service restarts when up-to-date.
-- Added `tests/run.sh` with command stubs for testing control flow without
-  Steam or systemd.
 - Added `CS2_APP_ID` and `SLEEP_SECS` settings, plus `ALLOW_NONROOT` and
-  `NO_SLEEP` for tests.
+  `NO_SLEEP` for diagnostics.
 
 ### Changed
 
@@ -186,8 +161,6 @@ paths used by those releases.
 
 ### Added
 
-- Local/CI lint tooling via `scripts/lint.sh` and GitHub Actions.
-- `shfmt` auto-format helper via `scripts/fmt.sh`.
 - Optional buildid-based update detection via `steamapps/appmanifest_730.acf`.
 
 ### Changed

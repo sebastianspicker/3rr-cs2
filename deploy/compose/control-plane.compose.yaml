@@ -4,7 +4,8 @@
 services:
   panel:
     build:
-      context: ../../control-plane
+      context: ../..
+      dockerfile: control-plane/Dockerfile
     depends_on:
       redis:
         condition: service_healthy

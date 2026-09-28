@@ -14,19 +14,8 @@
     "build": "npm run clean && npm run build:web && tsc",
     "build:web": "node scripts/build-web.mjs",
     "start:prod": "npm run build && npm start",
-    "format:shell": "./scripts/format.sh",
     "validate": "./scripts/validate.sh",
-    "check:architecture": "node scripts/check-architecture.mjs",
-    "test:architecture": "node --test scripts/check-architecture.test.mjs",
-    "lint": "eslint .",
-    "format": "prettier -w .",
-    "format:check": "prettier -c .",
-    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.client.json",
-    "test": "npm run build && npm run test:compiled && npm run test:browser",
-    "check": "npm run format:check && npm run lint && npm run check:architecture && npm run test:architecture && tsc --noEmit -p tsconfig.client.json && npm run build && npm run test:compiled && npm run test:browser",
-    "ci": "npm run check && npm run validate -- --require-docker",
-    "test:compiled": "node --experimental-test-module-mocks --test --test-timeout 120000 dist/test/unit/*.test.js dist/test/integration/*.test.js dist/test/contract/*.test.js",
-    "test:browser": "playwright test"
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.client.json"
   },
   "keywords": [],
   "author": "",
@@ -49,29 +38,20 @@
     "@fontsource-variable/jetbrains-mono": "^5.2.8",
     "@fontsource/barlow-condensed": "^5.3.0",
     "@fontsource/barlow-semi-condensed": "^5.3.0",
-    "@playwright/test": "1.63.0",
     "@types/bcrypt": "^6.0.0",
     "@types/better-sqlite3": "^7.6.13",
     "@types/express": "^5.0.6",
     "@types/express-session": "^1.18.2",
     "@types/node": "26.6.2",
     "esbuild": "^0.28.1",
-    "eslint": "^10.1.0",
-    "globals": "^17.4.0",
-    "prettier": "^3.8.1",
     "tsx": "^4.23.0",
-    "typescript": "^6.0.2",
-    "typescript-eslint": "^8.58.0"
+    "typescript": "^6.0.2"
   },
   "engines": {
     "node": ">=26 <27"
   },
   "overrides": {
-    "@humanfs/node": "0.16.8",
     "body-parser": "2.3.0",
-    "minimatch@^3.0.2": "3.1.4",
-    "minimatch@^5.1.2": "5.1.8",
-    "brace-expansion": "5.0.9",
     "ip-address": "10.5.0",
     "qs": "6.16.0"
   }

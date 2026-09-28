@@ -9,8 +9,7 @@ It includes:
 - `assets/cfg/`: shipped game-mode CFG files
 - `assets/cfg/server-provided/`: server-local reference CFGs that are not
   installed automatically
-- `capabilities.json`: lists the CFG assets and their plugin requirements; the
-  test suite keeps this list in sync with the shipped files
+- `capabilities.json`: lists the CFG assets and their plugin requirements
 - an atomic, mode-`0600` writer for CounterStrikeSharp administrator files
 - a startup wrapper that validates runtime values and keeps RCON and GSLT
   credentials out of the launched process environment
@@ -48,12 +47,5 @@ review it and install it separately as the server's local `live.cfg`.
 The wrapper requires `RCON_PASSWORD`. `CS2_GSLT` is optional. It accepts ports
 from 1 through 65535 and player limits from 1 through 64.
 
-## Development checks
-
-Run these checks from the repository root:
-
-```bash
-bash server-bootstrap/tests/bootstrap-output-safety.test.sh
-bash server-bootstrap/tests/startup-wrapper-safety.test.sh
-bash server-bootstrap/tests/capabilities-contract.test.sh
-```
+Before deployment, review `capabilities.json` against the shipped CFG files
+and run `bash -n server-bootstrap/scripts/*.sh` from the repository root.

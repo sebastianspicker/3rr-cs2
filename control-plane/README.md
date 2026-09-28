@@ -12,8 +12,7 @@ also never runs shell commands on a CS2 host.
 ## Architecture
 
 `src/main.ts` starts the process and wires together SQLite, Redis, RCON, and
-the Express application. `npm run check:architecture` enforces the source
-dependencies:
+the Express application. Its source directories have these responsibilities:
 
 - `src/app`: application assembly, lifecycle, authentication, security, rate
   limits, and health
@@ -81,32 +80,18 @@ builds the web assets and watches the application for changes.
 not the Node process. See [the environment reference](../docs/reference/env.md)
 for every shared setting.
 
-## Development and checks
+## Build checks
 
 ```bash
-npx playwright install chromium
-npm run check
+npm run typecheck
+npm run build
 npm run validate -- --require-docker
-npm run ci
 ```
 
-`npm run check` checks formatting, lint rules, architecture, and browser types;
-creates a clean build; and runs the backend unit, integration, and contract
-tests plus the Chromium browser tests. `npm run validate -- --require-docker`
-also checks the deployment configuration. It does not connect to a live CS2
-server over RCON.
-
-`npm run test:compiled` and `npm run test:browser` reuse the current build.
-`npm test` creates a clean build before running both suites. The browser tests
-start the real Express application with a temporary SQLite database and fixed
-RCON responses, so they do not need a production server or credentials.
-
-On Linux, install Chromium and its system dependencies once before running the
-tests:
-
-```bash
-npx playwright install --with-deps chromium
-```
+`npm run typecheck` checks server and browser TypeScript. `npm run build`
+creates the server and browser assets. `npm run validate -- --require-docker`
+checks shell scripts, configuration, and the container build. It does not
+connect to a live CS2 server over RCON.
 
 Use `npm ci` for local and CI installations so both use the versions in the
 checked-in lockfile. Docker creates its own clean production build.
