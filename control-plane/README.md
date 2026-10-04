@@ -84,29 +84,15 @@ for every shared setting.
 ## Development and checks
 
 ```bash
-npx playwright install chromium
 npm run check
 npm run validate -- --require-docker
 npm run ci
 ```
 
-`npm run check` checks formatting, lint rules, architecture, and browser types;
-creates a clean build; and runs the backend unit, integration, and contract
-tests plus the Chromium browser tests. `npm run validate -- --require-docker`
+`npm run check` checks formatting, lint rules, architecture, and browser types,
+and creates a clean build. `npm run validate -- --require-docker`
 also checks the deployment configuration. It does not connect to a live CS2
 server over RCON.
-
-`npm run test:compiled` and `npm run test:browser` reuse the current build.
-`npm test` creates a clean build before running both suites. The browser tests
-start the real Express application with a temporary SQLite database and fixed
-RCON responses, so they do not need a production server or credentials.
-
-On Linux, install Chromium and its system dependencies once before running the
-tests:
-
-```bash
-npx playwright install --with-deps chromium
-```
 
 Use `npm ci` for local and CI installations so both use the versions in the
 checked-in lockfile. Docker creates its own clean production build.

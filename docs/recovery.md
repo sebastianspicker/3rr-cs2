@@ -297,9 +297,6 @@ The repository includes checks for the backup and restore **folder layout**:
 
 ```bash
 bash scripts/recovery-layout-rehearsal.test.sh
-cd control-plane
-npm run build
-node --test --test-name-pattern='recovery rehearsal' dist/test/integration/recovery-rehearsal.test.js
 ```
 
 **These commands do not test:**

@@ -22,11 +22,8 @@
     "format": "prettier -w .",
     "format:check": "prettier -c .",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.client.json",
-    "test": "npm run build && npm run test:compiled && npm run test:browser",
-    "check": "npm run format:check && npm run lint && npm run check:architecture && npm run test:architecture && tsc --noEmit -p tsconfig.client.json && npm run build && npm run test:compiled && npm run test:browser",
-    "ci": "npm run check && npm run validate -- --require-docker",
-    "test:compiled": "node --experimental-test-module-mocks --test --test-timeout 120000 dist/test/unit/*.test.js dist/test/integration/*.test.js dist/test/contract/*.test.js",
-    "test:browser": "playwright test"
+    "check": "npm run format:check && npm run lint && npm run check:architecture && npm run test:architecture && tsc --noEmit -p tsconfig.client.json && npm run build",
+    "ci": "npm run check && npm run validate -- --require-docker"
   },
   "keywords": [],
   "author": "",

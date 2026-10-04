@@ -47,13 +47,3 @@ review it and install it separately as the server's local `live.cfg`.
 
 The wrapper requires `RCON_PASSWORD`. `CS2_GSLT` is optional. It accepts ports
 from 1 through 65535 and player limits from 1 through 64.
-
-## Development checks
-
-Run these checks from the repository root:
-
-```bash
-bash server-bootstrap/tests/bootstrap-output-safety.test.sh
-bash server-bootstrap/tests/startup-wrapper-safety.test.sh
-bash server-bootstrap/tests/capabilities-contract.test.sh
-```

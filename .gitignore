@@ -179,3 +179,11 @@ development-log*
 
 # Local design research; public captures belong in docs/screenshots/
 /design-exploration/
+
+# Internal design brief and test suites are not published
+/DESIGN_BRIEF.md
+/control-plane/test/
+/control-plane/playwright.config.ts
+/control-plane/scripts/capture-screenshots.mjs
+/host-updater/tests/
+/server-bootstrap/tests/

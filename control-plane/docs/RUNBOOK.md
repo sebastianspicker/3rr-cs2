@@ -131,7 +131,6 @@ finish. A second signal forces it to exit.
 npm run format:check
 npm run lint
 npm run typecheck
-npm test
 npm run build
 npm run validate -- --require-docker
 ```

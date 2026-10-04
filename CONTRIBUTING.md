@@ -37,9 +37,6 @@ repository root:
 (cd control-plane && npm run check)
 (cd control-plane && npm run validate -- --require-docker)
 (cd host-updater && make ci)
-bash server-bootstrap/tests/bootstrap-output-safety.test.sh
-bash server-bootstrap/tests/capabilities-contract.test.sh
-bash server-bootstrap/tests/startup-wrapper-safety.test.sh
 node --check design-preview/preview.js
 node design-preview/verify.mjs
 ```
@@ -50,17 +47,6 @@ For documentation changes, check local links and whitespace:
 ruby scripts/check-doc-links.rb
 git diff --check
 ```
-
-If a frontend change affects the README tour, rebuild and refresh the
-screenshots using the temporary test data:
-
-```bash
-cd control-plane
-npm run build
-node scripts/capture-screenshots.mjs
-```
-
-The [capture guide](docs/screenshots/README.md) lists the browser requirements.
 
 Run `./scripts/verify.sh` from the repository root when a change crosses
 modules or affects release requirements. Use `--only <section>[,<section>...]`

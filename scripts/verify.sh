@@ -256,10 +256,7 @@ run_shared() {
     "${ROOT}/scripts/recovery-layout-rehearsal.test.sh" \
     "${ROOT}/server-bootstrap/scripts/bootstrap-admins.sh" \
     "${ROOT}/server-bootstrap/scripts/bootstrap-output.sh" \
-    "${ROOT}/server-bootstrap/scripts/server-start.sh" \
-    "${ROOT}/server-bootstrap/tests/bootstrap-output-safety.test.sh" \
-    "${ROOT}/server-bootstrap/tests/capabilities-contract.test.sh" \
-    "${ROOT}/server-bootstrap/tests/startup-wrapper-safety.test.sh"
+    "${ROOT}/server-bootstrap/scripts/server-start.sh"
   run shfmt -d -i 2 -bn -ci \
     "${ROOT}/scripts/verify.sh" \
     "${ROOT}/scripts/check-deployment-contract.sh" \
@@ -267,10 +264,7 @@ run_shared() {
     "${ROOT}/scripts/recovery-layout-rehearsal.test.sh" \
     "${ROOT}/server-bootstrap/scripts/bootstrap-admins.sh" \
     "${ROOT}/server-bootstrap/scripts/bootstrap-output.sh" \
-    "${ROOT}/server-bootstrap/scripts/server-start.sh" \
-    "${ROOT}/server-bootstrap/tests/bootstrap-output-safety.test.sh" \
-    "${ROOT}/server-bootstrap/tests/capabilities-contract.test.sh" \
-    "${ROOT}/server-bootstrap/tests/startup-wrapper-safety.test.sh"
+    "${ROOT}/server-bootstrap/scripts/server-start.sh"
   run ruby -ryaml -e "YAML.safe_load(File.read('${ROOT}/deploy/compose/control-plane.compose.yaml'), aliases: false, filename: '${ROOT}/deploy/compose/control-plane.compose.yaml')" >/dev/null
   run ruby -ryaml -e "YAML.safe_load(File.read('${ROOT}/deploy/compose/server-runtime.compose.yaml'), aliases: false, filename: '${ROOT}/deploy/compose/server-runtime.compose.yaml')" >/dev/null
   run bash "${ROOT}/scripts/check-deployment-contract.sh"
@@ -305,7 +299,6 @@ run_control_plane() {
   local control_plane_cmd='set -euo pipefail
 cd /workspace/control-plane
 npm ci
-npx playwright install --with-deps chromium
 npm run check
 node --check ../design-preview/preview.js
 node ../design-preview/verify.mjs'
@@ -355,9 +348,6 @@ run_host_updater() {
 run_bootstrap() {
   log "server bootstrap"
   cd "${ROOT}"
-  run server-bootstrap/tests/bootstrap-output-safety.test.sh
-  run server-bootstrap/tests/capabilities-contract.test.sh
-  run bash server-bootstrap/tests/startup-wrapper-safety.test.sh
   run server-bootstrap/scripts/bootstrap-admins.sh "${tmpdir}/provision"
 }
 

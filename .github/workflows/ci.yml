@@ -46,9 +46,9 @@ jobs:
           cache: npm
           cache-dependency-path: control-plane/package-lock.json
 
-      - name: Install browser test runtime
+      - name: Install dependencies
         working-directory: control-plane
-        run: npm ci && npx playwright install --with-deps chromium
+        run: npm ci
 
       - name: Verify repository
         run: ./scripts/verify.sh --only control-plane

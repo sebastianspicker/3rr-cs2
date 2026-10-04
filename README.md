@@ -171,7 +171,6 @@ the contribution workflow and screenshot updates.
 - [Migrate from Pterodactyl](docs/workflows/migrate-from-pterodactyl.md)
 - [Product principles](PRODUCT.md) and
   [module provenance](docs/reference/provenance.md)
-- [Design brief for the current interface](DESIGN_BRIEF.md)
 
 ## Security and license
 

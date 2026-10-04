@@ -116,11 +116,7 @@ list scrolls inside a limited-height area. Standard radio-button keyboard
 controls keep every server reachable. Theme choices support arrow keys. Validation failures
 identify the affected field or move focus to the relevant message.
 
-`npm run test:browser` runs Chromium against the real Express application with
-a temporary SQLite database and fixed RCON responses. Assistive-technology and
-other-browser testing are still manual release checks.
+Assistive-technology and other-browser testing are manual release checks.
 
 The page uses no background imagery or texture. All controls and text are
-HTML, and users can switch to the light appearance. The design rationale and
-the directions considered are recorded in the repository's
-[design brief](../../DESIGN_BRIEF.md).
+HTML, and users can switch to the light appearance.
