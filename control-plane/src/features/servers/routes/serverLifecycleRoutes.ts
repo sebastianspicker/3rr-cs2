@@ -6,6 +6,9 @@ import { isValidServerHostResolved, type RconManager } from '../../../integratio
 import { RconSecretDecryptError } from '../../../infrastructure/credentials/rconCredential';
 import type { ServerAccess } from '../../server-access/access';
 import { createServersRepository } from '../repository';
+import { createRouteRateLimit } from '../../../shared/routeRateLimit';
+
+const routeRateLimit = createRouteRateLimit();
 const RCON_CREDENTIAL_STORAGE_ERROR =
   'Stored RCON credential could not be decrypted; check RCON_SECRET_KEY or saved credential';
 
@@ -63,7 +66,7 @@ export function createServerLifecycleRoutes(
     }
   });
 
-  router.post('/api/delete-server', isAuthenticated, async (req, res) => {
+  router.post('/api/delete-server', isAuthenticated, routeRateLimit, async (req, res) => {
     try {
       const serverId = requireServerId(req, res);
       if (!serverId) return;

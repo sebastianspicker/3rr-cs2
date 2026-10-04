@@ -5,6 +5,9 @@ import logger from '../../../infrastructure/logging';
 import type { RequestHandler } from 'express';
 import type { UserPersistence } from './persistence';
 import { hashPassword, verifyPassword } from './passwords';
+import { createRouteRateLimit } from '../../../shared/routeRateLimit';
+
+const routeRateLimit = createRouteRateLimit();
 
 const ChangePasswordSchema = z.object({
   currentPassword: z.string().min(1),
@@ -28,7 +31,7 @@ export function registerPasswordRoutes(
   isAuthenticated: RequestHandler,
   { findUserPassword, updateUserPassword }: UserPersistence
 ): void {
-  router.post('/api/users/change-password', isAuthenticated, async (req, res) => {
+  router.post('/api/users/change-password', isAuthenticated, routeRateLimit, async (req, res) => {
     const parseResult = ChangePasswordSchema.safeParse(req.body);
     if (!parseResult.success) {
       return res

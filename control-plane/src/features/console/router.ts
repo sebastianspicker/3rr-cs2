@@ -17,6 +17,9 @@ import {
   createAutocompleteLoader,
   parseAutocompleteLimit,
 } from './autocomplete';
+import { createRouteRateLimit } from '../../shared/routeRateLimit';
+
+const routeRateLimit = createRouteRateLimit();
 
 export function createConsoleRouter(
   db: Database.Database,
@@ -27,7 +30,7 @@ export function createConsoleRouter(
   const router = express.Router();
   const { clearRconHistory, listRconHistory } = createRconHistoryRepository(db);
   const { loadAutocomplete } = createAutocompleteLoader(rcon);
-  router.get('/api/players/:server_id', isAuthenticated, async (req, res) => {
+  router.get('/api/players/:server_id', isAuthenticated, routeRateLimit, async (req, res) => {
     const serverId = requireAuthorizedServerIdParam(req, res);
     if (!serverId) return;
     const [usersResult, statusResult] = await Promise.allSettled([
@@ -75,28 +78,33 @@ export function createConsoleRouter(
       error: errors.length ? errors.join('; ') : null,
     });
   });
-  router.get('/api/rcon/autocomplete/:server_id', isAuthenticated, async (req, res) => {
-    const serverId = requireAuthorizedServerIdParam(req, res);
-    if (!serverId) return;
-    try {
-      const refresh = req.query.refresh === '1' || req.query.refresh === 'true';
-      const limit = parseAutocompleteLimit(req.query.limit);
-      const q = autocompleteQuery(req.query.q);
-      const { entry, cached } = await loadAutocomplete(serverId, refresh);
-      return res.json({
-        suggestions: entry.suggestions
-          .filter((suggestion) => !q || suggestion.toLowerCase().includes(q))
-          .slice(0, limit),
-        observed_at: entry.observedAt || null,
-        error: entry.error,
-        cached,
-      });
-    } catch (err) {
-      logger.error({ server_id: serverId, err }, '[rcon] autocomplete error');
-      return res.status(500).json({ error: 'Internal server error' });
+  router.get(
+    '/api/rcon/autocomplete/:server_id',
+    isAuthenticated,
+    routeRateLimit,
+    async (req, res) => {
+      const serverId = requireAuthorizedServerIdParam(req, res);
+      if (!serverId) return;
+      try {
+        const refresh = req.query.refresh === '1' || req.query.refresh === 'true';
+        const limit = parseAutocompleteLimit(req.query.limit);
+        const q = autocompleteQuery(req.query.q);
+        const { entry, cached } = await loadAutocomplete(serverId, refresh);
+        return res.json({
+          suggestions: entry.suggestions
+            .filter((suggestion) => !q || suggestion.toLowerCase().includes(q))
+            .slice(0, limit),
+          observed_at: entry.observedAt || null,
+          error: entry.error,
+          cached,
+        });
+      } catch (err) {
+        logger.error({ server_id: serverId, err }, '[rcon] autocomplete error');
+        return res.status(500).json({ error: 'Internal server error' });
+      }
     }
-  });
-  router.get('/api/rcon/history/:server_id', isAuthenticated, (req, res) => {
+  );
+  router.get('/api/rcon/history/:server_id', isAuthenticated, routeRateLimit, (req, res) => {
     const serverId = requireAuthorizedServerIdParam(req, res);
     if (!serverId) return;
     const userId = req.session.user?.id;
@@ -110,7 +118,7 @@ export function createConsoleRouter(
         .json({ error: 'RCON sent-command history unavailable', history_state: 'unavailable' });
     }
   });
-  router.delete('/api/rcon/history/:server_id', isAuthenticated, (req, res) => {
+  router.delete('/api/rcon/history/:server_id', isAuthenticated, routeRateLimit, (req, res) => {
     const serverId = requireAuthorizedServerIdParam(req, res);
     if (!serverId) return;
     const userId = req.session.user?.id;

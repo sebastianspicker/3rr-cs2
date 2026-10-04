@@ -6,6 +6,9 @@ import logger from '../../../infrastructure/logging';
 import type { createGameRouteFactories } from './gameRouteFactories';
 import { parseConVarValue } from '../../../integrations/rcon';
 import { sendGameRouteError } from './gameCommandExecution';
+import { createRouteRateLimit } from '../../../shared/routeRateLimit';
+
+const routeRateLimit = createRouteRateLimit();
 
 function registerCfgToggle(
   router: Router,
@@ -18,7 +21,7 @@ function registerCfgToggle(
   execCfg: (serverId: string, cfg: string) => Promise<void>,
   isAuthenticated: RequestHandler
 ): void {
-  router.post(path, isAuthenticated, async (req, res) => {
+  router.post(path, isAuthenticated, routeRateLimit, async (req, res) => {
     try {
       const server_id = requireAuthorizedServerId(req, res);
       if (!server_id) return;

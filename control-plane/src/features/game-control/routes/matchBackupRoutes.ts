@@ -14,6 +14,9 @@ import {
 import { sendGameRouteError } from './gameCommandExecution';
 import { createGameRouteFactories } from './gameRouteFactories';
 import { restoreLatestBackup } from './matchBackupService';
+import { createRouteRateLimit } from '../../../shared/routeRateLimit';
+
+const routeRateLimit = createRouteRateLimit();
 
 export function createMatchBackupRoutes(
   rcon: RconManager,
@@ -24,7 +27,7 @@ export function createMatchBackupRoutes(
   const factories = createGameRouteFactories(rcon, { requireAuthorizedServerId } as ServerAccess);
   const { runGameCmd } = factories;
 
-  router.post('/api/list-backups', isAuthenticated, async (req, res) => {
+  router.post('/api/list-backups', isAuthenticated, routeRateLimit, async (req, res) => {
     try {
       const server_id = requireAuthorizedServerId(req, res);
       if (!server_id) return;
@@ -60,7 +63,7 @@ export function createMatchBackupRoutes(
     }
   });
 
-  router.post('/api/restore-round', isAuthenticated, async (req, res) => {
+  router.post('/api/restore-round', isAuthenticated, routeRateLimit, async (req, res) => {
     try {
       const server_id = requireAuthorizedServerId(req, res);
       if (!server_id) return;
@@ -79,7 +82,7 @@ export function createMatchBackupRoutes(
     }
   });
 
-  router.post('/api/restore-latest-backup', isAuthenticated, async (req, res) => {
+  router.post('/api/restore-latest-backup', isAuthenticated, routeRateLimit, async (req, res) => {
     try {
       const server_id = requireAuthorizedServerId(req, res);
       if (!server_id) return;

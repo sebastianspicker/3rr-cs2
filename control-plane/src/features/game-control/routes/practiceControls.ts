@@ -6,6 +6,9 @@ import logger from '../../../infrastructure/logging';
 import { parseConVarValue, parseIntBody } from '../../../integrations/rcon';
 import { sendGameRouteError } from './gameCommandExecution';
 import type { createGameRouteFactories } from './gameRouteFactories';
+import { createRouteRateLimit } from '../../../shared/routeRateLimit';
+
+const routeRateLimit = createRouteRateLimit();
 
 const VALID_GIVE_WEAPONS = [
   'weapon_flashbang',
@@ -137,7 +140,7 @@ export function registerPracticeControls(
     makeSimpleCmdRoute('bot-kick-t', 'bot_kick t', 'T bot kick command sent.')
   );
 
-  router.post('/api/give-weapon', isAuthenticated, async (req, res) => {
+  router.post('/api/give-weapon', isAuthenticated, routeRateLimit, async (req, res) => {
     try {
       const server_id = requireAuthorizedServerId(req, res);
       if (!server_id) return;

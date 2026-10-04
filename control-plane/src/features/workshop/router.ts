@@ -7,6 +7,9 @@ import logger from '../../infrastructure/logging';
 import { parseServerId } from '../server-access/parseServerId';
 import type { ServerAccess } from '../server-access/access';
 import { createWorkshopRepository } from './repository';
+import { createRouteRateLimit } from '../../shared/routeRateLimit';
+
+const routeRateLimit = createRouteRateLimit();
 
 const createSchema = z.object({
   workshop_id: z.string().regex(/^\d{5,20}$/, 'workshop_id must be 5-20 digits'),
@@ -29,12 +32,12 @@ export function createWorkshopRouter(
     const parsed = parseServerId(value);
     return parsed ? Number.parseInt(parsed, 10) : null;
   };
-  router.get('/api/workshop-favorites/:server_id', isAuthenticated, (req, res) => {
+  router.get('/api/workshop-favorites/:server_id', isAuthenticated, routeRateLimit, (req, res) => {
     const serverId = requireAuthorizedServerIdParam(req, res);
     if (!serverId) return;
     return res.json({ favorites: repository.listFavorites(req.session.user?.id, serverId) });
   });
-  router.post('/api/workshop-favorites/:server_id', isAuthenticated, (req, res) => {
+  router.post('/api/workshop-favorites/:server_id', isAuthenticated, routeRateLimit, (req, res) => {
     const serverId = requireAuthorizedServerIdParam(req, res);
     if (!serverId) return;
     const parsed = createSchema.safeParse(req.body);
@@ -46,39 +49,49 @@ export function createWorkshopRouter(
       favorite: repository.findByWorkshopId(userId, serverId, parsed.data.workshop_id),
     });
   });
-  router.patch('/api/workshop-favorites/:server_id/:favorite_id', isAuthenticated, (req, res) => {
-    const serverId = requireAuthorizedServerIdParam(req, res);
-    if (!serverId) return;
-    const id = favoriteId(req.params.favorite_id);
-    if (!id) return res.status(404).json({ error: 'Favorite not found' });
-    const parsed = updateSchema.safeParse(req.body);
-    if (!parsed.success)
-      return res.status(400).json({ error: parsed.error.issues[0]?.message ?? 'Invalid input' });
-    const userId = req.session.user?.id;
-    const existing = repository.findById(userId, serverId, id);
-    if (!existing) return res.status(404).json({ error: 'Favorite not found' });
-    try {
-      repository.updateFavorite(
-        parsed.data.workshop_id ?? existing.workshop_id,
-        parsed.data.name ?? existing.name,
-        id,
-        userId,
-        serverId
-      );
-      return res.json({ favorite: repository.findById(userId, serverId, id) });
-    } catch (error) {
-      logger.warn({ err: error }, '[workshop-favorites] update persistence failed');
-      return res.status(409).json({ error: 'A favorite with that workshop_id already exists' });
+  router.patch(
+    '/api/workshop-favorites/:server_id/:favorite_id',
+    isAuthenticated,
+    routeRateLimit,
+    (req, res) => {
+      const serverId = requireAuthorizedServerIdParam(req, res);
+      if (!serverId) return;
+      const id = favoriteId(req.params.favorite_id);
+      if (!id) return res.status(404).json({ error: 'Favorite not found' });
+      const parsed = updateSchema.safeParse(req.body);
+      if (!parsed.success)
+        return res.status(400).json({ error: parsed.error.issues[0]?.message ?? 'Invalid input' });
+      const userId = req.session.user?.id;
+      const existing = repository.findById(userId, serverId, id);
+      if (!existing) return res.status(404).json({ error: 'Favorite not found' });
+      try {
+        repository.updateFavorite(
+          parsed.data.workshop_id ?? existing.workshop_id,
+          parsed.data.name ?? existing.name,
+          id,
+          userId,
+          serverId
+        );
+        return res.json({ favorite: repository.findById(userId, serverId, id) });
+      } catch (error) {
+        logger.warn({ err: error }, '[workshop-favorites] update persistence failed');
+        return res.status(409).json({ error: 'A favorite with that workshop_id already exists' });
+      }
     }
-  });
-  router.delete('/api/workshop-favorites/:server_id/:favorite_id', isAuthenticated, (req, res) => {
-    const serverId = requireAuthorizedServerIdParam(req, res);
-    if (!serverId) return;
-    const id = favoriteId(req.params.favorite_id);
-    if (!id) return res.status(404).json({ error: 'Favorite not found' });
-    const changes = repository.deleteFavorite(id, req.session.user?.id, serverId);
-    if (changes === 0) return res.status(404).json({ error: 'Favorite not found' });
-    return res.json({ message: 'Favorite deleted' });
-  });
+  );
+  router.delete(
+    '/api/workshop-favorites/:server_id/:favorite_id',
+    isAuthenticated,
+    routeRateLimit,
+    (req, res) => {
+      const serverId = requireAuthorizedServerIdParam(req, res);
+      if (!serverId) return;
+      const id = favoriteId(req.params.favorite_id);
+      if (!id) return res.status(404).json({ error: 'Favorite not found' });
+      const changes = repository.deleteFavorite(id, req.session.user?.id, serverId);
+      if (changes === 0) return res.status(404).json({ error: 'Favorite not found' });
+      return res.json({ message: 'Favorite deleted' });
+    }
+  );
   return router;
 }

@@ -94,7 +94,9 @@ for (const id of requiredIds) {
 if (!/Design demo · simulated data/.test(html))
   fail("index.html: missing the simulated-data disclosure");
 
-for (const match of html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)) {
+for (const match of html.matchAll(
+  /<script\b([^>]*)>([\s\S]*?)<\/script[^>]*>/gi,
+)) {
   const attributes = match[1];
   if (/\btype=["']application\/json["']/i.test(attributes)) {
     try {
@@ -136,7 +138,9 @@ if (!tourSection) {
     );
   } catch (error) {
     manifest = null;
-    fail(`docs/screenshots/manifest.json: missing or invalid (${error.message})`);
+    fail(
+      `docs/screenshots/manifest.json: missing or invalid (${error.message})`,
+    );
   }
   const figures = [
     ...tourSection[0].matchAll(
@@ -146,7 +150,9 @@ if (!tourSection) {
   if (!figures.length) fail("index.html: screenshot tour has no images");
   for (const [, file, , caption] of figures) {
     if (!existsSync(path.join(screenshotsDir, file))) {
-      fail(`docs/screenshots/${file}: referenced by the screenshot tour but missing`);
+      fail(
+        `docs/screenshots/${file}: referenced by the screenshot tour but missing`,
+      );
       continue;
     }
     const capture = manifest?.captures.find((entry) => entry.file === file);

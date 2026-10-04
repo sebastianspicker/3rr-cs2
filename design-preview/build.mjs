@@ -78,12 +78,24 @@ const inventory = render("servers")
 const manage = render("manage")
   .match(/<main[\s\S]*?<\/main>/)[0]
   .replace('id="main"', 'id="manage-main"');
-const navbar = render("partials/navbar")
-  .replace(/<script[\s\S]*?<\/script>/g, "")
-  .replace(
-    /<form[\s\S]*?<\/form>/g,
-    '<p class="small text-muted">Local demo · no account required</p>',
-  );
+// Repeat until stable so removing one element cannot splice a new one together.
+const replaceUntilStable = (html, pattern, replacement) => {
+  let previous;
+  do {
+    previous = html;
+    html = html.replace(pattern, replacement);
+  } while (html !== previous);
+  return html;
+};
+const navbar = replaceUntilStable(
+  replaceUntilStable(
+    render("partials/navbar"),
+    /<script\b[\s\S]*?<\/script[^>]*>/gi,
+    "",
+  ),
+  /<form\b[\s\S]*?<\/form[^>]*>/gi,
+  '<p class="small text-muted">Local demo · no account required</p>',
+);
 const screenshots = JSON.parse(
   fs.readFileSync(
     path.resolve(dir, "../docs/screenshots/manifest.json"),
@@ -125,10 +137,7 @@ const css =
     .join("\n");
 const outputs = new Map([
   ["index.html", Buffer.from(html.replace(/[ \t]+$/gm, ""))],
-  [
-    "panel.css",
-    Buffer.from(css.replaceAll("'/fonts/", "'fonts/")),
-  ],
+  ["panel.css", Buffer.from(css.replaceAll("'/fonts/", "'fonts/"))],
   ["3rr-mark.svg", fs.readFileSync(path.join(web, "assets/3rr-mark.svg"))],
 ]);
 let stale = false;

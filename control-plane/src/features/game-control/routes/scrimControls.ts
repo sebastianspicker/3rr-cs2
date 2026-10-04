@@ -6,6 +6,9 @@ import logger from '../../../infrastructure/logging';
 import { parseConVarValue, parseIntBody, requireAllowlisted } from '../../../integrations/rcon';
 import { sendGameRouteError } from './gameCommandExecution';
 import type { createGameRouteFactories } from './gameRouteFactories';
+import { createRouteRateLimit } from '../../../shared/routeRateLimit';
+
+const routeRateLimit = createRouteRateLimit();
 
 const VALID_OT_ROUNDS = [3, 5, 6] as const;
 
@@ -21,7 +24,7 @@ export function registerScrimControls(
     makePresetRoute('set-maxrounds', 'mp_maxrounds', [16, 24, 30])
   );
 
-  router.post('/api/set-overtime', isAuthenticated, async (req, res) => {
+  router.post('/api/set-overtime', isAuthenticated, routeRateLimit, async (req, res) => {
     try {
       const server_id = requireAuthorizedServerId(req, res);
       if (!server_id) return;

@@ -10,6 +10,9 @@ import type { MatchRepository } from './repository';
 import { applySetup, validateSetup } from './matchSetupService';
 import { sendGameRouteError } from './gameCommandExecution';
 import { createGameRouteFactories } from './gameRouteFactories';
+import { createRouteRateLimit } from '../../../shared/routeRateLimit';
+
+const routeRateLimit = createRouteRateLimit();
 
 export function createMatchSetupRoutes(
   rcon: RconManager,
@@ -22,7 +25,7 @@ export function createMatchSetupRoutes(
   const factories = createGameRouteFactories(rcon, access);
   const { makeToggleRoute, makeSimpleCmdRoute, makeSequenceRoute } = factories;
 
-  router.post('/api/setup-game', isAuthenticated, async (req, res) => {
+  router.post('/api/setup-game', isAuthenticated, routeRateLimit, async (req, res) => {
     try {
       const server_id = requireAuthorizedServerId(req, res);
       if (!server_id) return;

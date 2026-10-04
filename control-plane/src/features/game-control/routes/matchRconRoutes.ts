@@ -14,6 +14,9 @@ import {
   type RconManager,
 } from '../../../integrations/rcon';
 import { sendGameRouteError } from './gameCommandExecution';
+import { createRouteRateLimit } from '../../../shared/routeRateLimit';
+
+const routeRateLimit = createRouteRateLimit();
 
 export function createMatchRconRoutes(
   rcon: RconManager,
@@ -24,7 +27,7 @@ export function createMatchRconRoutes(
   const router = express.Router();
   const { executeRecordedCommand } = createRecordedCommandExecutor(rcon, history);
 
-  router.post('/api/rcon', isAuthenticated, async (req, res) => {
+  router.post('/api/rcon', isAuthenticated, routeRateLimit, async (req, res) => {
     try {
       const server_id = requireAuthorizedServerId(req, res);
       if (!server_id) return;
@@ -48,7 +51,7 @@ export function createMatchRconRoutes(
     }
   });
 
-  router.post('/api/say-admin', isAuthenticated, async (req, res) => {
+  router.post('/api/say-admin', isAuthenticated, routeRateLimit, async (req, res) => {
     try {
       const server_id = requireAuthorizedServerId(req, res);
       if (!server_id) return;

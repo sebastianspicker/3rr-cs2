@@ -1,6 +1,6 @@
 /* Local fixtures only. Production templates/styles are built by build.mjs. */
 "use strict";
-const $ = (id) => document.getElementById(id);
+const byId = (id) => document.getElementById(id);
 const servers = [
   {
     id: 1,
@@ -53,10 +53,10 @@ const escapeHtml = (value) =>
 const titleCase = (value) =>
   value ? value.charAt(0).toUpperCase() + value.slice(1) : "";
 const text = (id, value) => {
-  $(id).textContent = value;
+  byId(id).textContent = value;
 };
 const show = (id, visible) => {
-  $(id).hidden = !visible;
+  byId(id).hidden = !visible;
 };
 function notice(message) {
   text("demo-notice", message);
@@ -65,10 +65,10 @@ function notice(message) {
   noticeTimer = setTimeout(() => show("demo-notice", false), 5000);
 }
 function renderServers() {
-  $("nav-server-list").innerHTML = servers
+  byId("nav-server-list").innerHTML = servers
     .map(
       (server) =>
-        `<li><a class="nav-server rail-server${selected?.id === server.id ? " is-active" : ""}" href="#setup" data-demo-server="${server.id}"${selected?.id === server.id ? ' aria-current="location"' : ""}><span class="nav-server-copy"><strong>${server.name}</strong><span class="nav-server-endpoint">${server.host}</span></span></a></li>`,
+        `<li><a class="nav-server rail-server${selected?.id === server.id ? " is-active" : ""}" href="#setup" data-demo-server="${escapeHtml(server.id)}"${selected?.id === server.id ? ' aria-current="location"' : ""}><span class="nav-server-copy"><strong>${escapeHtml(server.name)}</strong><span class="nav-server-endpoint">${escapeHtml(server.host)}</span></span></a></li>`,
     )
     .join("");
   const stats = {
@@ -83,20 +83,20 @@ function renderServers() {
     ),
   };
   for (const [id, value] of Object.entries(stats)) text(id, value);
-  const search = $("server-search").value.toLowerCase();
-  const filter = $("server-status-filter").value;
+  const search = byId("server-search").value.toLowerCase();
+  const filter = byId("server-status-filter").value;
   const list = servers.filter(
     (s) =>
       `${s.name} ${s.host}`.toLowerCase().includes(search) &&
       (filter === "all" || filter === s.state),
   );
-  $("serverList").innerHTML = list
+  byId("serverList").innerHTML = list
     .map(
       (s) =>
-        `<div class="server-card server-choice-row${selected?.id === s.id ? " is-selected" : ""}" role="row"><div class="card-header server-choice" role="cell"><input type="radio" name="server-choice" id="server-choice-${s.id}" value="${s.id}" ${selected?.id === s.id ? "checked" : ""}><label class="server-choice-label" for="server-choice-${s.id}"><span class="card-title">${s.name}</span><span class="server-choice-fallback">CS2 · ${s.map}</span></label></div><span class="mono server-choice-endpoint" role="cell">${s.host}</span><span class="server-choice-status" role="cell"><span class="badge badge-${s.state}">${s.state === "connected" ? "Connected" : s.state === "unknown" ? "Not observed" : "Disconnected"}</span></span><span class="server-choice-time" role="cell">${s.state === "connected" ? "Just now" : "Not observed"}</span></div>`,
+        `<div class="server-card server-choice-row${selected?.id === s.id ? " is-selected" : ""}" role="row"><div class="card-header server-choice" role="cell"><input type="radio" name="server-choice" id="server-choice-${escapeHtml(s.id)}" value="${escapeHtml(s.id)}" ${selected?.id === s.id ? "checked" : ""}><label class="server-choice-label" for="server-choice-${escapeHtml(s.id)}"><span class="card-title">${escapeHtml(s.name)}</span><span class="server-choice-fallback">CS2 · ${escapeHtml(s.map)}</span></label></div><span class="mono server-choice-endpoint" role="cell">${escapeHtml(s.host)}</span><span class="server-choice-status" role="cell"><span class="badge badge-${s.state}">${s.state === "connected" ? "Connected" : s.state === "unknown" ? "Not observed" : "Disconnected"}</span></span><span class="server-choice-time" role="cell">${s.state === "connected" ? "Just now" : "Not observed"}</span></div>`,
     )
     .join("");
-  $("serverList").setAttribute("aria-busy", "false");
+  byId("serverList").setAttribute("aria-busy", "false");
   show("fleet-empty-filter", list.length === 0);
   text(
     "fleet-filter-summary",
@@ -119,7 +119,7 @@ function selectServer(id) {
   );
   show("selected-server-warning", selected.players > 0);
   renderServers();
-  $(`server-choice-${selected.id}`).focus();
+  byId(`server-choice-${selected.id}`).focus();
 }
 function setTab(tab) {
   for (const button of document.querySelectorAll("[data-manage-tab]")) {
@@ -139,9 +139,9 @@ function showSetup() {
   show("requested-setup", true);
   show("session-result", false);
   show("advanced-setup", true);
-  $("session-step-setup").setAttribute("aria-current", "step");
-  $("session-step-result").removeAttribute("aria-current");
-  $("session-step-result").disabled = !request;
+  byId("session-step-setup").setAttribute("aria-current", "step");
+  byId("session-step-result").removeAttribute("aria-current");
+  byId("session-step-result").disabled = !request;
 }
 function observeHeader() {
   text("truth-rail-map", selected.map);
@@ -161,8 +161,8 @@ function observeHeader() {
         ? "Not observed"
         : "Disconnected",
   );
-  $("manage-status-badge").className = `badge badge-${selected.state}`;
-  $("manage-status-dot").className =
+  byId("manage-status-badge").className = `badge badge-${selected.state}`;
+  byId("manage-status-dot").className =
     `status-dot ${selected.state === "connected" ? "online" : selected.state === "unknown" ? "unknown" : "offline"}`;
   text(
     "setup-player-warning",
@@ -191,15 +191,15 @@ function prepare() {
   observeHeader();
   showSetup();
   renderPlayers();
-  $("manage-title").focus();
+  byId("manage-title").focus();
 }
 function requested() {
   return {
-    game_type: $("gameTypeValue").value,
-    game_mode: $("gameModeValue").value,
-    selectedMap: $("selectedMap").value,
-    team1: $("team1").value.trim(),
-    team2: $("team2").value.trim(),
+    game_type: byId("gameTypeValue").value,
+    game_mode: byId("gameModeValue").value,
+    selectedMap: byId("selectedMap").value,
+    team1: byId("team1").value.trim(),
+    team2: byId("team2").value.trim(),
   };
 }
 function review() {
@@ -214,36 +214,36 @@ function review() {
     `${value.team1 || "Keep Team 1"} / ${value.team2 || "Keep Team 2"}`,
   );
 }
-const catalog = JSON.parse($("demo-catalog").textContent);
+const catalog = JSON.parse(byId("demo-catalog").textContent);
 function mapChoices() {
   const mode =
-    catalog.gameTypes[$("gameTypeValue").value].gameModes[
-      $("gameModeValue").value
+    catalog.gameTypes[byId("gameTypeValue").value].gameModes[
+      byId("gameModeValue").value
     ];
   const maps = [
     ...new Set(
       mode.mapGroups.flatMap((group) => catalog.mapGroups[group].maps),
     ),
   ];
-  $("selectedMap").innerHTML = maps
+  byId("selectedMap").innerHTML = maps
     .map((map) => `<option>${escapeHtml(map)}</option>`)
     .join("");
-  if (maps.includes("de_mirage")) $("selectedMap").value = "de_mirage";
+  if (maps.includes("de_mirage")) byId("selectedMap").value = "de_mirage";
   text("setup-config-note", `Simulated setup uses ${mode.exec}.`);
   review();
 }
 function choices() {
-  $("gameModeValue").innerHTML = Object.keys(
-    catalog.gameTypes[$("gameTypeValue").value].gameModes,
+  byId("gameModeValue").innerHTML = Object.keys(
+    catalog.gameTypes[byId("gameTypeValue").value].gameModes,
   )
     .map(
       (mode) =>
         `<option value="${escapeHtml(mode)}">${escapeHtml(titleCase(mode))}</option>`,
     )
     .join("");
-  $("gameModeValue").disabled = false;
-  $("selectedMap").disabled = false;
-  $("send-setup-commands").disabled = false;
+  byId("gameModeValue").disabled = false;
+  byId("selectedMap").disabled = false;
+  byId("send-setup-commands").disabled = false;
   mapChoices();
 }
 function showResult() {
@@ -255,13 +255,13 @@ function showResult() {
   show("requested-setup", false);
   show("advanced-setup", false);
   show("session-result", true);
-  $("session-step-setup").removeAttribute("aria-current");
-  $("session-step-result").setAttribute("aria-current", "step");
-  $("session-step-result").disabled = false;
+  byId("session-step-setup").removeAttribute("aria-current");
+  byId("session-step-result").setAttribute("aria-current", "step");
+  byId("session-step-result").disabled = false;
   show("session-pending-result", !observed);
   show("session-observed-result", observed);
 }
-$("server_setup_form").addEventListener("submit", (event) => {
+byId("server_setup_form").addEventListener("submit", (event) => {
   event.preventDefault();
   if (busy || !selected) return;
   if (selected.state !== "connected") {
@@ -270,24 +270,24 @@ $("server_setup_form").addEventListener("submit", (event) => {
       "Simulated send failed: RCON disconnected. Use Reconnect in Server tools, then try again.",
     );
     show("setup-status", true);
-    $("setup-status").focus();
+    byId("setup-status").focus();
     return;
   }
   request = requested();
   observed = false;
   busy = true;
-  $("session-result-heading").classList.remove("session-map-matched");
-  $("session-check-map").className = "btn btn-primary";
+  byId("session-result-heading").classList.remove("session-map-matched");
+  byId("session-check-map").className = "btn btn-primary";
   text("session-check-map", "Check live map");
   show("session-edit-setup", true);
   show("setup-status", false);
-  $("setup-fields").disabled = true;
-  $("send-setup-commands").disabled = true;
+  byId("setup-fields").disabled = true;
+  byId("send-setup-commands").disabled = true;
   text("send-setup-commands", "Sending simulated commands…");
   setTimeout(() => {
     busy = false;
-    $("setup-fields").disabled = false;
-    $("send-setup-commands").disabled = false;
+    byId("setup-fields").disabled = false;
+    byId("send-setup-commands").disabled = false;
     text("send-setup-commands", `Send setup to ${selected.name}`);
     document.querySelectorAll("[data-session-requested]").forEach((node) => {
       const key = node.dataset.sessionRequested;
@@ -307,18 +307,18 @@ $("server_setup_form").addEventListener("submit", (event) => {
     show("session-check-map", true);
     show("session-return", false);
     showResult();
-    $("session-result-heading").focus();
+    byId("session-result-heading").focus();
   }, 400);
 });
-$("session-check-map").addEventListener("click", () => {
+byId("session-check-map").addEventListener("click", () => {
   if (!request || busy) return;
   busy = true;
-  $("session-check-map").disabled = true;
+  byId("session-check-map").disabled = true;
   text("session-check-map", "Checking simulated map…");
   setTimeout(() => {
     selected.map = request.selectedMap;
     observed = true;
-    $("session-result-heading").classList.add("session-map-matched");
+    byId("session-result-heading").classList.add("session-map-matched");
     busy = false;
     observeHeader();
     text("session-result-heading", "Requested map observed");
@@ -336,42 +336,42 @@ $("session-check-map").addEventListener("click", () => {
     show("session-check-map", true);
     show("session-edit-setup", false);
     show("session-return", true);
-    $("session-check-map").disabled = false;
-    $("session-check-map").className = "btn btn-secondary";
+    byId("session-check-map").disabled = false;
+    byId("session-check-map").className = "btn btn-secondary";
     text("session-check-map", "Refresh observation");
-    $("session-result-heading").focus();
+    byId("session-result-heading").focus();
   }, 400);
 });
-$("session-edit-setup").onclick = showSetup;
-$("session-step-setup").onclick = showSetup;
-$("session-return").onclick = showSetup;
-$("session-step-result").onclick = () => {
+byId("session-edit-setup").onclick = showSetup;
+byId("session-step-setup").onclick = showSetup;
+byId("session-return").onclick = showSetup;
+byId("session-step-result").onclick = () => {
   if (request && !busy) showResult();
 };
-$("prepare-selected-server").onclick = (event) => {
+byId("prepare-selected-server").onclick = (event) => {
   event.preventDefault();
   event.stopPropagation();
   prepare();
 };
-$("serverList").onchange = (event) => {
+byId("serverList").onchange = (event) => {
   if (event.target.matches('input[type="radio"]'))
     selectServer(event.target.value);
 };
-$("server-search").oninput = renderServers;
-$("server-status-filter").onchange = renderServers;
-$("fleet-clear-filters").onclick = () => {
-  $("server-search").value = "";
-  $("server-status-filter").value = "all";
+byId("server-search").oninput = renderServers;
+byId("server-status-filter").onchange = renderServers;
+byId("fleet-clear-filters").onclick = () => {
+  byId("server-search").value = "";
+  byId("server-status-filter").value = "all";
   renderServers();
 };
-$("fleet-refresh").onclick = () => {
+byId("fleet-refresh").onclick = () => {
   renderServers();
   notice("Simulated server observations refreshed.");
 };
-$("gameTypeValue").onchange = choices;
-$("gameModeValue").onchange = mapChoices;
+byId("gameTypeValue").onchange = choices;
+byId("gameModeValue").onchange = mapChoices;
 for (const id of ["gameModeValue", "selectedMap", "team1", "team2"])
-  $(id).addEventListener("input", review);
+  byId(id).addEventListener("input", review);
 const players = [
   "Moss",
   "Echo",
@@ -391,13 +391,13 @@ function renderPlayers() {
     .filter(
       (name) =>
         !removedPlayers.has(name) &&
-        name.toLowerCase().includes($("playerSearch").value.toLowerCase()),
+        name.toLowerCase().includes(byId("playerSearch").value.toLowerCase()),
     );
-  $("playersList").innerHTML = list.length
+  byId("playersList").innerHTML = list.length
     ? list
         .map(
           (name, index) =>
-            `<div class="player-row" role="row"><strong role="cell">${name}</strong><span class="mono" role="cell">Demo player ${index + 1}</span><span role="cell"><button class="btn btn-secondary btn-sm" data-kick="${name}">Kick ${name}</button></span></div>`,
+            `<div class="player-row" role="row"><strong role="cell">${escapeHtml(name)}</strong><span class="mono" role="cell">Demo player ${index + 1}</span><span role="cell"><button class="btn btn-secondary btn-sm" data-kick="${escapeHtml(name)}">Kick ${escapeHtml(name)}</button></span></div>`,
         )
         .join("")
     : '<p class="empty-state">No players match this view.</p>';
@@ -407,12 +407,12 @@ function renderPlayers() {
   );
   text("manage-tab-player-count", selected?.players || 0);
 }
-$("playerSearch").oninput = renderPlayers;
-$("refresh_players").onclick = () => {
+byId("playerSearch").oninput = renderPlayers;
+byId("refresh_players").onclick = () => {
   removedPlayers = new Set();
   renderPlayers();
 };
-$("playersList").onclick = (event) => {
+byId("playersList").onclick = (event) => {
   const name = event.target.dataset.kick;
   if (name) {
     removedPlayers.add(name);
@@ -437,17 +437,17 @@ function command(value) {
   document.querySelector(".console-empty").hidden = true;
   history.push(value);
   historyIndex = history.length;
-  $("rconHistoryList").innerHTML = history
+  byId("rconHistoryList").innerHTML = history
     .map((line) => `<p class="mono">${escapeHtml(line)}</p>`)
     .join("");
   text("rcon-command-status", "Simulated response received.");
-  $("rconInput").value = "";
+  byId("rconInput").value = "";
 }
-$("rconInputBtn").onclick = () => command($("rconInput").value);
-$("rconInput").onkeydown = (event) => {
+byId("rconInputBtn").onclick = () => command(byId("rconInput").value);
+byId("rconInput").onkeydown = (event) => {
   if (event.key === "Enter") {
     event.preventDefault();
-    command($("rconInput").value);
+    command(byId("rconInput").value);
   }
   if (["ArrowUp", "ArrowDown"].includes(event.key)) {
     event.preventDefault();
@@ -458,31 +458,31 @@ $("rconInput").onkeydown = (event) => {
         historyIndex + (event.key === "ArrowUp" ? -1 : 1),
       ),
     );
-    $("rconInput").value = history[historyIndex] || "";
+    byId("rconInput").value = history[historyIndex] || "";
   }
 };
-$("rconClearBtn").onclick = () => {
+byId("rconClearBtn").onclick = () => {
   text("rconResultText", "");
   document.querySelector(".console-empty").hidden = false;
 };
-$("rconHistoryClearBtn").onclick = () => {
+byId("rconHistoryClearBtn").onclick = () => {
   history.length = 0;
   text("rconHistoryList", "No sent RCON commands yet.");
 };
-$("rconSuggestRefreshBtn").onclick = () => {
-  $("rconInput").value = "status";
-  $("rconInput").focus();
+byId("rconSuggestRefreshBtn").onclick = () => {
+  byId("rconInput").value = "status";
+  byId("rconInput").focus();
 };
-$("say_input_btn").onclick = () => {
-  command(`say ${$("say_input").value}`);
-  $("say_input").value = "";
+byId("say_input_btn").onclick = () => {
+  command(`say ${byId("say_input").value}`);
+  byId("say_input").value = "";
 };
 function account(open) {
   show("account-navigation", open);
-  $("nav-toggle-btn").setAttribute("aria-expanded", String(open));
+  byId("nav-toggle-btn").setAttribute("aria-expanded", String(open));
 }
-$("nav-toggle-btn").onclick = () => account($("account-navigation").hidden);
-$("theme-toggle").onclick = () => {
+byId("nav-toggle-btn").onclick = () => account(byId("account-navigation").hidden);
+byId("theme-toggle").onclick = () => {
   const next =
     document.documentElement.dataset.theme === "light" ? "dark" : "light";
   document.documentElement.dataset.theme = next;
@@ -517,39 +517,39 @@ for (const button of document.querySelectorAll("[data-manage-tab]")) {
     tabs[index].focus();
   };
 }
-$("manage-reconnect").onclick = () => {
+byId("manage-reconnect").onclick = () => {
   selected.state = "connected";
   observeHeader();
   renderServers();
   show("setup-status", false);
   notice("Simulated RCON connection restored.");
 };
-$("refresh_status").onclick = () => {
+byId("refresh_status").onclick = () => {
   observeHeader();
   notice(
     "Simulated observation refreshed. Use Check live map to check a pending setup.",
   );
 };
-$("command-palette-trigger").onclick = () => {
+byId("command-palette-trigger").onclick = () => {
   setTab("console");
-  $("rconInput").focus();
+  byId("rconInput").focus();
   notice("Enter a simulated command. Try status.");
 };
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape") {
-    const wasOpen = !$("account-navigation").hidden;
+    const wasOpen = !byId("account-navigation").hidden;
     account(false);
-    if (wasOpen) $("nav-toggle-btn").focus();
+    if (wasOpen) byId("nav-toggle-btn").focus();
     show("demo-notice", false);
   }
   if (
     (event.ctrlKey || event.metaKey) &&
     event.key.toLowerCase() === "k" &&
     selected &&
-    !$("demo-manage").hidden
+    !byId("demo-manage").hidden
   ) {
     event.preventDefault();
-    $("command-palette-trigger").click();
+    byId("command-palette-trigger").click();
   }
 });
 document.addEventListener("click", (event) => {
@@ -576,7 +576,7 @@ document.addEventListener("click", (event) => {
     document.querySelector(".skip-link").href = "#inventory-main";
     account(false);
     renderServers();
-    $("server-search").focus();
+    byId("server-search").focus();
   }
   if (link?.getAttribute("href") === "#demo-only") {
     event.preventDefault();

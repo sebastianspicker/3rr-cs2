@@ -18,6 +18,9 @@ import {
 } from './matchContracts';
 import { sendGameRouteError } from './gameCommandExecution';
 import { createGameRouteFactories } from './gameRouteFactories';
+import { createRouteRateLimit } from '../../../shared/routeRateLimit';
+
+const routeRateLimit = createRouteRateLimit();
 
 export function createMatchAdvancedRoutes(
   rcon: RconManager,
@@ -60,7 +63,7 @@ export function createMatchAdvancedRoutes(
     makeSimpleCmdRoute('matchzy-playout', 'css_matchzy_playout', 'MatchZy playout command sent.')
   );
 
-  router.post('/api/matchzy-readyrequired', isAuthenticated, async (req, res) => {
+  router.post('/api/matchzy-readyrequired', isAuthenticated, routeRateLimit, async (req, res) => {
     try {
       const server_id = requireAuthorizedServerId(req, res);
       if (!server_id) return;
@@ -93,7 +96,7 @@ export function createMatchAdvancedRoutes(
     )
   );
 
-  router.post('/api/matchzy-coach', isAuthenticated, async (req, res) => {
+  router.post('/api/matchzy-coach', isAuthenticated, routeRateLimit, async (req, res) => {
     try {
       const server_id = requireAuthorizedServerId(req, res);
       if (!server_id) return;
@@ -112,7 +115,7 @@ export function createMatchAdvancedRoutes(
     }
   });
 
-  router.post('/api/matchzy-load-match-file', isAuthenticated, async (req, res) => {
+  router.post('/api/matchzy-load-match-file', isAuthenticated, routeRateLimit, async (req, res) => {
     try {
       const server_id = requireAuthorizedServerId(req, res);
       if (!server_id) return;
@@ -138,7 +141,7 @@ export function createMatchAdvancedRoutes(
     }
   });
 
-  router.post('/api/player-kick', isAuthenticated, async (req, res) => {
+  router.post('/api/player-kick', isAuthenticated, routeRateLimit, async (req, res) => {
     try {
       const server_id = requireAuthorizedServerId(req, res);
       if (!server_id) return;
@@ -157,7 +160,7 @@ export function createMatchAdvancedRoutes(
     }
   });
 
-  router.post('/api/player-mute', isAuthenticated, async (req, res) => {
+  router.post('/api/player-mute', isAuthenticated, routeRateLimit, async (req, res) => {
     try {
       const server_id = requireAuthorizedServerId(req, res);
       if (!server_id) return;
@@ -176,7 +179,7 @@ export function createMatchAdvancedRoutes(
     }
   });
 
-  router.post('/api/player-unmute', isAuthenticated, async (req, res) => {
+  router.post('/api/player-unmute', isAuthenticated, routeRateLimit, async (req, res) => {
     try {
       const server_id = requireAuthorizedServerId(req, res);
       if (!server_id) return;
@@ -195,7 +198,7 @@ export function createMatchAdvancedRoutes(
     }
   });
 
-  router.post('/api/workshop-map', isAuthenticated, async (req, res) => {
+  router.post('/api/workshop-map', isAuthenticated, routeRateLimit, async (req, res) => {
     try {
       const server_id = requireAuthorizedServerId(req, res);
       if (!server_id) return;
@@ -215,7 +218,7 @@ export function createMatchAdvancedRoutes(
     }
   });
 
-  router.post('/api/set-mapgroup', isAuthenticated, async (req, res) => {
+  router.post('/api/set-mapgroup', isAuthenticated, routeRateLimit, async (req, res) => {
     try {
       const server_id = requireAuthorizedServerId(req, res);
       if (!server_id) return;
@@ -237,7 +240,7 @@ export function createMatchAdvancedRoutes(
     }
   });
 
-  router.post('/api/workshop-collection', isAuthenticated, async (req, res) => {
+  router.post('/api/workshop-collection', isAuthenticated, routeRateLimit, async (req, res) => {
     try {
       const server_id = requireAuthorizedServerId(req, res);
       if (!server_id) return;
