@@ -22,7 +22,9 @@ tested.
    loopback networking, and a working Docker daemon. The no-argument run is
    the release gate; `./scripts/verify.sh --only <section>[,<section>...]`
    and `./scripts/verify.sh --quick` are for iterating on one area and are
-   not a release gate substitute.
+   not a release gate substitute. The automated test suites are kept outside
+   the public repository; run them against the candidate commit as part of
+   the gate, since `verify.sh` does not include them.
 4. Test a representative CS2/RCON deployment, including login, a
    CSRF-protected write, one read-only status request, and one controlled
    state-changing operation.
@@ -32,9 +34,13 @@ tested.
    rollback with artifacts built from the candidate commit.
 7. Review the tracked tree and release artifacts for credentials, local paths,
    databases, temporary files, and private host details.
-8. Build source and container artifacts from the candidate commit. Record
-   checksums, an SBOM, supported platforms, known limitations, and rollback
-   instructions with the release.
+8. Build source and container artifacts from the candidate commit. Run
+   `./scripts/release-artifacts.sh <new-dir> <tag>` (needs `git`, `jq` and
+   npm) to write the source archive, a CycloneDX SBOM of the panel's
+   production dependencies, and `SHA256SUMS`; attach all three to the release.
+   No container image is published: users build it from the source archive.
+   Record supported platforms, known limitations, and rollback instructions
+   with the release.
 9. If the panel's templates, styles, or demo changed, run
    `node design-preview/build.mjs` to refresh the static demo, then
    `node design-preview/verify.mjs`. Compare it with the application and test

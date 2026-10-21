@@ -121,3 +121,14 @@ export function registerUnhandledRejectionHandler(nodeEnv: string): void {
     }
   });
 }
+
+/** Names the relaxed defaults a non-production start uses, so a deployment cannot miss them. */
+export function developmentModeWarning(nodeEnv: string): string | null {
+  if (nodeEnv === 'production' || nodeEnv === 'test') return null;
+  return (
+    `[security] NODE_ENV is "${nodeEnv || 'unset'}", not "production": a temporary session ` +
+    'secret and in-memory sessions are allowed, cookies are not marked Secure, stored RCON ' +
+    'passwords may be unencrypted, and RCON_SECRET_KEY and REDIS_URL are not required. ' +
+    'Set NODE_ENV=production for any deployment.'
+  );
+}

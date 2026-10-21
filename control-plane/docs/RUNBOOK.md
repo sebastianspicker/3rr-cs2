@@ -110,12 +110,30 @@ A database with a **newer** version, or one that is missing required columns, st
   stop the panel and rename the file to `3rr.db`.
 - The session cookie is now called `3rr.sid`. Sessions stored under the old name do not carry
   over, so everyone signs in again once.
+- Sessions now record which password they were opened with, and changing a password signs out
+  the user's other sessions. Sessions created before this change carry no such record, so
+  everyone signs in again once after upgrading.
+
+## Logs
+
+The panel writes one JSON object per line to standard output (pino). Every line written
+while handling a request carries `request_id`, which is also returned in the `X-Request-Id`
+response header. Lines written after server access was authorised also carry `server_id`.
+Quote the request ID when you report a problem.
+
+The panel does not rotate logs itself. Under Docker, set the logging driver's limits (for
+example `max-size` and `max-file` for `json-file`); under systemd, journald rotates the output.
+If you redirect output to a file, rotate it with logrotate's `copytruncate`.
 
 ## Health checks and shutdown
 
 - Anyone can request `GET /api/health`. By default the answer contains only `ok` and `ready`.
-- Signed-in callers, and deployments with `HEALTHCHECK_VERBOSE=true`, also see database,
-  Redis, and RCON startup details.
+  `ready` turns true once the RCON services have finished starting; a game server that
+  cannot be reached does not make the panel unready.
+- Signed-in admins, and deployments with `HEALTHCHECK_VERBOSE=true`, also see database,
+  Redis, and RCON startup details. `HEALTHCHECK_VERBOSE=true` shows those details, including
+  every game server's address and connection error, to anyone who can reach the panel. Use it
+  only when the panel port is not reachable from untrusted networks.
 - It returns HTTP `503` (service unavailable) when SQLite is unhealthy, or when a configured
   Redis connection is unhealthy.
 - It does not check your CS2 servers or the updater (see

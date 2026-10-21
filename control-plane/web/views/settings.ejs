@@ -64,6 +64,34 @@
   <script nonce="<%= cspNonce %>">
     (function () {
       var csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+
+      // Same-origin JSON request: bounded by a timeout, tolerant of non-JSON bodies, and
+      // redirecting to the login page when the session has expired (401).
+      var requestTimeoutMs = 15000;
+      function requestJson(url, init) {
+        var controller = new AbortController();
+        var timer = setTimeout(function () { controller.abort(); }, requestTimeoutMs);
+        init.signal = controller.signal;
+        return fetch(url, init)
+          .then(function (res) {
+            return res.text().then(function (text) {
+              var body = {};
+              try { body = text ? JSON.parse(text) : {}; } catch (parseError) { body = {}; }
+              if (!body || typeof body !== 'object') body = {};
+              // Only the session check's own 401 means "signed out"; a route may use 401 for
+              // other reasons (a wrong current password, for example).
+              if (res.status === 401 && body.error === 'Unauthorized') {
+                window.location.assign('/?expired=1');
+                body.error = 'Session expired. Redirecting to sign in…';
+              }
+              return { ok: res.ok, status: res.status, body: body };
+            });
+          })
+          .finally(function () { clearTimeout(timer); });
+      }
+      function requestErrorMessage(err, fallback) {
+        return err && err.name === 'AbortError' ? 'The request timed out.' : fallback;
+      }
       document.getElementById('change-password-form').addEventListener('submit', async function (e) {
         e.preventDefault();
         if (e.target.getAttribute('aria-busy') === 'true') return;
@@ -91,17 +119,16 @@
           e.target.setAttribute('aria-busy', 'true');
           submitButton.disabled = true;
           submitButton.textContent = 'Updating…';
-          var res = await fetch('/api/users/change-password', {
+          var res = await requestJson('/api/users/change-password', {
             method: 'POST',
             headers: { 'content-type': 'application/json', 'x-csrf-token': csrfToken },
             body: JSON.stringify({ currentPassword: currentPassword, newPassword: newPassword })
           });
-          var data = await res.json();
           if (res.ok) {
             setStatus('Password updated successfully.', 'success');
             e.target.reset();
           } else {
-            setStatus(data.error || 'Failed to update password.', 'danger');
+            setStatus(res.body.error || 'Failed to update password.', 'danger');
           }
         } catch (err) {
           setStatus('The result could not be confirmed. Your password may have changed; sign in with the new password to check.', 'danger');

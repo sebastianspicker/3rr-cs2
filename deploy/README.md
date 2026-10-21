@@ -18,6 +18,11 @@ chmod 0600 deploy/compose/panel.env deploy/compose/server.env
 Both destination paths are ignored by Git. Keep secrets and host-specific
 values out of committed files.
 
+Add `REDIS_PASSWORD` to `panel.env`; the control-plane example refuses to start
+without it. Generate it with `openssl rand -hex 32`. The example passes it to
+Redis and builds the panel's default `REDIS_URL` from it, so keep it URL-safe.
+If you set `REDIS_URL` yourself, include the password in it.
+
 ## Choose the CS2 image
 
 Run these examples from the repository root. `server-runtime.compose.yaml`
@@ -64,6 +69,10 @@ The recovery procedure starts with a new, empty Redis volume, which signs users
 out and resets rate-limit counters. If your policy requires sessions to survive
 recovery, back up the Redis volume separately and test restoring it. Otherwise,
 leave Redis data out of the restore.
+
+Redis is capped at 128 MB. Sessions and rate-limit counters all expire, so when
+the cap is reached Redis evicts the least recently used of them (`volatile-lru`):
+the oldest idle sessions are signed out first.
 
 ## Record and restore the previous image
 

@@ -1,5 +1,6 @@
 /** Per-server heartbeat serialization, recovery backoff, and timer ownership. */
 import logger from '../../infrastructure/logging';
+import { executionContext } from '../../shared/executionContext';
 import { executeRconHeartbeatWithTimeout } from './rconConnection';
 import type { RconCommandExecutor } from './rconCommandExecutor';
 import type { RconScheduledTaskContext } from './rconScheduler';
@@ -59,11 +60,14 @@ export class RconHeartbeatSupervisor {
     if (!details) return;
     this.clearRetry(serverId);
     this.clearInterval(serverId);
-    details.heartbeatInterval = setInterval(() => {
-      void this.send(serverId, server).catch((error) => {
-        logger.error({ server_id: serverId, err: error }, '[heartbeat] Interval check failed');
-      });
-    }, intervalMs);
+    // Timers outlive the request that may have started them; keep its context out.
+    details.heartbeatInterval = executionContext.exit(() =>
+      setInterval(() => {
+        void this.send(serverId, server).catch((error) => {
+          logger.error({ server_id: serverId, err: error }, '[heartbeat] Interval check failed');
+        });
+      }, intervalMs)
+    );
   }
 
   send(
@@ -159,13 +163,15 @@ export class RconHeartbeatSupervisor {
     this.clearInterval(serverId);
     this.clearRetry(serverId);
     if (this.options.isRemoved(serverId) || this.options.isShuttingDown()) return;
-    const retryTimer = setTimeout(() => {
-      this.retryTimers.delete(serverId);
-      void this.send(serverId, server).catch((error) => {
-        logger.error({ server_id: serverId, err: error }, '[heartbeat] Scheduled retry failed');
-        this.scheduleRetry(serverId, server, delayMs);
-      });
-    }, delayMs);
+    const retryTimer = executionContext.exit(() =>
+      setTimeout(() => {
+        this.retryTimers.delete(serverId);
+        void this.send(serverId, server).catch((error) => {
+          logger.error({ server_id: serverId, err: error }, '[heartbeat] Scheduled retry failed');
+          this.scheduleRetry(serverId, server, delayMs);
+        });
+      }, delayMs)
+    );
     this.retryTimers.set(serverId, retryTimer);
   }
 

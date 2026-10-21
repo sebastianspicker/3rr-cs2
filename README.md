@@ -120,7 +120,9 @@ it. Then add an existing CS2 server with its address, port, and RCON password.
 
 - Follow the [panel guide](control-plane/README.md) and the
   [Compose examples](deploy/README.md).
-- **Production requires Redis and HTTPS.**
+- **Production requires Redis and HTTPS.** Run the panel with `NODE_ENV=production`; without
+  it the panel uses development defaults and says so in its startup log. The container image
+  sets it for you.
 - The Compose example makes the panel reachable only from the host itself (`127.0.0.1:3000`).
   Put a reverse proxy that handles HTTPS (TLS) in front of it.
 - Before you use CFG-based or plugin-based commands, read the

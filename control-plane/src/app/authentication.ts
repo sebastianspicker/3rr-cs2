@@ -3,6 +3,7 @@ import type { Request, Response, NextFunction } from 'express';
 import type Database from 'better-sqlite3';
 import logger from '../infrastructure/logging';
 import { createAuthRepository } from '../features/auth/repository';
+import { credentialFingerprint } from '../shared/credentialFingerprint';
 
 function rejectUnauthenticated(req: Request, res: Response): void {
   const acceptHeader = req.headers.accept;
@@ -24,7 +25,8 @@ export function createAuthentication(db: Database.Database) {
     }
 
     const user = repository.findSessionUser(sessionUser.id);
-    if (!user) {
+    // A password change elsewhere invalidates every session holding the old fingerprint.
+    if (!user || sessionUser.credential !== credentialFingerprint(user.password)) {
       req.session.destroy((err) => {
         if (err) {
           logger.warn({ err, userId: sessionUser.id }, '[auth] stale session destroy failed');
@@ -35,7 +37,7 @@ export function createAuthentication(db: Database.Database) {
     }
 
     if (sessionUser.username !== user.username || sessionUser.is_admin !== user.is_admin) {
-      req.session.user = { id: user.id, username: user.username, is_admin: user.is_admin };
+      req.session.user = { ...sessionUser, username: user.username, is_admin: user.is_admin };
     }
     next();
   }

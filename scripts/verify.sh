@@ -254,6 +254,7 @@ run_shared() {
     "${ROOT}/scripts/check-deployment-contract.sh" \
     "${ROOT}/scripts/check-deployment-contract.test.sh" \
     "${ROOT}/scripts/recovery-layout-rehearsal.test.sh" \
+    "${ROOT}/scripts/release-artifacts.sh" \
     "${ROOT}/server-bootstrap/scripts/bootstrap-admins.sh" \
     "${ROOT}/server-bootstrap/scripts/bootstrap-output.sh" \
     "${ROOT}/server-bootstrap/scripts/server-start.sh"
@@ -262,6 +263,7 @@ run_shared() {
     "${ROOT}/scripts/check-deployment-contract.sh" \
     "${ROOT}/scripts/check-deployment-contract.test.sh" \
     "${ROOT}/scripts/recovery-layout-rehearsal.test.sh" \
+    "${ROOT}/scripts/release-artifacts.sh" \
     "${ROOT}/server-bootstrap/scripts/bootstrap-admins.sh" \
     "${ROOT}/server-bootstrap/scripts/bootstrap-output.sh" \
     "${ROOT}/server-bootstrap/scripts/server-start.sh"
@@ -279,10 +281,10 @@ run_shared() {
     printf 'Panel Compose must not trust proxy headers by default\n' >&2
     exit 1
   fi
-  grep -Fq "REDIS_URL: \${REDIS_URL:-redis://redis:6379}" "${ROOT}/deploy/compose/control-plane.compose.yaml"
+  grep -Fq "REDIS_URL: \${REDIS_URL:-redis://:\${REDIS_PASSWORD:?Set REDIS_PASSWORD}@redis:6379}" "${ROOT}/deploy/compose/control-plane.compose.yaml"
   grep -Fq "\"\${PANEL_BIND_ADDRESS:-127.0.0.1}:3000:3000\"" "${ROOT}/deploy/compose/control-plane.compose.yaml"
   grep -Fq "\"\${CS2_PORT:-27015}:\${CS2_PORT:-27015}/udp\"" "${ROOT}/deploy/compose/server-runtime.compose.yaml"
-  grep -Fq "\"\${CS2_PORT:-27015}:\${CS2_PORT:-27015}/tcp\"" "${ROOT}/deploy/compose/server-runtime.compose.yaml"
+  grep -Fq "\"\${CS2_RCON_BIND_ADDRESS:-0.0.0.0}:\${CS2_PORT:-27015}:\${CS2_PORT:-27015}/tcp\"" "${ROOT}/deploy/compose/server-runtime.compose.yaml"
   run jq . "${ROOT}/control-plane/package.json" >/dev/null
   run jq . "${ROOT}/control-plane/package-lock.json" >/dev/null
   run jq . "${ROOT}/control-plane/src/features/game-catalog/maps.json" >/dev/null
@@ -345,10 +347,38 @@ run_host_updater() {
   run make ci
 }
 
+# The wrapper keeps a hand-written copy of the shipped CFG list; fail when it,
+# capabilities.json and the files in assets/cfg disagree.
+check_bootstrap_manifest() {
+  local bootstrap="${ROOT}/server-bootstrap"
+  local wrapper manifest disk
+
+  wrapper="$(awk '/shipped_cfg_paths=\(/ {in_list = 1; next} in_list && /^ *\)/ {in_list = 0} in_list {for (i = 1; i <= NF; i++) print "assets/cfg/" $i}' \
+    "${bootstrap}/scripts/server-start.sh" | LC_ALL=C sort)"
+  manifest="$(jq -r '.shippedCfg[].path' "${bootstrap}/capabilities.json" | LC_ALL=C sort)"
+  disk="$(cd "${bootstrap}/assets/cfg" && printf 'assets/cfg/%s\n' *.cfg | LC_ALL=C sort)"
+
+  if [[ -z "${wrapper}" || "${wrapper}" != "${manifest}" || "${manifest}" != "${disk}" ]]; then
+    printf 'Shipped CFG lists differ (server-start.sh, capabilities.json, assets/cfg):\n' >&2
+    diff <(printf '%s\n' "${wrapper}") <(printf '%s\n' "${manifest}") >&2 || true
+    diff <(printf '%s\n' "${manifest}") <(printf '%s\n' "${disk}") >&2 || true
+    return 1
+  fi
+  jq -e '[.shippedCfg[] | (.requiresPlugins // []) | type == "array" and all(type == "string")] | all' \
+    "${bootstrap}/capabilities.json" >/dev/null
+}
+
 run_bootstrap() {
   log "server bootstrap"
   cd "${ROOT}"
+  run check_bootstrap_manifest
   run server-bootstrap/scripts/bootstrap-admins.sh "${tmpdir}/provision"
+  # A re-run must refuse to overwrite operator-edited files unless --force is given.
+  if server-bootstrap/scripts/bootstrap-admins.sh "${tmpdir}/provision" 2>/dev/null; then
+    printf 'bootstrap-admins.sh overwrote existing files without --force\n' >&2
+    exit 1
+  fi
+  run server-bootstrap/scripts/bootstrap-admins.sh --force "${tmpdir}/provision"
 }
 
 if section_selected shared; then
@@ -365,7 +395,7 @@ if section_selected host-updater; then
   require_cmd make
 fi
 
-tmpdir="$(mktemp -d)"
+tmpdir="$(mktemp -d "${TMPDIR:-/tmp}/3rr-verify.XXXXXX")"
 trap cleanup EXIT
 trap 'cleanup; exit 130' INT
 trap 'cleanup; exit 143' TERM

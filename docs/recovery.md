@@ -148,6 +148,12 @@ Include all of the following:
 - every installed map and plugin, with package name, version, and upstream artifact checksum
   where available.
 
+The startup wrapper leaves `game/csgo/cfg/3rr-secrets.cfg` (RCON password and, if set, GSLT)
+on the persistent volume, so every copy of the volume contains those secrets. Treat any
+backup that includes this file as secret material: keep it owner-only, encrypt it at rest,
+and rotate `RCON_PASSWORD` and `CS2_GSLT` if such a backup leaks. Alternatively, exclude the
+file from the volume copy; the wrapper recreates it on the next start.
+
 Read and record the installed build ID from the stopped volume, and record the repository
 checksums:
 
@@ -238,8 +244,9 @@ before copying, and check it again at the destination. Then confirm:
 2. The repository CFG checksums match the recorded repository revision.
 3. The bootstrap and private CFG files are owner-only and contain the intended deployment
    data.
-4. Every required plugin ID in `server-bootstrap/capabilities.json` maps to an installed,
-   recorded plugin package and version.
+4. Every plugin ID in `requiredPluginIds`, and in the `requiresPlugins` of each CFG you
+   enable, in `server-bootstrap/capabilities.json` maps to an installed, recorded plugin
+   package and version.
 5. The selected `CS2_IMAGE` equals the recorded, immutable candidate digest.
 
 **Rollback rehearsal.** Keep the original volume and the previous image digest intact, then:

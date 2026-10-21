@@ -12,6 +12,7 @@ interface ActiveFleetLoad {
 }
 
 let activeLoad: ActiveFleetLoad | undefined;
+let queuedRefresh: Promise<void> | undefined;
 let loadGeneration = 0;
 let fleetServerCount = 0;
 let hasFleetResults = false;
@@ -117,7 +118,7 @@ async function fetchLivePlayerCount(
       if (generation !== loadGeneration) return null;
       const element = playerCountElement(list, server.id);
       if (element) {
-        element.textContent = ' status unavailable';
+        element.textContent = 'status unavailable';
         element.title = 'Live player status unavailable';
       }
       return null;
@@ -208,12 +209,20 @@ function startFleetLoad(refresh: boolean): Promise<void> {
 
 export function fetchServers(refresh = false): Promise<void> {
   if (!activeLoad) return startFleetLoad(refresh);
-  return activeLoad.promise;
+  // An explicit refresh must not be swallowed by a non-refreshing load already in flight.
+  return refresh ? refreshServersAfterMutation() : activeLoad.promise;
 }
 
 export function refreshServersAfterMutation(): Promise<void> {
   const current = activeLoad?.promise;
-  return current ? current.then(() => startFleetLoad(true)) : startFleetLoad(true);
+  if (!current) return startFleetLoad(true);
+  // Run the refresh even if the in-flight load failed, so the queue always drains.
+  const runQueued = (): Promise<void> => {
+    queuedRefresh = undefined;
+    return startFleetLoad(true);
+  };
+  queuedRefresh ??= current.then(runQueued, runQueued);
+  return queuedRefresh;
 }
 
 function playerCountElement(list: HTMLElement, serverId: string | number): HTMLElement | null {

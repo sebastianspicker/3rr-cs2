@@ -8,8 +8,8 @@ apply_defaults() {
     for var in LOCKDIR REQUIRED_SPACE MAX_ATTEMPTS SLEEP_SECS STEAMCMD_TIMEOUT_SECS SYSTEMCTL_TIMEOUT_SECS SERVICE_NAME; do
         if [ -z "${!var}" ]; then
             case "$var" in
-                LOCKDIR) LOCKDIR="/tmp/3rr-update.lock" ;;
-                REQUIRED_SPACE) REQUIRED_SPACE="5000000" ;;
+                LOCKDIR) LOCKDIR="/run/3rr-update.lock" ;;
+                REQUIRED_SPACE) REQUIRED_SPACE="30000000" ;;
                 MAX_ATTEMPTS) MAX_ATTEMPTS="5" ;;
                 SLEEP_SECS) SLEEP_SECS="5" ;;
                 STEAMCMD_TIMEOUT_SECS) STEAMCMD_TIMEOUT_SECS="1800" ;;

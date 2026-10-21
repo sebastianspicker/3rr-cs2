@@ -20,13 +20,17 @@ services:
       CS2_MAXPLAYERS: ${CS2_MAXPLAYERS:-16}
       CS2_GSLT: ${CS2_GSLT:-}
       CS2_CFG_FILE: ${CS2_CFG_FILE:-server.cfg}
-      RCON_PASSWORD: ${RCON_PASSWORD:-}
+      RCON_PASSWORD: "${RCON_PASSWORD:?Set RCON_PASSWORD to the server's RCON password}"
       CSS_ADMINS_FILE: /bootstrap/admins.json
       CSS_GROUPS_FILE: /bootstrap/admin_groups.json
       CS2_CFG_BUNDLE_DIR: /opt/3rr/cfg-assets
     ports:
       - "${CS2_PORT:-27015}:${CS2_PORT:-27015}/udp"
-      - "${CS2_PORT:-27015}:${CS2_PORT:-27015}/tcp"
+      # The TCP port carries RCON. The default publishes it on every interface
+      # because the panel must reach it over a non-loopback address; set
+      # CS2_RCON_BIND_ADDRESS to the private interface the panel uses and
+      # firewall the port so only the panel's host can connect.
+      - "${CS2_RCON_BIND_ADDRESS:-0.0.0.0}:${CS2_PORT:-27015}:${CS2_PORT:-27015}/tcp"
     volumes:
       - cs2-runtime-data:/home/steam/cs2-dedicated
       - ../../server-bootstrap/scripts/server-start.sh:/opt/3rr/server-start.sh:ro

@@ -1,5 +1,6 @@
 /** Coordinates explicit RCON commands, debounced suggestions, and bounded history. */
 import {
+  ApiError,
   fetchJson,
   sendPostRequest,
   showToast,
@@ -16,6 +17,8 @@ import {
   type RconHistoryRow,
 } from './manageShared';
 import { renderSuggestions } from './manageRconSuggestions';
+import { createCommandRecall } from './manageRconRecall';
+import { createSuggestGate } from './manageRconSuggestGate';
 import { renderRconCommandResult, type RconCommandResponse } from './manageRconResult';
 
 function autocompleteQuery(input: HTMLInputElement | null): string {
@@ -33,6 +36,8 @@ export function initRconControls(serverId: string): void {
   const suggestionsBox = el<HTMLDivElement>('#rconSuggestions');
   const historyList = el<HTMLDivElement>('#rconHistoryList');
   let suggestTimer: ReturnType<typeof setTimeout> | undefined;
+  const recall = createCommandRecall();
+  const suggestGate = createSuggestGate();
 
   async function loadSuggestions(refresh = false): Promise<void> {
     const q = autocompleteQuery(rconInput);
@@ -40,16 +45,25 @@ export function initRconControls(serverId: string): void {
       renderSuggestions(suggestionsBox, []);
       return;
     }
+    // Typing must not keep hitting an endpoint that is rate limiting us; Suggest still works.
+    if (!refresh && !suggestGate.canRequest(Date.now())) return;
     try {
       const params = autocompleteParams(q, refresh);
       const data = await fetchJson<AutocompleteResponse>(
         `/api/rcon/autocomplete/${serverId}?${params.toString()}`
       );
       renderSuggestions(suggestionsBox, data.suggestions);
-      if (data.error) showToast(`Autocomplete warning: ${data.error}`, 'info');
+      if (data.error) {
+        if (suggestGate.onFailure(undefined, Date.now()) || refresh)
+          showToast(`Autocomplete warning: ${data.error}`, 'info');
+      } else {
+        suggestGate.onSuccess();
+      }
     } catch (err) {
       renderSuggestions(suggestionsBox, []);
-      showToast(err instanceof Error ? err.message : 'Autocomplete failed.', 'error');
+      const status = err instanceof ApiError ? err.status : undefined;
+      if (suggestGate.onFailure(status, Date.now()) || refresh)
+        showToast(err instanceof Error ? err.message : 'Autocomplete failed.', 'error');
     }
   }
 
@@ -99,6 +113,7 @@ export function initRconControls(serverId: string): void {
   async function loadHistory(): Promise<void> {
     try {
       const data = await fetchJson<RconHistoryResponse>(`/api/rcon/history/${serverId}`);
+      recall.setHistory(data.commands.map((item) => item.command));
       renderHistory(data.commands);
     } catch (err) {
       renderHistory(null);
@@ -131,32 +146,48 @@ export function initRconControls(serverId: string): void {
     }
   });
 
+  // The input keeps the command until it succeeds, so a second Enter must not resend it.
+  let commandInFlight = false;
   function sendRconCommand(): void {
+    if (commandInFlight) return;
     const cmd = rconInput?.value.trim() ?? '';
     if (!cmd) {
       showToast('Command cannot be empty.', 'error');
       return;
     }
     const btn = el<HTMLButtonElement>('#rconInputBtn');
+    commandInFlight = true;
     withLoading(btn, () =>
       sendPostRequest('/api/rcon', { server_id: serverId, command: cmd })
         .then((d: RconCommandResponse) => {
+          recall.remember(cmd);
+          if (rconInput && rconInput.value.trim() === cmd) rconInput.value = '';
+          renderSuggestions(suggestionsBox, []);
           renderRconCommandResult(cmd, d);
           void loadHistory();
         })
         .catch(toastError('RCON command failed.'))
+        .finally(() => {
+          commandInFlight = false;
+        })
     );
-    if (rconInput) rconInput.value = '';
-    renderSuggestions(suggestionsBox, []);
   }
   on('#rconInputBtn', 'click', sendRconCommand);
   rconInput?.addEventListener('keydown', (e) => {
-    if ((e as KeyboardEvent).key === 'Enter') {
+    const key = (e as KeyboardEvent).key;
+    if (key === 'Enter') {
       e.preventDefault();
       sendRconCommand();
+    } else if (key === 'ArrowUp' || key === 'ArrowDown') {
+      const next = key === 'ArrowUp' ? recall.older(rconInput.value) : recall.newer();
+      if (next === null) return;
+      e.preventDefault();
+      rconInput.value = next;
+      rconInput.setSelectionRange(next.length, next.length);
     }
   });
   rconInput?.addEventListener('input', () => {
+    recall.reset();
     if (suggestTimer) clearTimeout(suggestTimer);
     suggestTimer = setTimeout(() => {
       void loadSuggestions(false);

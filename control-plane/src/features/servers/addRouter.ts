@@ -7,8 +7,8 @@ import type Database from 'better-sqlite3';
 import type { RequestHandler } from 'express';
 import logger from '../../infrastructure/logging';
 import {
-  isValidServerHost,
   isValidServerHostResolved,
+  serverHostRejection,
   type RconManager,
 } from '../../integrations/rcon';
 import { makeRateLimitStore, type RedisClient } from '../../infrastructure/redis';
@@ -40,7 +40,12 @@ export function createServerAddRouter(
           .min(1, 'server_port must be an integer between 1 and 65535')
           .max(65535, 'server_port must be an integer between 1 and 65535')
       ),
-    rcon_password: z.string().min(1).max(512),
+    // rcon-srcds sends ASCII; control characters such as CR/LF have no place in a password.
+    rcon_password: z
+      .string()
+      .min(1)
+      .max(512)
+      .regex(/^[\x20-\x7e]+$/, 'rcon_password must contain only printable ASCII characters'),
   });
 
   const addServerLimiter = rateLimit({
@@ -50,7 +55,7 @@ export function createServerAddRouter(
     standardHeaders: true,
     legacyHeaders: false,
     keyGenerator: rateLimitClientKey,
-    store: makeRateLimitStore(redisClient),
+    store: makeRateLimitStore(redisClient, 'add-server'),
   });
 
   const RCON_CONNECT_FAILED_ERROR =
@@ -81,10 +86,14 @@ export function createServerAddRouter(
       response.status(400).json({ error: parsed.error.issues[0]?.message ?? 'Invalid input' });
       return null;
     }
-    if (!isValidServerHost(parsed.data.server_ip)) {
-      response
-        .status(400)
-        .json({ error: 'server_ip must be a valid IPv4/IPv6 address or hostname' });
+    const rejection = serverHostRejection(parsed.data.server_ip);
+    if (rejection) {
+      response.status(400).json({
+        error:
+          rejection === 'blocked'
+            ? 'server_ip is a blocked local/control IP address'
+            : 'server_ip must be a valid IPv4/IPv6 address or hostname',
+      });
       return null;
     }
     if (!(await isValidServerHostResolved(parsed.data.server_ip))) {

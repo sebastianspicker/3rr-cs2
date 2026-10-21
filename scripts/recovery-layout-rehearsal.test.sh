@@ -6,7 +6,7 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd -- "${SCRIPT_DIR}/.." && pwd)"
 CAPABILITIES="${ROOT}/server-bootstrap/capabilities.json"
 CFG_SOURCE="${ROOT}/server-bootstrap/assets/cfg"
-WORKSPACE="$(mktemp -d)"
+WORKSPACE="$(mktemp -d "${TMPDIR:-/tmp}/3rr-recovery.XXXXXX")"
 
 cleanup() {
   rm -rf "${WORKSPACE}"

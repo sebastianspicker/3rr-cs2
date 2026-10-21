@@ -41,25 +41,55 @@ warn_removed_config_keys() {
     done
 }
 
+is_root_user() {
+    [ "${EUID:-$(id -u)}" -eq 0 ]
+}
+
 require_root() {
+    if is_root_user; then
+        # ALLOW_NONROOT only permits a non-root run; it never changes how root runs.
+        if [ "$ALLOW_NONROOT" = "1" ]; then
+            log "WARNING: ALLOW_NONROOT is ignored when running as root; SteamCMD runs as 'steam'."
+        fi
+        return 0
+    fi
+
     if [ "$ALLOW_NONROOT" = "1" ]; then
         return 0
     fi
 
-    if [ "${EUID:-$(id -u)}" -ne 0 ]; then
-        log "ERROR: This script must run as root. Use: sudo $0"
-        exit 1
-    fi
+    log "ERROR: This script must run as root. Use: sudo $0"
+    exit 1
 }
 
 # Ensure the 'steam' user exists when we need to run commands as that user.
 require_steam_user() {
-    if [ "$ALLOW_NONROOT" = "1" ]; then
+    if ! is_root_user && [ "$ALLOW_NONROOT" = "1" ]; then
         return 0
     fi
     if ! id -u steam > /dev/null 2>&1; then
-        exit_with_error "User 'steam' does not exist. Create it or set ALLOW_NONROOT=1 for testing."
+        exit_with_error "User 'steam' does not exist. Create it before running the updater as root."
     fi
+    resolve_steam_home
+}
+
+# Set STEAM_HOME from the account database so SteamCMD never inherits root's HOME.
+resolve_steam_home() {
+    local entry home
+    require_cmd getent
+    entry="$(getent passwd steam 2> /dev/null || true)"
+    if [ -z "$entry" ]; then
+        exit_with_error "User 'steam' not found in the account database (getent passwd steam)."
+    fi
+    home="$(printf '%s\n' "$entry" | awk -F: 'NR == 1 { print $6; exit }')"
+    if [ -z "$home" ] || [[ "$home" != /* ]]; then
+        exit_with_error "User 'steam' has no usable home directory in the account database (got '${home}')."
+    fi
+    if [ ! -d "$home" ]; then
+        exit_with_error "Home directory of user 'steam' does not exist: $home"
+    fi
+    # shellcheck disable=SC2034 # Consumed by run_as_steam in operations.sh.
+    STEAM_HOME="$home"
 }
 
 require_cmd() {
@@ -79,7 +109,7 @@ require_gnu_timeout() {
 # Call after require_root so validation failures can use exit_with_error.
 validate_lockdir_config() {
     if [ "$LOCKDIR" = "/" ] || [[ "$LOCKDIR" =~ ^/+$ ]]; then
-        exit_with_error "LOCKDIR must not be root (/). Use a subdirectory, e.g. /tmp/3rr-update.lock"
+        exit_with_error "LOCKDIR must not be root (/). Use a subdirectory, e.g. /run/3rr-update.lock"
     fi
     if [[ "$LOCKDIR" == *".."* ]]; then
         exit_with_error "LOCKDIR must not contain '..': $LOCKDIR"
@@ -136,6 +166,12 @@ validate_mode_config() {
     if ! [[ "${NO_SLEEP:-}" =~ ^[01]$ ]]; then
         exit_with_error "NO_SLEEP must be 0 or 1. Current: $NO_SLEEP"
     fi
+    if ! [[ "${THREERR_TEST_MODE:-}" =~ ^[01]$ ]]; then
+        exit_with_error "THREERR_TEST_MODE must be 0 or 1. Current: $THREERR_TEST_MODE"
+    fi
+    if [ "$NO_SLEEP" = "1" ] && [ "$THREERR_TEST_MODE" != "1" ]; then
+        log "WARNING: NO_SLEEP is ignored unless THREERR_TEST_MODE=1 (test use only)."
+    fi
     if ! [[ "${DRY_RUN:-}" =~ ^[01]$ ]]; then
         exit_with_error "DRY_RUN must be 0 or 1. Current: $DRY_RUN"
     fi
@@ -143,7 +179,7 @@ validate_mode_config() {
 
 validate_logfile_config() {
     if [ "$LOGFILE" = "/" ] || [[ "$LOGFILE" =~ ^/+$ ]]; then
-        exit_with_error "LOGFILE must not be root (/). Use a file path, e.g. /var/log/3rr/update.log"
+        exit_with_error "LOGFILE must not be root (/). Use a file path, e.g. /var/lib/3rr/update.log"
     fi
     if [[ "$LOGFILE" == *".."* ]]; then
         exit_with_error "LOGFILE must not contain '..': $LOGFILE"
@@ -209,6 +245,18 @@ path_owner_uid() {
         return 0
     fi
     printf ''
+}
+
+path_mtime() {
+    local path mtime
+    path="$1"
+    mtime=$(stat -c '%Y' "$path" 2> /dev/null || true)
+    if [ -n "$mtime" ]; then
+        printf '%s' "$mtime"
+        return 0
+    fi
+    mtime=$(stat -f '%m' "$path" 2> /dev/null || true)
+    printf '%s' "$mtime"
 }
 
 require_secure_log_path() {
@@ -301,7 +349,8 @@ sleep_s() {
     local secs
     secs="$1"
 
-    if [ "$NO_SLEEP" = "1" ]; then
+    # NO_SLEEP is a test aid; production runs always honour the retry delays.
+    if [ "$NO_SLEEP" = "1" ] && [ "$THREERR_TEST_MODE" = "1" ]; then
         return 0
     fi
 
@@ -350,6 +399,10 @@ remove_remote_buildid_temp() {
 }
 
 remove_lock_metadata() {
+    if [ -n "$LOCK_PID_TMP" ] && [ -f "$LOCK_PID_TMP" ]; then
+        rm -f "$LOCK_PID_TMP" 2> /dev/null || true
+        LOCK_PID_TMP=""
+    fi
     if [ -n "$LOCK_PID_FILE" ] && [ -f "$LOCK_PID_FILE" ]; then
         rm -f "$LOCK_PID_FILE" 2> /dev/null || true
         LOCK_PID_FILE=""

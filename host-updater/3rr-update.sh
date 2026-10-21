@@ -8,7 +8,8 @@
 # Usage:
 #   Run as root (e.g., via cron) so no sudo prompts are needed.
 #   Configure the variables below to match your environment.
-#   For testing: ALLOW_NONROOT=1 (run as current user), NO_SLEEP=1 (skip sleep between retries).
+#   For testing only: ALLOW_NONROOT=1 (non-root users only), THREERR_TEST_MODE=1 with
+#   NO_SLEEP=1 (skip sleep between retries).
 
 set -euo pipefail
 
@@ -25,6 +26,11 @@ DRY_RUN="${DRY_RUN:-0}"
 CLI_DRY_RUN_SET=0
 STATUS_ONLY=0
 CONFIG_FILE="${CONFIG_FILE:-}"
+# An explicitly requested config file (CLI or environment) must exist.
+CONFIG_EXPLICIT=0
+if [ -n "$CONFIG_FILE" ]; then
+    CONFIG_EXPLICIT=1
+fi
 while [ $# -gt 0 ]; do
     arg="$1"
     case "$arg" in
@@ -37,18 +43,23 @@ while [ $# -gt 0 ]; do
             echo "Options:"
             echo "  -h, --help           Show this help and exit"
             echo "  -v, --version        Show version and exit"
-            echo "  --dry-run            Check for updates only; do not stop/update/start"
-            echo "  --status             Print whether an update is available, then exit"
+            echo "  --dry-run            Check for updates only; never stops, updates or starts"
+            echo "                         the service"
+            echo "  --status             Print whether an update is available, then exit."
+            echo "                         Read-only: takes no lock and never touches the service."
+            echo "                         Exit 0 = up to date, 10 = update available,"
+            echo "                         any other non-zero = error or unknown"
             echo "  --config=FILE, -c    Load config from FILE (default: 3rr-update.conf"
-            echo "                         next to the script)"
+            echo "                         next to the script, optional). An explicit FILE"
+            echo "                         must exist and be readable, or the run fails."
             echo ""
             echo "Configuration (via config file or environment variables):"
             echo "  CS2_DIR              CS2 install directory       [/home/steam/cs2]"
             echo "  SERVICE_NAME         Systemd unit name           [cs2.service]"
             echo "  STEAMCMD             SteamCMD binary path        [/usr/games/steamcmd]"
-            echo "  LOGFILE              Root-owned log file path    [/var/log/3rr/update.log]"
-            echo "  REQUIRED_SPACE       Min free disk space in KB   [5000000 (~5 GB)]"
-            echo "  MAX_ATTEMPTS         Retries for stop/start      [5]"
+            echo "  LOGFILE              Root-owned log file path    [/var/lib/3rr/update.log]"
+            echo "  REQUIRED_SPACE       Min free disk space in KB   [30000000 (~30 GB)]"
+            echo "  MAX_ATTEMPTS         Attempts for stop/start/update [5]"
             echo "  SLEEP_SECS           Seconds between retries     [5]"
             echo "  STEAMCMD_TIMEOUT_SECS Max seconds per SteamCMD run [1800]"
             echo "  SYSTEMCTL_TIMEOUT_SECS Max seconds per systemctl call [90]"
@@ -82,18 +93,22 @@ while [ $# -gt 0 ]; do
                 echo "ERROR: -c requires an argument. Use -c /path/to/config" >&2
                 exit 1
             fi
+            CONFIG_EXPLICIT=1
             CONFIG_FILE="$2"
             shift 2
             ;;
         -c=*)
+            CONFIG_EXPLICIT=1
             CONFIG_FILE="${arg#-c=}"
             shift
             ;;
         -c*)
+            CONFIG_EXPLICIT=1
             CONFIG_FILE="${arg#-c}"
             shift
             ;;
         --config=*)
+            CONFIG_EXPLICIT=1
             CONFIG_FILE="${arg#--config=}"
             shift
             ;;
@@ -102,6 +117,7 @@ while [ $# -gt 0 ]; do
                 echo "ERROR: --config requires an argument. Use --config=/path/to/config" >&2
                 exit 1
             fi
+            CONFIG_EXPLICIT=1
             CONFIG_FILE="$2"
             shift 2
             ;;
@@ -117,21 +133,25 @@ while [ $# -gt 0 ]; do
 done
 
 #### Configuration ####
-LOCKDIR="${LOCKDIR:-/tmp/3rr-update.lock}"
-LOGFILE="${LOGFILE:-/var/log/3rr/update.log}"
+LOCKDIR="${LOCKDIR:-/run/3rr-update.lock}"
+LOGFILE="${LOGFILE:-/var/lib/3rr/update.log}"
 CS2_DIR="${CS2_DIR:-/home/steam/cs2}"
 SERVICE_NAME="${SERVICE_NAME:-cs2.service}"
 STEAMCMD="${STEAMCMD:-/usr/games/steamcmd}"
 CS2_APP_ID="${CS2_APP_ID:-730}"
-REQUIRED_SPACE="${REQUIRED_SPACE:-5000000}" # in KB (e.g., ~5GB)
+REQUIRED_SPACE="${REQUIRED_SPACE:-30000000}" # in KB (~30 GB)
 MAX_ATTEMPTS="${MAX_ATTEMPTS:-5}"
 SLEEP_SECS="${SLEEP_SECS:-5}"
 STEAMCMD_TIMEOUT_SECS="${STEAMCMD_TIMEOUT_SECS:-1800}"
 SYSTEMCTL_TIMEOUT_SECS="${SYSTEMCTL_TIMEOUT_SECS:-90}"
 
-# Testing helper: set to 1 to allow running as non-root (runs SteamCMD as the current user).
+# Testing helpers (environment only, not config keys). ALLOW_NONROOT=1 lets a
+# non-root user run the script (SteamCMD then runs as that user); it has no effect
+# when running as root. NO_SLEEP=1 skips retry delays and is honoured only
+# together with THREERR_TEST_MODE=1.
 ALLOW_NONROOT="${ALLOW_NONROOT:-0}"
 NO_SLEEP="${NO_SLEEP:-0}"
+THREERR_TEST_MODE="${THREERR_TEST_MODE:-0}"
 # quiet = only ERROR/WARNING; normal = all
 LOG_LEVEL="${LOG_LEVEL:-normal}"
 # Single source of truth for operator config-file keys and trimming.
@@ -155,7 +175,13 @@ source "$SCRIPT_DIR/lib/operations.sh"
 apply_defaults
 
 # Optional config file (same variable names as env); overrides defaults
-[ -z "${CONFIG_FILE:-}" ] && CONFIG_FILE="$SCRIPT_DIR/3rr-update.conf"
+if [ "$CONFIG_EXPLICIT" = "1" ] && [ -z "$CONFIG_FILE" ]; then
+    echo "ERROR: --config requires a non-empty path." >&2
+    exit 1
+fi
+if [ -z "$CONFIG_FILE" ]; then
+    CONFIG_FILE="$SCRIPT_DIR/3rr-update.conf"
+fi
 if [ "$CONFIG_FILE" = "-" ]; then
     echo "ERROR: CONFIG_FILE must not be '-' (stdin)." >&2
     exit 1
@@ -171,6 +197,16 @@ fi
 if [ -n "$CONFIG_FILE" ] && [ -e "$CONFIG_FILE" ] && [ ! -f "$CONFIG_FILE" ]; then
     echo "ERROR: CONFIG_FILE must be a regular file: $CONFIG_FILE" >&2
     exit 1
+fi
+if [ "$CONFIG_EXPLICIT" = "1" ]; then
+    if [ ! -e "$CONFIG_FILE" ]; then
+        echo "ERROR: CONFIG_FILE does not exist: $CONFIG_FILE" >&2
+        exit 1
+    fi
+    if [ ! -r "$CONFIG_FILE" ]; then
+        echo "ERROR: CONFIG_FILE is not readable: $CONFIG_FILE" >&2
+        exit 1
+    fi
 fi
 if [ -f "$CONFIG_FILE" ]; then
     load_config_file "$CONFIG_FILE"
@@ -191,9 +227,11 @@ CLEANUP_ENABLED=0
 TMP_UPDATE_OUTPUT=""
 TMP_GET_REMOTE_BUILDID=""
 LOCK_PID_FILE=""
+LOCK_PID_TMP=""
 LOCK_META_FILE=""
 LOGFILE_READY=0
 SERVICE_STOPPED_BY_UPDATER=0
+STEAM_HOME=""
 CLEANUP_RUNNING=0
 
 trap cleanup EXIT
@@ -223,8 +261,9 @@ fi
 
 UPDATE_START_TIME=$(date +%s)
 log "=== Update process initiated ==="
-init_lock
-check_space
+if [ "$STATUS_ONLY" != "1" ]; then
+    init_lock
+fi
 
 BUILDID_BEFORE=$(read_buildid)
 log "Detected buildid before update: ${BUILDID_BEFORE:-unknown}"
@@ -243,7 +282,7 @@ if [ "$STATUS_ONLY" = "1" ]; then
         update-required)
             log "Status: update available (local ${BUILDID_BEFORE:-unknown}, remote ${REMOTE_BUILDID:-unknown})"
             log "=== Update process completed (status only, $(($(date +%s) - UPDATE_START_TIME))s) ==="
-            exit 0
+            exit 10
             ;;
         *)
             log "Status: unknown (local ${BUILDID_BEFORE:-unknown}, remote ${REMOTE_BUILDID:-unknown})"
@@ -256,7 +295,6 @@ fi
 case "$UPDATE_STATE" in
     up-to-date)
         log "No update required (local buildid matches remote)."
-        ensure_service_running
         log "=== Update process completed ($(($(date +%s) - UPDATE_START_TIME))s) ==="
         exit 0
         ;;
@@ -270,6 +308,9 @@ case "$UPDATE_STATE" in
         ;;
 esac
 
+# Only a run that will update needs the space; --status and up-to-date runs exited above.
+check_space
+
 if [ "$DRY_RUN" = "1" ]; then
     log "Dry run: skipping service stop, SteamCMD update, and service start."
     log "=== Update process completed (dry run, $(($(date +%s) - UPDATE_START_TIME))s) ==="
@@ -282,7 +323,13 @@ run_update
 BUILDID_AFTER=$(read_buildid)
 log "Detected buildid after update: ${BUILDID_AFTER:-unknown}"
 
-start_service
+# Only restore what this run stopped; a service that was already stopped on
+# purpose stays stopped.
+if [ "$SERVICE_STOPPED_BY_UPDATER" = "1" ]; then
+    start_service
+else
+    log "$SERVICE_NAME was not running before the update; leaving it stopped."
+fi
 
 POST_UPDATE_STATE=$(determine_post_update_state "$BUILDID_BEFORE" "$REMOTE_BUILDID" "$BUILDID_AFTER")
 

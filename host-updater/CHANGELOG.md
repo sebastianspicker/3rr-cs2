@@ -39,6 +39,35 @@ paths used by those releases.
 - Recalculate and test the example systemd start and stop deadlines to allow
   for both SteamCMD calls, systemctl retries, and service restoration after
   failure.
+- `--dry-run` and up-to-date runs no longer start a stopped service. The updater
+  only restores service state that it stopped itself, and a service that was
+  stopped before the update stays stopped.
+- An explicit `--config=PATH` (or `-c`) that is empty, missing, or unreadable now
+  fails with an error instead of silently falling back to the defaults.
+- Changed the default `LOGFILE` from `/var/log/3rr/update.log` to
+  `/var/lib/3rr/update.log`. Ubuntu's group-writable `/var/log` fails the log
+  ancestor check, so the old default could not be used there. The ancestor check
+  itself is unchanged. Existing logs under `/var/log/3rr` are not moved.
+- SteamCMD now runs with the `steam` account's `HOME`, `USER`, and `LOGNAME`
+  (home from `getent passwd steam`). The updater fails early when the account or
+  its home directory is missing.
+- Retry the SteamCMD update step up to `MAX_ATTEMPTS` times with `SLEEP_SECS`
+  between attempts (a timeout is not retried), and correct the README claim and
+  deadline formula. The example unit now sets `TimeoutStartSec=240min`.
+- Raised the default `REQUIRED_SPACE` from 5000000 KB to 30000000 KB (about
+  30 GB).
+- `--status` no longer takes the lock. It exits 0 when up to date, 10 when an
+  update is available, and another non-zero status on error or unknown build.
+- Moved the default lock from `/tmp/3rr-update.lock` to
+  `/run/3rr-update.lock`, wrote the lock PID atomically, and recover a lock
+  directory that has no PID file and is older than 60 seconds (crash between
+  `mkdir` and the PID write). Recovery removes only the known files and uses
+  `rmdir`; the PID-reuse check is unchanged.
+- `ALLOW_NONROOT=1` no longer makes a root run execute SteamCMD as root; it only
+  permits a non-root run. `NO_SLEEP` is honoured only together with the new
+  test-only `THREERR_TEST_MODE=1`.
+- Added conservative sandboxing directives to the example systemd unit
+  (unverified on a real systemd host).
 
 ### Removed
 

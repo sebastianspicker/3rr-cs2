@@ -19,6 +19,20 @@ import { configureSecurity } from './security';
 import { configureRateLimits } from './rateLimits';
 import { registerHealthRoute } from './health';
 
+function bodyParserClientError(error: unknown): { type: string; status: number } | null {
+  if (typeof error !== 'object' || error === null) return null;
+  const { type, status } = error as { type?: unknown; status?: unknown };
+  if (
+    typeof type !== 'string' ||
+    !/^(entity|request|encoding|charset|parameters|stream|querystring)\./.test(type)
+  )
+    return null;
+  return {
+    type,
+    status: typeof status === 'number' && status >= 400 && status < 500 ? status : 400,
+  };
+}
+
 export function createPanelApp(
   nodeEnv: string,
   packageRoot: string,
@@ -87,6 +101,13 @@ export function createPanelApp(
   });
   app.use((error: unknown, _req: Request, res: Response, next: NextFunction) => {
     void next;
+    const clientError = bodyParserClientError(error);
+    if (clientError) {
+      // Parser errors carry the raw body, which may hold a password: log the type only.
+      logger.warn({ type: clientError.type, status: clientError.status }, '[app] rejected body');
+      if (!res.headersSent) res.status(clientError.status).json({ error: 'Invalid request body' });
+      return;
+    }
     logger.error({ err: error }, '[app] unhandled route error');
     if (!res.headersSent) res.status(500).json({ error: 'Internal server error' });
   });

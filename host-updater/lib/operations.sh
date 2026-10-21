@@ -19,28 +19,33 @@ check_space() {
 }
 
 run_as_steam() {
-    if [ "$ALLOW_NONROOT" = "1" ]; then
-        "$@"
-        return
-    fi
-
-    if [ "${EUID:-$(id -u)}" -eq 0 ]; then
+    if is_root_user; then
+        [ -n "$STEAM_HOME" ] || resolve_steam_home
+        # Give SteamCMD the steam account's environment; runuser -u keeps the
+        # caller's HOME/USER, so root's home would otherwise receive ~/.steam.
+        local -a steam_env=(env "HOME=$STEAM_HOME" USER=steam LOGNAME=steam)
         if command -v runuser > /dev/null 2>&1; then
-            runuser -u steam -- "$@"
+            runuser -u steam -- "${steam_env[@]}" "$@"
             return
         fi
         if command -v su > /dev/null 2>&1; then
             local cmd_str
-            cmd_str=$(printf "%q " "$@")
+            cmd_str=$(printf "%q " "${steam_env[@]}" "$@")
             cmd_str="${cmd_str% }"
             su -s /bin/bash -c "$cmd_str" steam
             return
         fi
         if command -v sudo > /dev/null 2>&1; then
-            sudo -u steam "$@"
+            sudo -u steam "${steam_env[@]}" "$@"
             return
         fi
         exit_with_error "Cannot run SteamCMD as the 'steam' user: none of runuser, su, or sudo found in PATH."
+    fi
+
+    # Non-root test run (ALLOW_NONROOT=1): run SteamCMD as the current user.
+    if [ "$ALLOW_NONROOT" = "1" ]; then
+        "$@"
+        return
     fi
 
     exit_with_error "Must run as root or set ALLOW_NONROOT=1 (cannot run as 'steam' user)."
@@ -104,22 +109,34 @@ stop_service() {
 }
 
 run_update() {
-    local update_ret
+    local attempt update_ret
     TMP_UPDATE_OUTPUT=$(mktemp "${TMPDIR:-/tmp}/cs2_update.XXXXXX") || exit_with_error "Failed to create temporary file."
-    log "Running SteamCMD update as 'steam' user..."
-    update_ret=0
-    run_steamcmd_with_timeout "$STEAMCMD" +login anonymous \
-        +force_install_dir "$CS2_DIR" \
-        +app_update "$CS2_APP_ID" validate +quit > "$TMP_UPDATE_OUTPUT" 2>&1 || update_ret=$?
-    log "SteamCMD output:"
-    log_multiline "steamcmd: " < "$TMP_UPDATE_OUTPUT"
+    # The service is stopped and CS2 has not been started again, so repeating
+    # the SteamCMD step is safe. Starting the service is never retried here.
+    for ((attempt = 1; attempt <= MAX_ATTEMPTS; attempt++)); do
+        log "Running SteamCMD update as 'steam' user (attempt ${attempt}/${MAX_ATTEMPTS})..."
+        update_ret=0
+        run_steamcmd_with_timeout "$STEAMCMD" +login anonymous \
+            +force_install_dir "$CS2_DIR" \
+            +app_update "$CS2_APP_ID" validate +quit > "$TMP_UPDATE_OUTPUT" 2>&1 || update_ret=$?
+        log "SteamCMD output:"
+        log_multiline "steamcmd: " < "$TMP_UPDATE_OUTPUT"
+        if [ "$update_ret" -eq 0 ]; then
+            break
+        fi
+        if [ "$update_ret" -eq 124 ] || [ "$update_ret" -eq 137 ]; then
+            # A hung SteamCMD would likely hang again; fail fast and restore the service.
+            exit_with_error "SteamCMD update timed out after ${STEAMCMD_TIMEOUT_SECS}s."
+        fi
+        if [ "$attempt" -lt "$MAX_ATTEMPTS" ]; then
+            log "SteamCMD update attempt ${attempt}/${MAX_ATTEMPTS} failed (exit ${update_ret}), retrying in ${SLEEP_SECS}s..."
+            sleep_s "$SLEEP_SECS"
+        fi
+    done
     rm -f "$TMP_UPDATE_OUTPUT"
     TMP_UPDATE_OUTPUT=""
     if [ "$update_ret" -ne 0 ]; then
-        if [ "$update_ret" -eq 124 ] || [ "$update_ret" -eq 137 ]; then
-            exit_with_error "SteamCMD update timed out after ${STEAMCMD_TIMEOUT_SECS}s."
-        fi
-        exit_with_error "SteamCMD update failed."
+        exit_with_error "SteamCMD update failed after ${MAX_ATTEMPTS} attempts."
     fi
 }
 
@@ -249,14 +266,4 @@ start_service() {
     wait_for_service_active || exit_with_error "$SERVICE_NAME start command succeeded but service is not active after $MAX_ATTEMPTS checks."
     SERVICE_STOPPED_BY_UPDATER=0
     log "$SERVICE_NAME started and active."
-}
-
-ensure_service_running() {
-    require_cmd systemctl
-    if run_systemctl_with_timeout is-active --quiet "$SERVICE_NAME"; then
-        log "$SERVICE_NAME is already running."
-    else
-        log "$SERVICE_NAME is not running; starting..."
-        start_service
-    fi
 }

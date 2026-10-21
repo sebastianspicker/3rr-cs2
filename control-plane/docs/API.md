@@ -231,10 +231,10 @@ a favorite to a Workshop ID that already exists returns `409`.
 
 ## Status and health
 
-| Method | Path                     | Auth | CSRF | Rate Limit | Description                                                                                                                                                                                  |
-| ------ | ------------------------ | ---- | ---- | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| GET    | `/api/status/:server_id` | Yes  | -    | 60/min     | Live server status                                                                                                                                                                           |
-| GET    | `/api/health`            | No   | -    | -          | Health check for load balancers; minimal payload includes liveness `ok` and readiness `ready`; includes DB/Redis/RCON details when `HEALTHCHECK_VERBOSE=true` or the caller is authenticated |
+| Method | Path                     | Auth | CSRF | Rate Limit | Description                                                                                                                                                                             |
+| ------ | ------------------------ | ---- | ---- | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| GET    | `/api/status/:server_id` | Yes  | -    | 60/min     | Live server status                                                                                                                                                                      |
+| GET    | `/api/health`            | No   | -    | -          | Health check for load balancers; minimal payload includes liveness `ok` and readiness `ready`; includes DB/Redis/RCON details when `HEALTHCHECK_VERBOSE=true` or the caller is an admin |
 
 `/api/status/:server_id` reports RCON connection and authentication separately
 from the completeness of the status data. When some RCON observations succeed

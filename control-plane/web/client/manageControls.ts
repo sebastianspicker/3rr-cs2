@@ -112,14 +112,17 @@ export function initPracticeControls(serverId: string): void {
   bindToggle(serverId, 'random_rounds', 'random-rounds-toggle', 'Random Rounds');
   bindToggle(serverId, 'rtd', 'rtd-toggle', 'RTD');
 
-  on('#rtd_force_roll', 'click', () => {
+  on('#rtd_force_roll', 'click', (event) => {
+    const button = event.currentTarget instanceof HTMLButtonElement ? event.currentTarget : null;
     void showConfirm('Force-roll dice for all players?').then((confirmed) => {
       if (!confirmed) return;
-      sendPostRequest('/api/rtd-force-roll', { server_id: serverId })
-        .then((d) => {
-          showToast(d.message, 'success');
-        })
-        .catch(toastError('Force roll failed.'));
+      withLoading(button, () =>
+        sendPostRequest('/api/rtd-force-roll', { server_id: serverId })
+          .then((d) => {
+            showToast(d.message, 'success');
+          })
+          .catch(toastError('Force roll failed.'))
+      );
     });
   });
 
@@ -175,12 +178,14 @@ export function initPracticeControls(serverId: string): void {
     { id: 'bot_kick_t', endpoint: '/api/bot-kick-t' },
   ];
   botCmds.forEach((cmd) => {
-    on(`#${cmd.id}`, 'click', () => {
-      void sendPostRequest(cmd.endpoint, { server_id: serverId })
-        .then((d) => {
-          showToast(d.message, 'success');
-        })
-        .catch(toastError('Bot action failed.'));
+    on(`#${cmd.id}`, 'click', (event) => {
+      withInitiatorLoading(event, () =>
+        sendPostRequest(cmd.endpoint, { server_id: serverId })
+          .then((d) => {
+            showToast(d.message, 'success');
+          })
+          .catch(toastError('Bot action failed.'))
+      );
     });
   });
 
@@ -194,12 +199,14 @@ export function initPracticeControls(serverId: string): void {
     ['give_incen', 'weapon_incgrenade'],
   ]);
   nadeMap.forEach((weapon, id) => {
-    on(`#${id}`, 'click', () => {
-      void sendPostRequest('/api/give-weapon', { server_id: serverId, weapon })
-        .then((d) => {
-          showToast(d.message, 'success');
-        })
-        .catch(toastError('Give weapon failed.'));
+    on(`#${id}`, 'click', (event) => {
+      withInitiatorLoading(event, () =>
+        sendPostRequest('/api/give-weapon', { server_id: serverId, weapon })
+          .then((d) => {
+            showToast(d.message, 'success');
+          })
+          .catch(toastError('Give weapon failed.'))
+      );
     });
   });
 
@@ -209,12 +216,14 @@ export function initPracticeControls(serverId: string): void {
     { id: 'rethrow_nade_btn', endpoint: '/api/rethrow-grenade' },
   ];
   practiceButtons.forEach((cmd) => {
-    on(`#${cmd.id}`, 'click', () => {
-      void sendPostRequest(cmd.endpoint, { server_id: serverId })
-        .then((d) => {
-          showToast(d.message, 'success');
-        })
-        .catch(toastError('Command failed.'));
+    on(`#${cmd.id}`, 'click', (event) => {
+      withInitiatorLoading(event, () =>
+        sendPostRequest(cmd.endpoint, { server_id: serverId })
+          .then((d) => {
+            showToast(d.message, 'success');
+          })
+          .catch(toastError('Command failed.'))
+      );
     });
   });
 }
@@ -236,29 +245,33 @@ export function initScrimControls(serverId: string): void {
     });
   });
 
-  on('#overtime_on', 'click', () => {
-    void sendPostRequest('/api/set-overtime', {
-      server_id: serverId,
-      enable: 1,
-      ot_rounds: currentOtMaxrounds,
-    })
-      .then((d) => {
-        showToast(d.message, 'success');
-        setToggleActive('overtime', 1);
+  on('#overtime_on', 'click', (event) => {
+    withInitiatorLoading(event, () =>
+      sendPostRequest('/api/set-overtime', {
+        server_id: serverId,
+        enable: 1,
+        ot_rounds: currentOtMaxrounds,
       })
-      .catch(toastError('Overtime On failed.'));
+        .then((d) => {
+          showToast(d.message, 'success');
+          setToggleActive('overtime', 1);
+        })
+        .catch(toastError('Overtime On failed.'))
+    );
   });
-  on('#overtime_off', 'click', () => {
-    void sendPostRequest('/api/set-overtime', {
-      server_id: serverId,
-      enable: 0,
-      ot_rounds: currentOtMaxrounds,
-    })
-      .then((d) => {
-        showToast(d.message, 'success');
-        setToggleActive('overtime', 0);
+  on('#overtime_off', 'click', (event) => {
+    withInitiatorLoading(event, () =>
+      sendPostRequest('/api/set-overtime', {
+        server_id: serverId,
+        enable: 0,
+        ot_rounds: currentOtMaxrounds,
       })
-      .catch(toastError('Overtime Off failed.'));
+        .then((d) => {
+          showToast(d.message, 'success');
+          setToggleActive('overtime', 0);
+        })
+        .catch(toastError('Overtime Off failed.'))
+    );
   });
 }
 
@@ -338,31 +351,38 @@ export function initMatchzyCommands(serverId: string): void {
     { selector: '#matchzy_playout', endpoint: '/api/matchzy-playout' },
   ];
   matchzyCommands.forEach((cmd) => {
-    on(cmd.selector, 'click', () => {
-      void sendPostRequest(cmd.endpoint, { server_id: serverId })
-        .then((d) => {
-          showToast(d.message, 'success');
-        })
-        .catch(toastError('MatchZy command failed.'));
+    on(cmd.selector, 'click', (event) => {
+      withInitiatorLoading(event, () =>
+        sendPostRequest(cmd.endpoint, { server_id: serverId })
+          .then((d) => {
+            showToast(d.message, 'success');
+          })
+          .catch(toastError('MatchZy command failed.'))
+      );
     });
   });
 
-  on('#matchzy_coach_ct', 'click', () => {
-    void sendPostRequest('/api/matchzy-coach', { server_id: serverId, side: 'ct' })
-      .then((d) => {
-        showToast(d.message, 'success');
-      })
-      .catch(toastError('Coach CT failed.'));
+  on('#matchzy_coach_ct', 'click', (event) => {
+    withInitiatorLoading(event, () =>
+      sendPostRequest('/api/matchzy-coach', { server_id: serverId, side: 'ct' })
+        .then((d) => {
+          showToast(d.message, 'success');
+        })
+        .catch(toastError('Coach CT failed.'))
+    );
   });
-  on('#matchzy_coach_t', 'click', () => {
-    void sendPostRequest('/api/matchzy-coach', { server_id: serverId, side: 't' })
-      .then((d) => {
-        showToast(d.message, 'success');
-      })
-      .catch(toastError('Coach T failed.'));
+  on('#matchzy_coach_t', 'click', (event) => {
+    withInitiatorLoading(event, () =>
+      sendPostRequest('/api/matchzy-coach', { server_id: serverId, side: 't' })
+        .then((d) => {
+          showToast(d.message, 'success');
+        })
+        .catch(toastError('Coach T failed.'))
+    );
   });
 
-  on('#matchzy_load_match_file_btn', 'click', () => {
+  on('#matchzy_load_match_file_btn', 'click', (event) => {
+    const button = event.currentTarget instanceof HTMLButtonElement ? event.currentTarget : null;
     const input = el<HTMLInputElement>('#matchzy_match_file_input');
     const filename = input?.value.trim() ?? '';
     if (!filename) {
@@ -371,12 +391,14 @@ export function initMatchzyCommands(serverId: string): void {
     }
     void showConfirm(`Load match config from ${filename}?`).then((confirmed) => {
       if (!confirmed) return;
-      void sendPostRequest('/api/matchzy-load-match-file', { server_id: serverId, filename })
-        .then((d) => {
-          showToast(d.message, 'success');
-          if (input) input.value = '';
-        })
-        .catch(toastError('Load match file failed.'));
+      withLoading(button, () =>
+        sendPostRequest('/api/matchzy-load-match-file', { server_id: serverId, filename })
+          .then((d) => {
+            showToast(d.message, 'success');
+            if (input) input.value = '';
+          })
+          .catch(toastError('Load match file failed.'))
+      );
     });
   });
 }

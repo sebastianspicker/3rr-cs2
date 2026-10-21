@@ -12,13 +12,19 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 
 cfg_quote() {
   # Config values are written into a Source-engine file, not passed on argv.
-  local value
+  # Callers validate with require_cfg_value first: Source cfg strings have no escapes.
+  printf '"%s"' "$1"
+}
+
+require_cfg_value() {
+  local value name LC_ALL=C
   value="$1"
-  value="${value//$'\r'/}"
-  value="${value//$'\n'/}"
-  value="${value//\\/\\\\}"
-  value="${value//\"/\\\"}"
-  printf '"%s"' "$value"
+  name="$2"
+
+  if [[ ! "$value" =~ ^[\ -~]+$ || "$value" == *[\"\\]* ]]; then
+    printf '%s must contain only printable ASCII characters other than " and \\\n' "$name" >&2
+    exit 1
+  fi
 }
 
 require_integer_in_range() {
@@ -105,6 +111,10 @@ trap cleanup_secret_cfg_tmp EXIT
 
 require_integer_in_range "$CS2_PORT" CS2_PORT 1 65535
 require_integer_in_range "$CS2_MAXPLAYERS" CS2_MAXPLAYERS 1 64
+require_cfg_value "$RCON_PASSWORD" RCON_PASSWORD
+if [[ -n "${CS2_GSLT:-}" ]]; then
+  require_cfg_value "$CS2_GSLT" CS2_GSLT
+fi
 
 CS2_BIN="${CS2_INSTALL_DIR}/game/cs2.sh"
 if [[ ! -x "$CS2_BIN" ]]; then

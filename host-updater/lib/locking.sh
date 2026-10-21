@@ -9,9 +9,17 @@ pid_exists() {
     kill -0 "$pid" 2> /dev/null || ps -p "$pid" > /dev/null 2>&1
 }
 
+# A lock directory without a PID file younger than this may belong to a run that
+# is still acquiring it; an older one is left over from a crash.
+LOCK_PIDLESS_STALE_SECS=60
+
 write_lock_pid() {
     LOCK_PID_FILE="${LOCKDIR%/}/pid"
-    printf '%s\n' "$$" > "$LOCK_PID_FILE" || exit_with_error "Failed to write lock PID file: $LOCK_PID_FILE"
+    LOCK_PID_TMP="${LOCKDIR%/}/pid.tmp.$$"
+    # Write to a temp file and rename so the PID file is never empty or partial.
+    printf '%s\n' "$$" > "$LOCK_PID_TMP" || exit_with_error "Failed to write lock PID file: $LOCK_PID_TMP"
+    mv -f "$LOCK_PID_TMP" "$LOCK_PID_FILE" || exit_with_error "Failed to publish lock PID file: $LOCK_PID_FILE"
+    LOCK_PID_TMP=""
 }
 
 process_start_time() {
@@ -103,16 +111,18 @@ exit_for_live_lock() {
     exit_with_error "Lock references live pid $lock_pid but metadata is missing; refusing automatic recovery: $LOCKDIR"
 }
 
+# Remove only the files this updater creates, then the directory itself. Never recursive.
+clear_lock_dir() {
+    rm -f "${LOCKDIR%/}/pid" "${LOCKDIR%/}/meta" "${LOCKDIR%/}"/pid.tmp.* 2> /dev/null || return 1
+    rmdir "$LOCKDIR" 2> /dev/null
+}
+
 recover_stale_lock() {
-    local lock_pid lock_pid_file lock_meta_file
+    local lock_pid
     lock_pid="$1"
-    lock_pid_file="$2"
-    lock_meta_file="$3"
 
     log "WARNING: Stale lock detected (pid $lock_pid not running). Attempting recovery..."
-    rm -f "$lock_pid_file" || exit_with_error "Failed to remove stale lock PID file: $lock_pid_file"
-    rm -f "$lock_meta_file" 2> /dev/null || true
-    if rmdir "$LOCKDIR" 2> /dev/null; then
+    if clear_lock_dir; then
         if acquire_lock; then
             log "Recovered stale lock and acquired a new lock."
             return 0
@@ -123,6 +133,31 @@ recover_stale_lock() {
     exit_with_error "Stale lock detected but lock directory is not empty; remove manually: $LOCKDIR"
 }
 
+# A crash between mkdir and the PID rename leaves a lock without a PID file.
+recover_pidless_lock() {
+    local mtime now age
+    mtime="$(path_mtime "$LOCKDIR")"
+    now="$(date +%s)"
+    if ! [[ "$mtime" =~ ^[0-9]+$ ]]; then
+        exit_with_error "Lock directory exists without PID file and its age is unknown; refusing automatic recovery: $LOCKDIR"
+    fi
+    age=$((now - mtime))
+    if [ "$age" -le "$LOCK_PIDLESS_STALE_SECS" ]; then
+        exit_with_error "Lock directory exists without PID file (${age}s old, may still be starting); refusing automatic recovery: $LOCKDIR"
+    fi
+
+    log "WARNING: Stale lock detected (no PID file, ${age}s old). Attempting recovery..."
+    if clear_lock_dir; then
+        if acquire_lock; then
+            log "Recovered stale lock and acquired a new lock."
+            return 0
+        fi
+        exit_with_error "Recovered stale lock but failed to re-acquire lock: $LOCKDIR"
+    fi
+
+    exit_with_error "Stale lock has unexpected contents; remove manually: $LOCKDIR"
+}
+
 handle_existing_lock() {
     local current_uid lock_pid_file lock_pid lock_meta_file
     current_uid="$1"
@@ -130,7 +165,10 @@ handle_existing_lock() {
 
     lock_pid_file="${LOCKDIR%/}/pid"
     lock_meta_file="${LOCKDIR%/}/meta"
-    [ -f "$lock_pid_file" ] || exit_with_error "Lock directory exists without PID file; refusing automatic recovery: $LOCKDIR"
+    if [ ! -f "$lock_pid_file" ]; then
+        recover_pidless_lock
+        return 0
+    fi
 
     lock_pid="$(read_lock_pid "$lock_pid_file")"
     lock_pid="${lock_pid//[[:space:]]/}"
@@ -142,7 +180,7 @@ handle_existing_lock() {
         exit_for_live_lock "$lock_pid" "$lock_meta_file"
     fi
 
-    recover_stale_lock "$lock_pid" "$lock_pid_file" "$lock_meta_file"
+    recover_stale_lock "$lock_pid"
 }
 
 init_lock() {

@@ -88,7 +88,8 @@ not imply that the requested setup was observed on the server.
 Check live map waits for any observation already in progress, then requests
 fresh status. It does not send the setup again. When the observed map matches
 the request, the interface reports that match while leaving game type, mode,
-and team names unverified. Recovery options remain available after a failed
+and team names unverified. A Workshop request also matches when `status`
+reports only the map's bare name. Recovery options remain available after a failed
 setup even if the requested map later appears. A new setup invalidates result
 checks from earlier submissions. Submitted names and request times exist only
 in browser memory; they are not stored as a permanent record.

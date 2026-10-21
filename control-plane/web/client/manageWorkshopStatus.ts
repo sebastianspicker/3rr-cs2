@@ -1,5 +1,12 @@
 /** Renders asynchronous workshop and backup status, including incomplete observations. */
-import { fetchJson, sendPostRequest, showToast, toastError, showConfirm } from './common';
+import {
+  fetchJson,
+  sendPostRequest,
+  showToast,
+  toastError,
+  showConfirm,
+  withLoading,
+} from './common';
 import {
   el,
   formatObserved,
@@ -20,13 +27,36 @@ import {
   type FavoriteActionContext,
 } from './manageWorkshopActions';
 
+interface BackupListResponse {
+  message: string;
+  backup_state?: 'listed' | 'none' | 'unknown';
+  raw_output?: string;
+}
+
 export function initBackups(serverId: string): void {
-  on('#list_backups', 'click', () => {
-    sendPostRequest('/api/list-backups', { server_id: serverId })
-      .then((d) => {
-        showToast(d.message, 'info');
-      })
-      .catch(toastError('List backups failed.'));
+  on('#list_backups', 'click', (event) => {
+    const button = event.currentTarget instanceof HTMLButtonElement ? event.currentTarget : null;
+    withLoading(button, () =>
+      sendPostRequest('/api/list-backups', { server_id: serverId })
+        .then((d: BackupListResponse) => {
+          const box = el<HTMLElement>('#backup-list-result');
+          if (!box) {
+            showToast(d.message, 'info');
+            return;
+          }
+          box.hidden = false;
+          setText(
+            'backup-list-state',
+            d.backup_state === 'listed'
+              ? 'Backups found'
+              : d.backup_state === 'none'
+                ? 'No backups reported by server'
+                : 'Backup state unknown'
+          );
+          setText('backup-list-output', d.raw_output ?? d.message);
+        })
+        .catch(toastError('List backups failed.'))
+    );
   });
   on('#restore_latest_backup', 'click', () => {
     void showConfirm('Restore latest backup?').then((confirmed) => {

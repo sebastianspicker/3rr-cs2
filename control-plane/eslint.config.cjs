@@ -9,7 +9,16 @@ const sharedRules = {
 
 module.exports = tseslint.config(
   {
-    ignores: ['node_modules/**', 'data/**', 'web/generated/**', 'web/views/**', 'dist/**'],
+    ignores: [
+      'node_modules/**',
+      'data/**',
+      'web/generated/**',
+      'web/views/**',
+      'dist/**',
+      // Private test suites are gitignored and kept out of the public gate.
+      'test/**',
+      'playwright.config.ts',
+    ],
   },
   // TypeScript files: use @typescript-eslint recommended rules
   ...tseslint.configs.recommended.map((cfg) => ({

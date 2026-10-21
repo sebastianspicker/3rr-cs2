@@ -8,7 +8,10 @@ import { hashPassword } from './passwords';
 
 const NewUserSchema = z.object({
   username: z.string().trim().min(1).max(255),
-  password: z.string().min(12, 'Password must be at least 12 characters'),
+  password: z
+    .string()
+    .min(12, 'Password must be at least 12 characters')
+    .max(1024, 'Password must be at most 1024 characters'),
   serverId: z.number().int().positive().optional(),
 });
 

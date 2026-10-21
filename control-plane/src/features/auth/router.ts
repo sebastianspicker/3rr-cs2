@@ -6,11 +6,14 @@ import { z } from 'zod';
 import type Database from 'better-sqlite3';
 import logger from '../../infrastructure/logging';
 import type { Request, Response } from 'express';
+import { credentialFingerprint } from '../../shared/credentialFingerprint';
 import { createAuthRepository, type AuthUserRow } from './repository';
 
+// Unknown usernames are compared against this hash so both paths cost the same.
+// Keep its cost equal to hashPassword's (12) or login timing reveals valid usernames.
 const DUMMY_PASSWORD_HASH = [
-  '$2b$10$',
-  'G6s7QvNxy4/Fq7l6f5Yx8eSE0qVYCSvJzpuG1HsfrN7kYMva9nQxW',
+  '$2b$12$',
+  '6kiA1OWgxmZ/mCmxXkZKCupTnaSVxq0yR6.EzDS8dK8xOj1b/c6yC',
 ].join('');
 
 const LoginBodySchema = z.object({
@@ -44,7 +47,12 @@ const establishSession = (req: Request, res: Response, user: AuthUserRow): void 
       return;
     }
     logger.info({ username: user.username, ip: req.ip }, '[auth] login');
-    req.session.user = { id: user.id, username: user.username, is_admin: user.is_admin };
+    req.session.user = {
+      id: user.id,
+      username: user.username,
+      is_admin: user.is_admin,
+      credential: credentialFingerprint(user.password),
+    };
     req.session.csrfToken = crypto.randomBytes(32).toString('hex');
     req.session.save((saveErr) => {
       if (saveErr) {

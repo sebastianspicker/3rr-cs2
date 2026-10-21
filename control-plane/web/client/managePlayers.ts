@@ -85,7 +85,7 @@ function renderPlayerList(
 async function handlePlayerAction(
   serverId: string,
   button: HTMLButtonElement,
-  reload: () => Promise<void>
+  reload: (refresh: boolean) => Promise<void>
 ): Promise<void> {
   const action = button.dataset.playerAction;
   if (action === 'kick') {
@@ -94,7 +94,7 @@ async function handlePlayerAction(
     sendPostRequest('/api/player-kick', { server_id: serverId, userid })
       .then((data) => {
         showToast(data.message, 'success');
-        return reload();
+        return reload(true);
       })
       .catch(toastError('Kick failed.'));
     return;
@@ -116,9 +116,12 @@ export function initPlayerManagement(serverId: string): void {
   if (!list) return;
   const playerList = list;
 
-  async function loadPlayers(): Promise<void> {
+  // Refresh and post-kick reloads bypass the five-second observation cache.
+  async function loadPlayers(refresh = false): Promise<void> {
     try {
-      const data = await fetchJson<PlayersResponse>(`/api/players/${serverId}`);
+      const data = await fetchJson<PlayersResponse>(
+        `/api/players/${serverId}${refresh ? '?refresh=1' : ''}`
+      );
       players = data.players;
       renderPlayerList(playerList, search, players);
       setText(
@@ -138,7 +141,7 @@ export function initPlayerManagement(serverId: string): void {
     renderPlayerList(playerList, search, players);
   });
   on('#refresh_players', 'click', () => {
-    void loadPlayers();
+    void loadPlayers(true);
   });
   playerList.addEventListener('click', (event) => {
     const button = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-player-action]');

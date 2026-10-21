@@ -7,8 +7,8 @@
 # Leave a setting commented to use its default; do not set critical keys empty.
 
 # Paths
-# LOCKDIR=/tmp/3rr-update.lock
-# LOGFILE=/var/log/3rr/update.log
+# LOCKDIR=/run/3rr-update.lock
+# LOGFILE=/var/lib/3rr/update.log
 # CS2_DIR=/home/steam/cs2
 
 # Service and Steam
@@ -16,8 +16,9 @@
 # STEAMCMD=/usr/games/steamcmd
 # CS2_APP_ID=730
 
-# Retries and space (REQUIRED_SPACE in KB, e.g. 5000000 = ~5 GB)
-# REQUIRED_SPACE=5000000
+# Retries and space (REQUIRED_SPACE in KB, e.g. 30000000 = ~30 GB)
+# MAX_ATTEMPTS applies to systemctl stop/start/status checks and the SteamCMD update.
+# REQUIRED_SPACE=30000000
 # MAX_ATTEMPTS=5
 # SLEEP_SECS=5
 # STEAMCMD_TIMEOUT_SECS=1800

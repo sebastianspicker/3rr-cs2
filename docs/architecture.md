@@ -146,8 +146,8 @@ sequenceDiagram
 
 **Before any server is touched**:
 
-- Every request passes security headers, request-size limits, the login session, CSRF
-  protection, and rate limits.
+- Every request passes security headers, request-size limits, the login session, and CSRF
+  protection. Login attempts and API requests (except the health check) are rate limited.
 - Protected requests reload your user account from the database, so a removed or changed
   account takes effect immediately.
 - Administrator rights and per-server access grants are checked separately.
@@ -164,7 +164,9 @@ sequenceDiagram
 - Every operation has a timeout.
 - The free-form console accepts a single command in printable ASCII (plain keyboard
   characters). It rejects command separators. It also blocks commands that could change the
-  server process, credentials, logging, plugins, or RCON configuration.
+  server process, credentials, logging, plugins, or RCON configuration. This block list is
+  best-effort, not a security boundary: anyone who can use the console of a server should be
+  trusted with that server's RCON password.
 
 ## Queueing, timeouts, and cached observations
 

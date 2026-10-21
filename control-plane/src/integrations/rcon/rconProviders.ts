@@ -24,7 +24,7 @@ export async function resolveAllowedRconAddress(
   server_id: string,
   server: ServerInfo
 ): Promise<string | null> {
-  const { resolveValidServerHost } = await import('./networkValidation');
+  const { resolveValidServerHost } = await import('./networkValidation.js');
   const address = await resolveValidServerHost(server.serverIP);
   if (address) return address;
   logger.warn(

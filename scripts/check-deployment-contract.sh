@@ -90,7 +90,9 @@ if grep -Eq 'image:[[:space:]]+cm2network/cs2([[:space:]]|$)|\$\{CS2_IMAGE:-' "$
   fail "server Compose must not provide a floating or fallback CS2 image"
 fi
 
-grep -Fq '["redis-server", "--appendonly", "yes"]' "${CONTROL_COMPOSE}" || fail "control-plane Compose must preserve its established Redis configuration"
+grep -Fq '"--appendonly",' "${CONTROL_COMPOSE}" || fail "control-plane Compose must preserve its established Redis configuration"
+# shellcheck disable=SC2016 # Match the literal Compose interpolation token.
+grep -Fq '"${REDIS_PASSWORD:?' "${CONTROL_COMPOSE}" || fail "control-plane Compose must require a Redis password"
 grep -Fq 'panel-redis:' "${CONTROL_COMPOSE}" || fail "control-plane Compose must preserve its established Redis volume"
 
 for field in \

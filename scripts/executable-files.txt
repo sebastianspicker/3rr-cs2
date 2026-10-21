@@ -7,6 +7,7 @@ host-updater/scripts/fmt.sh
 host-updater/scripts/lint.sh
 host-updater/scripts/security.sh
 scripts/check-deployment-contract.sh
+scripts/release-artifacts.sh
 scripts/verify.sh
 server-bootstrap/scripts/bootstrap-admins.sh
 server-bootstrap/scripts/bootstrap-output.sh

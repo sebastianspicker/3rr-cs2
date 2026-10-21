@@ -1,4 +1,5 @@
 /** Carries one deadline through an HTTP action, including command sequences. */
+import crypto from 'node:crypto';
 import type { RequestHandler } from 'express';
 import { executionContext } from '../shared/executionContext';
 import type { RconManager } from '../integrations/rcon';
@@ -13,8 +14,14 @@ export function executionLifetime(rcon: RconManager): RequestHandler {
     };
     req.once('aborted', abandon);
     res.once('close', close);
+    const requestId = crypto.randomUUID();
+    res.setHeader('X-Request-Id', requestId);
     executionContext.run(
-      { deadlineAt: Date.now() + (rcon.totalDeadlineMs ?? 12_000), signal: controller.signal },
+      {
+        deadlineAt: Date.now() + (rcon.totalDeadlineMs ?? 12_000),
+        signal: controller.signal,
+        requestId,
+      },
       next
     );
   };

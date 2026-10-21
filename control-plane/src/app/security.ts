@@ -158,15 +158,20 @@ const csrfTokensEqual = (expected: unknown, supplied: unknown): boolean => {
   return crypto.timingSafeEqual(expectedBuf, suppliedBuf);
 };
 
+const CSRF_ALWAYS_PATHS = new Set(['/auth/login', '/auth/logout']);
+
 const shouldEnforceCsrf = (req: Request): boolean => {
-  if (req.path === '/auth/login' || req.path === '/auth/logout') return true;
+  // Routing is case-insensitive and ignores a trailing slash, so compare the same way.
+  const routePath = req.path.toLowerCase().replace(/\/+$/, '');
+  if (CSRF_ALWAYS_PATHS.has(routePath)) return true;
   return Boolean(req.session?.user) || Boolean(req.session?.csrfToken);
 };
 
 function ensureCsrfToken(req: Request): void {
-  const isPageRequest =
-    req.method === 'GET' && !req.path.startsWith('/api/') && path.extname(req.path) === '';
-  if (!req.session.csrfToken && (isPageRequest || req.session.user)) {
+  // Only the login page needs a token before sign-in; other paths would let any
+  // cookie-less request create a stored session.
+  const isLoginPage = req.method === 'GET' && req.path === '/';
+  if (!req.session.csrfToken && (isLoginPage || req.session.user)) {
     req.session.csrfToken = crypto.randomBytes(32).toString('hex');
   }
 }

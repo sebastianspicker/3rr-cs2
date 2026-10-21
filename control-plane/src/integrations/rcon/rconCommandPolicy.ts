@@ -44,7 +44,25 @@ export const RCON_BLOCKED_COMMANDS = [
   'css_plugins_load',
   'css_plugins_unload',
   'sv_setsteamaccount',
+  'css_rcon',
+  '_restart',
+  'sv_shutdown',
+  'sv_logfile',
+  'sv_log_onefile',
 ];
+
+// Every verb in these families changes RCON access, log destinations, loaded
+// plugins, or runs another file.
+export const RCON_BLOCKED_PREFIXES = ['sv_rcon_', 'logaddress_', 'plugin_', 'exec'];
+
+// `css_plugins <sub>` can load or unload plugins; only listing them is read-only.
+const READ_ONLY_PLUGIN_COMMAND_RE = /^css_plugins(\s+list)?$/i;
+
+export const RCON_BLOCKED_SUMMARY = [
+  ...RCON_BLOCKED_COMMANDS,
+  ...RCON_BLOCKED_PREFIXES.map((prefix) => `${prefix}*`),
+  'css_plugins (except list)',
+].join(', ');
 
 // rcon-srcds encodes commands as ASCII, so reject Unicode before that conversion.
 const NON_ASCII_RE = /[^\x20-\x7e]/;
@@ -71,13 +89,40 @@ export function sanitizeString(value: unknown, maxLen: number): string {
   return stripUnsafeNameCharacters(value).replace(NON_ASCII_GLOBAL_RE, '').trim().slice(0, maxLen);
 }
 
+// The console tokenizer unquotes words and `+`/`-` mark bind-style variants of a
+// command, so compare the bare verb.
+function normalizeCommandName(token: string): string {
+  return token
+    .replace(/["']/g, '')
+    .replace(/^[+-]+/, '')
+    .toLowerCase();
+}
+
+// Source also ends a word at `{}()':` or a quote and drops `//` comments, so the
+// engine may read a shorter verb than the first whitespace-separated token.
+function tokenizerVerb(command: string): string {
+  const word = /^[^\s"'(){}:]*/.exec(command.replace(/^["'+-]+/, ''))?.[0] ?? '';
+  return normalizeCommandName(word.split('//', 1)[0] ?? '');
+}
+
+function isBlockedCommandName(commandName: string): boolean {
+  return (
+    RCON_BLOCKED_COMMANDS.includes(commandName) ||
+    RCON_BLOCKED_PREFIXES.some((prefix) => commandName.startsWith(prefix))
+  );
+}
+
 export function isRconCommandAllowed(command: unknown): boolean {
   if (typeof command !== 'string') return false;
   const trimmed = command.trim();
   if (trimmed.length === 0 || trimmed.length > MAX_RCON_COMMAND_LEN) return false;
   if (RCON_FORBIDDEN_SEPARATOR.test(trimmed) || NON_ASCII_RE.test(trimmed)) return false;
-  const commandName = trimmed.toLowerCase().split(/\s+/)[0] ?? '';
-  return !RCON_BLOCKED_COMMANDS.includes(commandName);
+  const commandNames = [
+    normalizeCommandName(trimmed.split(/\s+/)[0] ?? ''),
+    tokenizerVerb(trimmed),
+  ];
+  if (commandNames.some(isBlockedCommandName)) return false;
+  return !commandNames.includes('css_plugins') || READ_ONLY_PLUGIN_COMMAND_RE.test(trimmed);
 }
 
 export function sanitizeCfgName(name: unknown): string | null {

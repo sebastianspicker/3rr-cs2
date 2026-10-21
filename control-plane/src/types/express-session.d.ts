@@ -3,7 +3,7 @@ import 'express-session';
 
 declare module 'express-session' {
   interface SessionData {
-    user?: { id: number; username: string; is_admin?: number };
+    user?: { id: number; username: string; is_admin?: number; credential?: string };
     csrfToken?: string;
   }
 }

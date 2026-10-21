@@ -5,3 +5,6 @@ src/features/game-catalog/maps.json
 package-lock.json
 # Environment templates use key=value syntax and are validated as deployment contracts.
 .env.example
+# Private test suites are gitignored and kept out of the public gate.
+test
+playwright.config.ts

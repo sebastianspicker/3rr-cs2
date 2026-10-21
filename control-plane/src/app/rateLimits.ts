@@ -18,7 +18,7 @@ export function configureRateLimits(app: Express, nodeEnv: string, redisClient: 
       standardHeaders: true,
       legacyHeaders: false,
       keyGenerator: rateLimitClientKey,
-      store: makeRateLimitStore(redisClient),
+      store: makeRateLimitStore(redisClient, 'login'),
     })
   );
   app.use(
@@ -35,7 +35,7 @@ export function configureRateLimits(app: Express, nodeEnv: string, redisClient: 
         const originalUrl = normalizeHealthPath(req.originalUrl.split('?')[0] || req.originalUrl);
         return pathName === '/health' || originalUrl === '/api/health';
       },
-      store: makeRateLimitStore(redisClient),
+      store: makeRateLimitStore(redisClient, 'api'),
     })
   );
   app.post(
@@ -47,7 +47,7 @@ export function configureRateLimits(app: Express, nodeEnv: string, redisClient: 
       standardHeaders: true,
       legacyHeaders: false,
       keyGenerator: rateLimitClientKey,
-      store: makeRateLimitStore(redisClient),
+      store: makeRateLimitStore(redisClient, 'rcon'),
     })
   );
 }

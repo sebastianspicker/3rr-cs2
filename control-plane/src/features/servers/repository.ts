@@ -71,8 +71,7 @@ export function createServersRepository(db: Database.Database) {
     serverPort: number
   ): { id: number; rconPassword: string } | undefined {
     return selectServerByIpPortStmt.get(serverIP, serverPort) as
-      | { id: number; rconPassword: string }
-      | undefined;
+      { id: number; rconPassword: string } | undefined;
   }
 
   function ownerCannotAddServer(ownerId: number, existingId: number | undefined): boolean {
@@ -94,8 +93,7 @@ export function createServersRepository(db: Database.Database) {
     }
     const insertResult = insertServerStmt.run(serverIP, serverPort, encryptedPassword, ownerId);
     const inserted = selectServerByIpPortStmt.get(serverIP, serverPort) as
-      | { id: number }
-      | undefined;
+      { id: number } | undefined;
     if (insertResult.changes === 0 && inserted) {
       updateServerPasswordStmt.run(encryptedPassword, inserted.id);
     }
@@ -110,8 +108,7 @@ export function createServersRepository(db: Database.Database) {
       ownerId: number
     ): PersistServerResult => {
       const existing = selectServerByIpPortStmt.get(serverIP, serverPort) as
-        | { id: number }
-        | undefined;
+        { id: number } | undefined;
       if (ownerCannotAddServer(ownerId, existing?.id))
         return { serverId: null, maximumReached: true };
       const serverId = saveServerRecord(

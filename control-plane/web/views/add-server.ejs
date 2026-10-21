@@ -92,11 +92,38 @@
   </main>
   </div>
 
-  <script src="/js/toast-inline.js"></script>
   <script src="/js/console.js"></script>
   <script nonce="<%= cspNonce %>">
     document.addEventListener('DOMContentLoaded', function () {
       var csrfToken = document.querySelector('meta[name="csrf-token"]').content;
+
+      // Same-origin JSON request: bounded by a timeout, tolerant of non-JSON bodies, and
+      // redirecting to the login page when the session has expired (401).
+      var requestTimeoutMs = 15000;
+      function requestJson(url, init) {
+        var controller = new AbortController();
+        var timer = setTimeout(function () { controller.abort(); }, requestTimeoutMs);
+        init.signal = controller.signal;
+        return fetch(url, init)
+          .then(function (res) {
+            return res.text().then(function (text) {
+              var body = {};
+              try { body = text ? JSON.parse(text) : {}; } catch (parseError) { body = {}; }
+              if (!body || typeof body !== 'object') body = {};
+              // Only the session check's own 401 means "signed out"; a route may use 401 for
+              // other reasons (a wrong current password, for example).
+              if (res.status === 401 && body.error === 'Unauthorized') {
+                window.location.assign('/?expired=1');
+                body.error = 'Session expired. Redirecting to sign in…';
+              }
+              return { ok: res.ok, status: res.status, body: body };
+            });
+          })
+          .finally(function () { clearTimeout(timer); });
+      }
+      function requestErrorMessage(err, fallback) {
+        return err && err.name === 'AbortError' ? 'The request timed out.' : fallback;
+      }
       var form = document.getElementById('add-server-form');
       var cancel = document.getElementById('add-server-cancel');
       cancel.addEventListener('click', function (event) {
@@ -125,7 +152,7 @@
         form.querySelectorAll('input').forEach(function (input) { input.readOnly = true; });
         submitButton.disabled = true;
         submitButton.textContent = 'Verifying RCON…';
-        fetch('/api/add-server', {
+        requestJson('/api/add-server', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -133,16 +160,14 @@
           },
           body: JSON.stringify({ server_ip: server_ip, server_port: server_port, rcon_password: rcon_password }),
           })
-          .then(function (resp) {
-            if (!resp.ok) {
-              return resp.json().then(function (body) {
-                throw new Error(body.error || body.message || 'An error occurred while adding the server.');
-              });
+          .then(function (result) {
+            if (!result.ok) {
+              throw new Error(result.body.error || result.body.message || 'An error occurred while adding the server.');
             }
             window.location.assign('/servers');
           })
           .catch(function (err) {
-            status.textContent = err instanceof TypeError
+            status.textContent = err instanceof TypeError || (err && err.name === 'AbortError')
               ? 'The result could not be confirmed. Check the fleet before adding this server again.'
               : err.message || 'The server could not be added. Check the endpoint and credentials.';
             status.className = 'alert alert-danger mt-sm';

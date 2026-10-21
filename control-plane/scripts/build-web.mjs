@@ -11,10 +11,6 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const generated = resolve(root, 'web/generated');
 mkdirSync(resolve(generated, 'js'), { recursive: true });
 
-copyFileSync(
-  resolve(root, 'web/client/static/toast-inline.js'),
-  resolve(generated, 'js/toast-inline.js')
-);
 copyFileSync(resolve(root, 'web/assets/3rr-mark.svg'), resolve(generated, '3rr-mark.svg'));
 
 await build({

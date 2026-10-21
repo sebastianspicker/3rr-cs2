@@ -6,12 +6,16 @@ import type { RequestHandler } from 'express';
 import type { UserPersistence } from './persistence';
 import { hashPassword, verifyPassword } from './passwords';
 import { createRouteRateLimit } from '../../../shared/routeRateLimit';
+import { credentialFingerprint } from '../../../shared/credentialFingerprint';
 
 const routeRateLimit = createRouteRateLimit();
 
 const ChangePasswordSchema = z.object({
   currentPassword: z.string().min(1),
-  newPassword: z.string().min(12, 'New password must be at least 12 characters'),
+  newPassword: z
+    .string()
+    .min(12, 'New password must be at least 12 characters')
+    .max(1024, 'New password must be at most 1024 characters'),
 });
 
 function sendPasswordMatchError(res: Response, matches: boolean | null): boolean {
@@ -55,6 +59,10 @@ export function registerPasswordRoutes(
     }
 
     updateUserPassword(userId, hashed);
+    // Keep this session; every other session for the user fails revalidation.
+    if (req.session.user) {
+      req.session.user = { ...req.session.user, credential: credentialFingerprint(hashed) };
+    }
     logger.info({ userId }, '[users] password changed');
     return res.status(200).json({ message: 'Password updated' });
   });

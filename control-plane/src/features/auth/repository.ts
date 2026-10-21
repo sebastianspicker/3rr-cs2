@@ -11,6 +11,7 @@ export interface AuthUserRow {
 export interface SessionUserRow {
   id: number;
   username: string;
+  password: string;
   is_admin: number;
 }
 
@@ -19,7 +20,7 @@ export function createAuthRepository(db: Database.Database) {
     'SELECT id, username, password, is_admin FROM users WHERE username = ?'
   );
   const findSessionUserStmt = db.prepare(`
-    SELECT id, username, is_admin
+    SELECT id, username, password, is_admin
       FROM users
      WHERE id = ?
   `);

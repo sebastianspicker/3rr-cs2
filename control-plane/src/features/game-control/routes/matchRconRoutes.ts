@@ -10,7 +10,7 @@ import {
   sanitizeString,
   MAX_RCON_COMMAND_LEN,
   MAX_SAY_MESSAGE_LEN,
-  RCON_BLOCKED_COMMANDS,
+  RCON_BLOCKED_SUMMARY,
   type RconManager,
 } from '../../../integrations/rcon';
 import { sendGameRouteError } from './gameCommandExecution';
@@ -36,7 +36,7 @@ export function createMatchRconRoutes(
       const command = validatedRconCommand(req.body?.command);
       if (!command) {
         return res.status(400).json({
-          error: `Command not allowed (single command only, max ${MAX_RCON_COMMAND_LEN} chars, blocked: ${RCON_BLOCKED_COMMANDS.join(', ')})`,
+          error: `Command not allowed (single command only, max ${MAX_RCON_COMMAND_LEN} chars, blocked: ${RCON_BLOCKED_SUMMARY})`,
         });
       }
       const [cmdVerb = ''] = command.split(/\s+/);

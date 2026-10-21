@@ -1,6 +1,8 @@
 # Copy `../../control-plane/.env.example` to a local env file such as
 # `./panel.env`, set real secrets there, then export them or pass
-# `docker compose --env-file ./panel.env ...`.
+# `docker compose --env-file ./panel.env ...`. REDIS_PASSWORD is required;
+# generate it with `openssl rand -hex 32` (it is embedded in REDIS_URL, so
+# keep it URL-safe).
 services:
   panel:
     build:
@@ -12,7 +14,7 @@ services:
       PORT: 3000
       DB_PATH: /home/container/data/3rr.db
       SESSION_SECRET: ${SESSION_SECRET:-}
-      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      REDIS_URL: ${REDIS_URL:-redis://:${REDIS_PASSWORD:?Set REDIS_PASSWORD}@redis:6379}
       RCON_SECRET_KEY: ${RCON_SECRET_KEY:-}
       # Keep false when the published port is reachable directly. Set 1 only
       # when every request is guaranteed to traverse one trusted proxy hop.
@@ -34,11 +36,25 @@ services:
 
   redis:
     image: redis:7.4-alpine
-    command: ["redis-server", "--appendonly", "yes"]
+    command:
+      [
+        "redis-server",
+        "--appendonly",
+        "yes",
+        "--requirepass",
+        "${REDIS_PASSWORD:?Set REDIS_PASSWORD to a URL-safe random secret}",
+        "--maxmemory",
+        "128mb",
+        "--maxmemory-policy",
+        "volatile-lru",
+      ]
+    environment:
+      REDISCLI_AUTH: ${REDIS_PASSWORD:?Set REDIS_PASSWORD}
     volumes:
       - panel-redis:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      # redis-cli reads the password from REDISCLI_AUTH, keeping it off its argv.
+      test: ["CMD-SHELL", "redis-cli ping | grep -q PONG"]
       interval: 5s
       timeout: 3s
       retries: 10

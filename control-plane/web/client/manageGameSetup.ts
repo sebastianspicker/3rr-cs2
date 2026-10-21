@@ -1,5 +1,5 @@
 /** Catalog-backed setup inputs and a single deliberate mutation. */
-import { ApiError, sendPostRequest, fetchJson, showToast, toastError } from './common';
+import { ApiError, sendPostRequest, fetchJson, showToast, toastError, withLoading } from './common';
 import { el, on, setText } from './manageShared';
 import {
   beginSessionSetup,
@@ -160,7 +160,10 @@ async function submit(serverId: string, e: SetupElements): Promise<void> {
     status('');
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Setup request failed.';
-    if (error instanceof ApiError && [400, 403].includes(error.status)) {
+    if (
+      error instanceof ApiError &&
+      ([400, 403, 429].includes(error.status) || error.details.outcome === 'not_sent')
+    ) {
       status(message);
       el('#setup-status')?.focus();
     } else {
@@ -196,16 +199,19 @@ export function initGameSetup(serverId: string): void {
     if (!sending) void loadChoices(e, true, e.mode.value, e.map.value);
   });
   void loadChoices(e, true, e.mode.dataset.requestedMode ?? '', e.map.dataset.requestedMap ?? '');
-  on('#setMapGroupBtn', 'click', () => {
+  on('#setMapGroupBtn', 'click', (event) => {
+    const button = event.currentTarget instanceof HTMLButtonElement ? event.currentTarget : null;
     const group = el<HTMLSelectElement>('#mapGroupSelect')?.value ?? '';
     if (!group) {
       showToast('Select a map group first.', 'error');
       return;
     }
-    void sendPostRequest('/api/set-mapgroup', { server_id: serverId, group })
-      .then((data) => {
-        showToast(data.message, 'success');
-      })
-      .catch(toastError('Set map group failed.'));
+    withLoading(button, () =>
+      sendPostRequest('/api/set-mapgroup', { server_id: serverId, group })
+        .then((data) => {
+          showToast(data.message, 'success');
+        })
+        .catch(toastError('Set map group failed.'))
+    );
   });
 }

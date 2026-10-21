@@ -1,7 +1,7 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "module": "commonjs",
+    "module": "nodenext",
     "lib": ["ES2022"],
     "outDir": "dist",
     "rootDir": ".",
@@ -14,12 +14,10 @@
     "sourceMap": false,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "moduleResolution": "node",
-    // Current decision: keep server output on CommonJS for the Node 26
-    // contract. Startup uses require.main and no ESM runtime contract exists yet.
-    // Keep this suppression until a dedicated NodeNext migration is planned and
-    // verified end to end.
-    "ignoreDeprecations": "6.0"
+    // NodeNext follows Node's own resolution. With no "type" field in
+    // package.json the server still compiles to CommonJS (startup uses
+    // require.main).
+    "moduleResolution": "nodenext"
   },
   "include": ["src/**/*.ts"],
   "exclude": ["node_modules", "dist", "web"]

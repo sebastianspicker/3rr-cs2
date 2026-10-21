@@ -83,6 +83,34 @@
       var csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
       var currentUserId = <%= currentUserId %>;
 
+      // Same-origin JSON request: bounded by a timeout, tolerant of non-JSON bodies, and
+      // redirecting to the login page when the session has expired (401).
+      var requestTimeoutMs = 15000;
+      function requestJson(url, init) {
+        var controller = new AbortController();
+        var timer = setTimeout(function () { controller.abort(); }, requestTimeoutMs);
+        init.signal = controller.signal;
+        return fetch(url, init)
+          .then(function (res) {
+            return res.text().then(function (text) {
+              var body = {};
+              try { body = text ? JSON.parse(text) : {}; } catch (parseError) { body = {}; }
+              if (!body || typeof body !== 'object') body = {};
+              // Only the session check's own 401 means "signed out"; a route may use 401 for
+              // other reasons (a wrong current password, for example).
+              if (res.status === 401 && body.error === 'Unauthorized') {
+                window.location.assign('/?expired=1');
+                body.error = 'Session expired. Redirecting to sign in…';
+              }
+              return { ok: res.ok, status: res.status, body: body };
+            });
+          })
+          .finally(function () { clearTimeout(timer); });
+      }
+      function requestErrorMessage(err, fallback) {
+        return err && err.name === 'AbortError' ? 'The request timed out.' : fallback;
+      }
+
       function setStatus(el, message, tone) {
         el.textContent = message;
         el.className = 'alert mb-3 alert-' + tone;
@@ -150,12 +178,12 @@
         var table = document.getElementById('user-table');
         table.setAttribute('aria-busy', 'true');
         try {
-          var res = await fetch('/api/users/list', {
+          var res = await requestJson('/api/users/list', {
             headers: { 'x-csrf-token': csrfToken }
           });
-          var data = await res.json();
+          var data = res.body;
           if (generation !== userListGeneration) return;
-          if (!res.ok) throw new Error(data.error || 'Failed to load users.');
+          if (!res.ok || !Array.isArray(data.users)) throw new Error(data.error || 'Failed to load users.');
           document.getElementById('user-list-status').hidden = true;
           var tbody = document.getElementById('user-table-body');
           tbody.textContent = '';
@@ -202,20 +230,24 @@
               var status = document.getElementById('user-list-status');
               btn.disabled = true;
               try {
-                var r = await fetch('/api/users/delete', {
+                var r = await requestJson('/api/users/delete', {
                   method: 'POST',
                   headers: { 'content-type': 'application/json', 'x-csrf-token': csrfToken },
                   body: JSON.stringify({ userId: userId })
                 });
-                var d = await r.json();
+                var d = r.body;
                 if (r.ok) {
                   setStatus(status, 'User deleted.', 'success');
                   await loadUsers();
+                } else if (d.user_deleted === true) {
+                  // The user is gone but a follow-up step failed; refresh the list and say why.
+                  await loadUsers();
+                  setStatus(status, d.error || 'User deleted, but a follow-up step failed.', 'danger');
                 } else {
                   setStatus(status, d.error || 'Failed to delete user.', 'danger');
                 }
               } catch (err) {
-                setStatus(status, 'Network error.', 'danger');
+                setStatus(status, requestErrorMessage(err, 'Network error.'), 'danger');
               } finally {
                 btn.disabled = false;
               }
@@ -252,21 +284,20 @@
         submitButton.disabled = true;
         submitButton.textContent = 'Adding…';
         try {
-          var res = await fetch('/api/users/add', {
+          var res = await requestJson('/api/users/add', {
             method: 'POST',
             headers: { 'content-type': 'application/json', 'x-csrf-token': csrfToken },
             body: JSON.stringify(payload)
           });
-          var data = await res.json();
           if (res.ok) {
             setStatus(status, 'User created.', 'success');
             e.target.reset();
             await loadUsers();
           } else {
-            setStatus(status, data.error || 'Failed to create user.', 'danger');
+            setStatus(status, res.body.error || 'Failed to create user.', 'danger');
           }
         } catch (err) {
-          setStatus(status, 'Network error.', 'danger');
+          setStatus(status, requestErrorMessage(err, 'Network error.'), 'danger');
         } finally {
           submitButton.disabled = false;
           submitButton.textContent = 'Add user';

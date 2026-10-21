@@ -34,7 +34,9 @@ export function validateSetup(body: SetupBody): ValidatedSetup | string {
     return 'selectedMap contains invalid characters';
   }
   const allowedMaps = getMapsForMode(body.game_type, body.game_mode);
-  if (allowedMaps.length && !allowedMaps.includes(mapName)) {
+  // Fail closed: a mode with no configured maps must not accept arbitrary paths.
+  if (!allowedMaps.length) return 'No maps are configured for this game mode';
+  if (!allowedMaps.includes(mapName)) {
     return `selectedMap must be one of: ${allowedMaps.join(', ')}`;
   }
   const execFile = sanitizeCfgName(mode.exec);
@@ -57,5 +59,11 @@ export async function applySetup(
   await execCfg(serverId, setup.execFile);
   if (setup.team1) await runGameCmd(serverId, `mp_teamname_1 "${setup.team1}"`);
   if (setup.team2) await runGameCmd(serverId, `mp_teamname_2 "${setup.team2}"`);
-  await runGameCmd(serverId, `changelevel ${setup.mapName}`);
+  await runGameCmd(serverId, mapLoadCommand(setup.mapName));
+}
+
+// CS2 loads Workshop content by file id; `changelevel workshop/<id>/<name>` is a CS:GO form.
+function mapLoadCommand(mapName: string): string {
+  const workshopId = /^workshop\/(\d+)\//.exec(mapName)?.[1];
+  return workshopId ? `host_workshop_map ${workshopId}` : `changelevel ${mapName}`;
 }

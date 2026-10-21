@@ -10,10 +10,26 @@
     { "id": "knife", "path": "assets/cfg/knife.cfg" },
     { "id": "live-wingman", "path": "assets/cfg/live_wingman.cfg" },
     { "id": "oitc", "path": "assets/cfg/oitc.cfg" },
-    { "id": "random-rounds-off", "path": "assets/cfg/random_rounds_off.cfg" },
-    { "id": "random-rounds-on", "path": "assets/cfg/random_rounds_on.cfg" },
-    { "id": "rtd-off", "path": "assets/cfg/rtd_off.cfg" },
-    { "id": "rtd-on", "path": "assets/cfg/rtd_on.cfg" },
+    {
+      "id": "random-rounds-off",
+      "path": "assets/cfg/random_rounds_off.cfg",
+      "requiresPlugins": ["random-rounds"]
+    },
+    {
+      "id": "random-rounds-on",
+      "path": "assets/cfg/random_rounds_on.cfg",
+      "requiresPlugins": ["random-rounds"]
+    },
+    {
+      "id": "rtd-off",
+      "path": "assets/cfg/rtd_off.cfg",
+      "requiresPlugins": ["roll-the-dice"]
+    },
+    {
+      "id": "rtd-on",
+      "path": "assets/cfg/rtd_on.cfg",
+      "requiresPlugins": ["roll-the-dice"]
+    },
     { "id": "scoutzknivez", "path": "assets/cfg/scoutzknivez.cfg" },
     { "id": "surf", "path": "assets/cfg/surf.cfg" },
     { "id": "warmup", "path": "assets/cfg/warmup.cfg" },
@@ -23,14 +39,9 @@
     {
       "id": "matchzy-live",
       "path": "assets/cfg/server-provided/live.cfg",
-      "runtimePath": "live.cfg"
+      "runtimePath": "live.cfg",
+      "requiresPlugins": ["matchzy"]
     }
   ],
-  "requiredPluginIds": [
-    "metamod",
-    "counterstrikesharp",
-    "matchzy",
-    "random-rounds",
-    "roll-the-dice"
-  ]
+  "requiredPluginIds": ["metamod", "counterstrikesharp"]
 }

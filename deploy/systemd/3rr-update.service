@@ -7,9 +7,22 @@ Wants=network-online.target
 Type=oneshot
 ExecStart=/opt/3rr/apps/maintain/updater/3rr-update.sh
 WorkingDirectory=/opt/3rr/apps/maintain/updater
-# Covers both default SteamCMD calls, bounded systemctl retries, restoration,
-# retry sleeps, and additional host overhead. Recalculate with the updater README
-# formula whenever timeout or retry settings change; the unit deadline wins.
-TimeoutStartSec=120min
+# Hardening (not yet verified on a real systemd host). ProtectSystem=full makes
+# only /usr, /boot, /efi and /etc read-only, so the log (/var/lib/3rr), the lock
+# (/run) and the CS2 install directory stay writable.
+PrivateTmp=yes
+ProtectSystem=full
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+NoNewPrivileges=yes
+# Covers the build query, every SteamCMD update attempt, bounded systemctl
+# retries, restoration, retry sleeps, and additional host overhead. Recalculate
+# with the updater README formula whenever timeout or retry settings change; the
+# unit deadline wins.
+TimeoutStartSec=240min
 # Allows a timed-out systemctl call plus bounded start/status restoration retries.
 TimeoutStopSec=20min

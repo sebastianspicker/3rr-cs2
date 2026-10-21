@@ -16,11 +16,13 @@ export type RedisClient = ReturnType<typeof createRedisClient>;
 /**
  * Create a new `RateLimitRedisStore` bound to the shared client.
  * Returns `undefined` when Redis is not configured so rate limiters
- * fall back to the default in-memory store.
+ * fall back to the default in-memory store. Every limiter needs its own
+ * `name`: limiters sharing a key prefix would share one counter per client.
  */
-export function makeRateLimitStore(redisClient: RedisClient) {
+export function makeRateLimitStore(redisClient: RedisClient, name: string) {
   if (!redisClient) return undefined;
   return new RateLimitRedisStore({
+    prefix: `rl:${name}:`,
     sendCommand: (...args: string[]) => redisClient?.sendCommand(args),
   });
 }

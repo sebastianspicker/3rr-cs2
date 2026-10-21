@@ -3,7 +3,12 @@ import path from 'node:path';
 import logger from './infrastructure/logging';
 import { rconOptionsFromEnvironment } from './app/rconOptions';
 import { createPanelApp } from './app/createApp';
-import { parsePanelPort, registerUnhandledRejectionHandler, startPanelApp } from './app/lifecycle';
+import {
+  developmentModeWarning,
+  parsePanelPort,
+  registerUnhandledRejectionHandler,
+  startPanelApp,
+} from './app/lifecycle';
 import { createPanelDatabase, createSqliteRconServerStore } from './infrastructure/sqlite';
 import { createRedisClient } from './infrastructure/redis';
 import { createRconManager } from './integrations/rcon';
@@ -46,6 +51,8 @@ export async function composePanelRuntime(nodeEnv = process.env.NODE_ENV ?? 'dev
 export function startPanelRuntime(): void {
   const nodeEnv = process.env.NODE_ENV ?? 'development';
   registerUnhandledRejectionHandler(nodeEnv);
+  const warning = developmentModeWarning(nodeEnv);
+  if (warning) logger.warn(warning);
   void composePanelRuntime(nodeEnv)
     .then((runtime) => {
       startPanelApp(runtime.app, parsePanelPort(process.env.PORT ?? 3000, 3000), runtime);

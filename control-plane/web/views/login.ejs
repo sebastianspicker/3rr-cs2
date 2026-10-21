@@ -64,10 +64,31 @@
   </main>
 
   <%- include('partials/footer') %>
-  <script src="/js/toast-inline.js"></script>
   <script nonce="<%= cspNonce %>">
     document.addEventListener('DOMContentLoaded', function () {
       var csrfToken = document.querySelector('meta[name="csrf-token"]').content;
+
+      // Same-origin JSON request: bounded by a timeout and tolerant of non-JSON bodies.
+      // A 401 here means wrong credentials, so it is reported rather than redirected.
+      var requestTimeoutMs = 15000;
+      function requestJson(url, init) {
+        var controller = new AbortController();
+        var timer = setTimeout(function () { controller.abort(); }, requestTimeoutMs);
+        init.signal = controller.signal;
+        return fetch(url, init)
+          .then(function (res) {
+            return res.text().then(function (text) {
+              var body = {};
+              try { body = text ? JSON.parse(text) : {}; } catch (parseError) { body = {}; }
+              if (!body || typeof body !== 'object') body = {};
+              return { ok: res.ok, status: res.status, body: body };
+            });
+          })
+          .finally(function () { clearTimeout(timer); });
+      }
+      function requestErrorMessage(err, fallback) {
+        return err && err.name === 'AbortError' ? 'The request timed out.' : fallback;
+      }
       var form = document.getElementById('login-form');
       form.addEventListener('submit', function (e) {
         e.preventDefault();
@@ -90,7 +111,7 @@
         form.setAttribute('aria-busy', 'true');
         submitButton.disabled = true;
         submitButton.textContent = 'Signing in…';
-        fetch('/auth/login', {
+        requestJson('/auth/login', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -98,20 +119,15 @@
           },
           body: JSON.stringify({ username: username, password: password }),
         })
-          .then(function (resp) {
-            return resp.json().then(function (data) {
-              if (!resp.ok) {
-                throw new Error(data.error || data.message || 'Login failed');
-              }
-              return data;
-            });
-          })
-          .then(function (data) {
+          .then(function (result) {
+            if (!result.ok) {
+              throw new Error(result.body.error || result.body.message || 'Login failed');
+            }
             window.location.href = '/servers';
           })
           .catch(function (err) {
             if (errorEl) {
-              errorEl.textContent = err.message || 'Login failed';
+              errorEl.textContent = requestErrorMessage(err, err.message || 'Login failed');
               errorEl.removeAttribute('hidden');
               errorEl.focus();
             }

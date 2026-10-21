@@ -36,7 +36,41 @@ const isIPv6LinkLocal = (ip: string): boolean => {
   return Number.isInteger(value) && value >= 0xfe80 && value <= 0xfebf;
 };
 
+// IPv4-compatible (::a.b.c.d), NAT64 (64:ff9b::/96) and 6to4 (2002::/16) addresses
+// carry an IPv4 address that some hosts route to; check that address too.
+const embeddedIPv4 = (ip: string): string | null => {
+  if (net.isIP(ip) !== 6) return null;
+  const [head = '', tail = ''] = normalizeIPv6(ip).toLowerCase().split('::');
+  const headGroups = head ? head.split(':') : [];
+  const tailGroups = tail ? tail.split(':') : [];
+  const groups = [
+    ...headGroups,
+    ...Array<string>(Math.max(0, 8 - headGroups.length - tailGroups.length)).fill('0'),
+    ...tailGroups,
+  ].map((group) => Number.parseInt(group, 16));
+  if (groups.length !== 8 || groups.some((group) => !Number.isInteger(group))) return null;
+  const v4 = (high: number, low: number): string =>
+    [high >> 8, high & 0xff, low >> 8, low & 0xff].join('.');
+  const [g0, g1, g2, g3, g4, g5, g6, g7] = groups as [
+    number,
+    number,
+    number,
+    number,
+    number,
+    number,
+    number,
+    number,
+  ];
+  const zeroMiddle = g2 === 0 && g3 === 0 && g4 === 0 && g5 === 0;
+  if (g0 === 0 && g1 === 0 && zeroMiddle) return v4(g6, g7);
+  if (g0 === 0x64 && g1 === 0xff9b && zeroMiddle) return v4(g6, g7);
+  if (g0 === 0x2002) return v4(g1, g2);
+  return null;
+};
+
 const isBlockedIP = (ip: string): boolean => {
+  const embedded = embeddedIPv4(ip);
+  if (embedded && isBlockedIP(embedded)) return true;
   let check = ip;
   if (net.isIP(ip) === 6) {
     check = normalizeIPv6(ip);
@@ -68,12 +102,18 @@ const isValidHostname = (value: string): boolean => {
   );
 };
 
-const isValidServerHost = (host: string): boolean => {
-  if (typeof host !== 'string') return false;
+/** Why a host is refused before any lookup: malformed, or a blocked literal address. */
+const serverHostRejection = (host: string): 'invalid' | 'blocked' | null => {
+  if (typeof host !== 'string') return 'invalid';
   const value = host.trim();
-  if (!value || value.length > 253) return false;
-  return net.isIP(value) !== 0 ? !isBlockedIP(value) : isValidHostname(value);
+  if (!value || value.length > 253) return 'invalid';
+  // IPv6 zone ids (`::1%lo`) defeat canonicalisation and are never needed for a game server.
+  if (value.includes('%')) return 'invalid';
+  if (net.isIP(value) !== 0) return isBlockedIP(value) ? 'blocked' : null;
+  return isValidHostname(value) ? null : 'invalid';
 };
+
+const isValidServerHost = (host: string): boolean => serverHostRejection(host) === null;
 
 const firstAllowedResolvedAddress = (
   addresses: ReadonlyArray<{ address: string }>
@@ -110,4 +150,10 @@ const resolveValidServerHost = async (host: string): Promise<string | null> => {
 const isValidServerHostResolved = async (host: string): Promise<boolean> =>
   (await resolveValidServerHost(host)) !== null;
 
-export { isBlockedIP, isValidServerHost, isValidServerHostResolved, resolveValidServerHost };
+export {
+  isBlockedIP,
+  isValidServerHost,
+  isValidServerHostResolved,
+  resolveValidServerHost,
+  serverHostRejection,
+};

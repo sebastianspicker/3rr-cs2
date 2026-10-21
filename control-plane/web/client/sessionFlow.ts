@@ -22,6 +22,16 @@ export function titleCase(value: string): string {
   return value ? value.charAt(0).toUpperCase() + value.slice(1) : '';
 }
 
+/** `status` may report a Workshop map by its bare name, without the `workshop/<id>/` prefix. */
+export function observedMapMatches(
+  observed: string | null | undefined,
+  requested: string
+): boolean {
+  if (!observed) return false;
+  if (observed === requested) return true;
+  return !observed.includes('/') && observed === requested.slice(requested.lastIndexOf('/') + 1);
+}
+
 export function playerObservation(data?: LiveStatusResponse): string {
   return `${data?.humans ?? 'Unknown'} humans · ${data?.bots ?? 'unknown'} bots`;
 }
@@ -81,6 +91,11 @@ export function showSessionResult(payload: SessionSetup, error?: string): void {
   setupFailed = Boolean(error);
   renderRequested(payload);
   setText('session-requested-at', requestedAt);
+  setText('truth-requested-time', requestedAt);
+  setText(
+    'truth-requested-detail',
+    `${payload.game_type} / ${payload.game_mode} / ${payload.selectedMap}`
+  );
   setText('session-result-heading', error ? 'Setup may be incomplete' : 'Setup commands sent');
   setText(
     'session-result-description',
@@ -133,7 +148,7 @@ async function checkMap(): Promise<void> {
     if (requestGeneration !== submissionGeneration) return;
     if (!data) throw new Error('The observation could not be completed. Refresh to check again.');
     const observed = Boolean(data.map && data.observed_at);
-    const matches = observed && data.map === selection.selectedMap;
+    const matches = observed && observedMapMatches(data.map, selection.selectedMap);
     setText(
       'session-result-heading',
       matches ? 'Requested map observed' : 'Requested map not confirmed'

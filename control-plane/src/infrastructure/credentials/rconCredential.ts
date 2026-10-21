@@ -8,10 +8,7 @@ const TAG_HEX_CHARS = 32;
 const HEX_RE = /^[0-9a-fA-F]+$/;
 
 type RconSecretDecryptErrorKind =
-  | 'missing_key'
-  | 'invalid_key'
-  | 'invalid_format'
-  | 'decrypt_failed';
+  'missing_key' | 'invalid_key' | 'invalid_format' | 'decrypt_failed';
 
 class RconSecretDecryptError extends Error {
   readonly kind: RconSecretDecryptErrorKind;

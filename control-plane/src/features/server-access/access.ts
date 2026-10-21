@@ -1,6 +1,7 @@
 /** Resolves a requested server only after validating ownership or administrator access. */
 import type { Request, Response } from 'express';
 import type Database from 'better-sqlite3';
+import { executionContext } from '../../shared/executionContext';
 import { parseServerId } from './parseServerId';
 import {
   createServerAccessRepository,
@@ -23,6 +24,13 @@ function authenticatedUserId(req: Request): number | null {
   return typeof userId === 'number' && Number.isSafeInteger(userId) ? userId : null;
 }
 
+/** Records the authorised server so this request's log lines carry its id. */
+function tagRequestServer(sid: string): string {
+  const store = executionContext.getStore();
+  if (store) store.serverId = sid;
+  return sid;
+}
+
 export function createServerAccess(db: Database.Database) {
   const repository = createServerAccessRepository(db);
 
@@ -43,7 +51,7 @@ export function createServerAccess(db: Database.Database) {
     const sid = requireServerId(req, res);
     if (!sid) return null;
     if (!hasAuthorizedServerAccess(req, res, sid)) return null;
-    return sid;
+    return tagRequestServer(sid);
   }
 
   function requireAuthorizedServerIdParam(req: Request, res: Response): string | null {
@@ -53,7 +61,7 @@ export function createServerAccess(db: Database.Database) {
       return null;
     }
     if (!hasAuthorizedServerAccess(req, res, sid)) return null;
-    return sid;
+    return tagRequestServer(sid);
   }
 
   function renderManageResponse(res: Response): void {

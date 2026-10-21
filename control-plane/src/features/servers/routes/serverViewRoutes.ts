@@ -1,11 +1,10 @@
-import { currentExecutionOptions } from '../../../shared/executionContext';
 import express from 'express';
 import type Database from 'better-sqlite3';
 import type { RequestHandler } from 'express';
 import { getMapsForMode, mapsConfig } from '../../game-catalog/mapsConfig';
 import logger from '../../../infrastructure/logging';
 import { parseServerId } from '../../server-access/parseServerId';
-import { parseHostnameResponse, type RconManager } from '../../../integrations/rcon';
+import type { RconManager } from '../../../integrations/rcon';
 import type { ServerAccess } from '../../server-access/access';
 import { createServersRepository, type ManageServerRow } from '../repository';
 
@@ -17,18 +16,6 @@ export function createServerViewRoutes(
 ): express.Router {
   const router = express.Router();
   const repository = createServersRepository(db);
-
-  async function managedHostname(
-    serverId: string
-  ): Promise<{ hostname: string; error: string | null }> {
-    try {
-      const response = await rcon.observeCommand(serverId, 'hostname', currentExecutionOptions());
-      return { hostname: parseHostnameResponse(response.value, '–'), error: null };
-    } catch (error) {
-      logger.warn({ server_id: serverId, err: error }, '[server] manage hostname unavailable');
-      return { hostname: '–', error: 'hostname unavailable' };
-    }
-  }
 
   function requestedType(server: ManageServerRow, gameTypes: string[]): string {
     const requested = server.requested_game_type;
@@ -72,21 +59,24 @@ export function createServerViewRoutes(
     return { gameTypes, mapGroups, requestedGameType, requestedGameMode, requestedMap };
   }
 
-  async function manageView(serverId: string, ownerId: number | undefined): Promise<object | null> {
+  // The page renders from stored and in-process state only; the client loads the
+  // live hostname with the first status observation.
+  function manageView(serverId: string, ownerId: number | undefined): object | null {
     const server = repository.findAccessibleServerForManage(serverId, ownerId);
     if (!server) return null;
     const managedServerId = String(server.id);
-    const hostname = await managedHostname(managedServerId);
     const connection = rcon.getConnectionInfo(managedServerId);
+    const online = Boolean(connection?.connected && connection.authenticated);
     return {
       server_id: managedServerId,
-      hostname: hostname.hostname,
+      hostname: '–',
       host: connection?.host ?? server.serverIP,
       port: connection?.port ?? server.serverPort,
       ...requestedSetup(server),
       connected: Boolean(connection?.connected),
       authenticated: Boolean(connection?.authenticated),
-      hostname_error: hostname.error,
+      // Until the first observation, an offline socket means "not observed", not "down".
+      hostname_error: online ? null : 'not observed yet',
     };
   }
 
@@ -94,14 +84,11 @@ export function createServerViewRoutes(
     res.render('servers');
   });
 
-  router.get('/manage/:server_id', isAuthenticated, async (req, res) => {
+  router.get('/manage/:server_id', isAuthenticated, (req, res) => {
     try {
       const parsedServerId = parseServerId(req.params.server_id);
       if (!parsedServerId) return res.status(404).send('Server not found');
-      const view = await manageView(
-        String(Number.parseInt(parsedServerId, 10)),
-        req.session.user?.id
-      );
+      const view = manageView(String(Number.parseInt(parsedServerId, 10)), req.session.user?.id);
       if (!view) return res.status(404).send('Server not found');
       res.locals = { ...res.locals, ...view };
       renderManageResponse(res);

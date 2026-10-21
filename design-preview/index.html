@@ -99,8 +99,7 @@
         <a href="#demo-only">Add another server</a>
       </div>
     </main></div><div id="demo-manage" class="main main-manage" hidden><main class="container manage-workbench workbench" id="manage-main" data-server-id="1">
-        <nav class="manage-breadcrumb" aria-label="Breadcrumb" hidden><a href="#servers">Choose server</a><span aria-hidden="true">/</span><span id="manage-breadcrumb-title">EU Scrim #1</span></nav>
-    <div class="manage-header">
+            <div class="manage-header">
       <div class="manage-identity">
         <h1 id="manage-title" tabindex="-1">EU Scrim #1</h1>
         <div class="server-addr">
@@ -267,6 +266,10 @@
               <button id="restore_backup" class="btn btn-secondary">Restore</button>
               <button id="restore_latest_backup" class="btn btn-secondary">Latest</button>
             </div>
+            <div id="backup-list-result" class="mt-sm" aria-live="polite" hidden>
+              <p id="backup-list-state" class="rcon-response-label"></p>
+              <pre id="backup-list-output"></pre>
+            </div>
             <div id="restore_backup_row" class="input-row mt-sm" hidden>
               <input type="number" id="restore_round_input" class="form-control" placeholder="Round # (1–99)" min="1" max="99" aria-label="Round number to restore (1–99)">
               <button id="restore_round_submit" class="btn btn-primary">Go</button>
@@ -297,7 +300,7 @@
           <div class="btn-grid cols-3 mt-sm" id="ot-rounds-presets">
             <button id="ot_rounds_3" class="btn btn-secondary">MR3</button>
             <button id="ot_rounds_5" class="btn btn-secondary">MR5</button>
-            <button id="ot_rounds_6" class="btn btn-secondary">MR6</button>
+            <button id="ot_rounds_6" class="btn btn-secondary btn-active">MR6</button>
           </div>
 </section>
 
