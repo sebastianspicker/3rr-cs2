@@ -1,4 +1,5 @@
 import { currentExecutionOptions } from '../../shared/executionContext';
+import { earliestObservedAt } from '../../shared/observedAt';
 /** Authenticated status routes that expose bounded live RCON observations. */
 import express from 'express';
 import type Database from 'better-sqlite3';
@@ -13,7 +14,6 @@ import {
   type RconObservation,
   type RconObservationOptions,
 } from '../../integrations/rcon';
-import type { ServerAccess } from '../server-access/access';
 import { createServersRepository } from './repository';
 
 interface StatusObservation {
@@ -30,8 +30,7 @@ interface StatusObservation {
 export function createStatusRouter(
   db: Database.Database,
   rcon: RconManager,
-  isAuthenticated: RequestHandler,
-  _access: ServerAccess
+  isAuthenticated: RequestHandler
 ): express.Router {
   const router = express.Router();
   const repository = createServersRepository(db);
@@ -61,10 +60,7 @@ export function createStatusRouter(
     data.botCount = parsed.bots;
     data.maxPlayers = parsed.maxPlayers;
     data.successful += 1;
-    data.observedAt =
-      data.observedAt && data.observedAt < result.value.observedAt
-        ? data.observedAt
-        : result.value.observedAt;
+    data.observedAt = earliestObservedAt(data.observedAt, result.value.observedAt);
   };
 
   const applyHostnameResult = (
@@ -78,10 +74,7 @@ export function createStatusRouter(
     }
     data.hostname = parseHostnameResponse(result.value.value, '');
     data.successful += 1;
-    data.observedAt =
-      data.observedAt && data.observedAt < result.value.observedAt
-        ? data.observedAt
-        : result.value.observedAt;
+    data.observedAt = earliestObservedAt(data.observedAt, result.value.observedAt);
   };
 
   const applyMaxPlayersResult = (
@@ -95,10 +88,7 @@ export function createStatusRouter(
     }
     data.maxPlayers = parseVisibleMaxPlayers(result.value.value) ?? data.maxPlayers;
     data.successful += 1;
-    data.observedAt =
-      data.observedAt && data.observedAt < result.value.observedAt
-        ? data.observedAt
-        : result.value.observedAt;
+    data.observedAt = earliestObservedAt(data.observedAt, result.value.observedAt);
   };
 
   async function collectStatusObservation(

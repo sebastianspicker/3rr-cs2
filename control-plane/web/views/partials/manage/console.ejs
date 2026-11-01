@@ -8,9 +8,9 @@
               <span id="truth-observed-detail">Waiting for a live RCON observation</span>
             </div>
             <div class="truth-row truth-row--requested">
-              <span class="truth-time" id="truth-requested-time">Saved</span>
+              <span class="truth-time" id="truth-requested-time"><%= storedRequest ? 'Saved' : '—' %></span>
               <strong>Requested</strong>
-              <span id="truth-requested-detail"><%= requestedGameType %> / <%= requestedGameMode %> / <%= requestedMap %></span>
+              <span id="truth-requested-detail"><%= storedRequest || 'Nothing requested yet' %></span>
             </div>
           </div>
           <div class="rcon-terminal surface">

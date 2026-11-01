@@ -7,7 +7,10 @@ import {
   type RconManager,
 } from '../../../integrations/rcon';
 import logger from '../../../infrastructure/logging';
-import { RconSecretDecryptError } from '../../../infrastructure/credentials/rconCredential';
+import {
+  RCON_CREDENTIAL_STORAGE_ERROR,
+  RconSecretDecryptError,
+} from '../../../infrastructure/credentials/rconCredential';
 
 export class RconCommandSequenceError extends Error {
   readonly appliedCommands: string[];
@@ -39,15 +42,23 @@ export class RconCommandSequenceError extends Error {
 export function sendGameRouteError(res: Response, err: unknown, tag = 'game'): void {
   logger.error({ err, tag }, `[${tag}] Error`);
   if (err instanceof RconCommandSequenceError) {
-    res.status(err.executionError?.statusCode ?? 500).json({
+    // A stored-credential failure keeps its operator guidance; the sequence fields still say what ran.
+    const credentialError =
+      err.executionError?.cause instanceof RconSecretDecryptError
+        ? err.executionError.cause
+        : undefined;
+    res.status(credentialError ? 500 : (err.executionError?.statusCode ?? 500)).json({
       ...(err.executionError
         ? { outcome: err.executionError.outcome, code: err.executionError.name }
         : {}),
-      error: err.partial
-        ? 'RCON command sequence failed after earlier commands were applied; server may be partially updated'
-        : err.executionError?.outcome === 'unknown'
-          ? 'RCON command sequence failed; the dispatched command outcome is uncertain'
-          : 'RCON command sequence failed before any commands were applied',
+      error: credentialError
+        ? RCON_CREDENTIAL_STORAGE_ERROR
+        : err.partial
+          ? 'RCON command sequence failed after earlier commands were applied; server may be partially updated'
+          : err.executionError?.outcome === 'unknown'
+            ? 'RCON command sequence failed; the dispatched command outcome is uncertain'
+            : 'RCON command sequence failed before any commands were applied',
+      ...(credentialError ? { credential_error: credentialError.kind } : {}),
       partial: err.partial,
       applied_commands: err.appliedCommands,
       failed_command: err.failedCommand,
@@ -66,8 +77,7 @@ export function sendGameRouteError(res: Response, err: unknown, tag = 'game'): v
   }
   if (err instanceof RconSecretDecryptError) {
     res.status(500).json({
-      error:
-        'Stored RCON credential could not be decrypted; check RCON_SECRET_KEY or saved credential',
+      error: RCON_CREDENTIAL_STORAGE_ERROR,
       credential_error: err.kind,
     });
     return;

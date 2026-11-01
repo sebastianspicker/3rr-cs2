@@ -7,13 +7,10 @@ function parseHostnameResponse(text: string, fallback = '–'): string {
   if (typeof text !== 'string') return fallback;
   const trimmed = text.trim();
   if (!trimmed) return fallback;
-  let result: string;
-  if (trimmed.includes('=')) {
-    const after = trimmed.split('=')[1]?.trim();
-    result = after || fallback;
-  } else {
-    result = trimmed || fallback;
-  }
+  // Everything after the first "=" is the name, which may itself contain "=".
+  const result = trimmed.includes('=')
+    ? trimmed.slice(trimmed.indexOf('=') + 1).trim() || fallback
+    : trimmed;
   return cleanRconDisplayText(result, { maxLength: MAX_HOSTNAME_LENGTH });
 }
 

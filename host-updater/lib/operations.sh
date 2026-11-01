@@ -52,7 +52,10 @@ run_as_steam() {
 }
 
 run_steamcmd_with_timeout() {
-    run_as_steam timeout --foreground --kill-after=10 "$STEAMCMD_TIMEOUT_SECS" "$@"
+    # No --foreground: steamcmd.sh runs the real binary as a child, and only the
+    # process-group signal of plain timeout reaches it. Input from /dev/null so the
+    # background process group never stops on a terminal read.
+    run_as_steam timeout --kill-after=10 "$STEAMCMD_TIMEOUT_SECS" "$@" < /dev/null
 }
 
 run_systemctl_with_timeout() {
@@ -98,11 +101,18 @@ wait_for_service_active() {
 stop_service() {
     log "Stopping $SERVICE_NAME..."
     require_cmd systemctl
-    if run_systemctl_with_timeout is-active --quiet "$SERVICE_NAME"; then
-        # Record restoration responsibility before stop: systemctl may change
-        # service state even when its command ultimately returns non-zero.
-        SERVICE_STOPPED_BY_UPDATER=1
-    fi
+    local state
+    # Only a confirmed stopped state stays stopped; "activating" (auto-restart) or a
+    # timed-out query means the service must come back after the update.
+    state="$(run_systemctl_with_timeout show -p ActiveState --value "$SERVICE_NAME")" || state=unknown
+    case "$state" in
+        inactive | failed) ;;
+        *)
+            # Record restoration responsibility before stop: systemctl may change
+            # service state even when its command ultimately returns non-zero.
+            SERVICE_STOPPED_BY_UPDATER=1
+            ;;
+    esac
     retry_systemctl stop || exit_with_error "Failed to stop $SERVICE_NAME after $MAX_ATTEMPTS attempts."
     log "$SERVICE_NAME stopped."
     sleep_s "$SLEEP_SECS"
@@ -116,8 +126,9 @@ run_update() {
     for ((attempt = 1; attempt <= MAX_ATTEMPTS; attempt++)); do
         log "Running SteamCMD update as 'steam' user (attempt ${attempt}/${MAX_ATTEMPTS})..."
         update_ret=0
-        run_steamcmd_with_timeout "$STEAMCMD" +login anonymous \
-            +force_install_dir "$CS2_DIR" \
+        # SteamCMD ignores force_install_dir after login.
+        run_steamcmd_with_timeout "$STEAMCMD" +force_install_dir "$CS2_DIR" \
+            +login anonymous \
             +app_update "$CS2_APP_ID" validate +quit > "$TMP_UPDATE_OUTPUT" 2>&1 || update_ret=$?
         log "SteamCMD output:"
         log_multiline "steamcmd: " < "$TMP_UPDATE_OUTPUT"

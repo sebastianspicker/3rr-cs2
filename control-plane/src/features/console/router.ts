@@ -1,4 +1,5 @@
 import { currentExecutionOptions } from '../../shared/executionContext';
+import { earliestObservedAt } from '../../shared/observedAt';
 /** Raw RCON observations, autocomplete, and command history. */
 import express from 'express';
 import type Database from 'better-sqlite3';
@@ -57,10 +58,7 @@ export function createConsoleRouter(
       errors.push('users unavailable');
     }
     if (statusResult.status === 'fulfilled') {
-      observedAt =
-        observedAt && observedAt < statusResult.value.observedAt
-          ? observedAt
-          : statusResult.value.observedAt;
+      observedAt = earliestObservedAt(observedAt, statusResult.value.observedAt);
       const parsed = parseStatusResponse(statusResult.value.value);
       humans = parsed.humans;
       bots = parsed.bots;

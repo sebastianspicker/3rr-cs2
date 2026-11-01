@@ -51,15 +51,17 @@ export function validateSetup(body: SetupBody): ValidatedSetup | string {
   };
 }
 
+// One sequence, so a failure after the mode cfg reports which commands were already applied.
 export async function applySetup(
-  { execCfg, runGameCmd }: ReturnType<typeof createGameRouteFactories>,
+  { runGameCmdSequence }: ReturnType<typeof createGameRouteFactories>,
   serverId: string,
   setup: ValidatedSetup
 ): Promise<void> {
-  await execCfg(serverId, setup.execFile);
-  if (setup.team1) await runGameCmd(serverId, `mp_teamname_1 "${setup.team1}"`);
-  if (setup.team2) await runGameCmd(serverId, `mp_teamname_2 "${setup.team2}"`);
-  await runGameCmd(serverId, mapLoadCommand(setup.mapName));
+  const commands = [`exec ${setup.execFile}`];
+  if (setup.team1) commands.push(`mp_teamname_1 "${setup.team1}"`);
+  if (setup.team2) commands.push(`mp_teamname_2 "${setup.team2}"`);
+  commands.push(mapLoadCommand(setup.mapName));
+  await runGameCmdSequence(serverId, commands);
 }
 
 // CS2 loads Workshop content by file id; `changelevel workshop/<id>/<name>` is a CS:GO form.

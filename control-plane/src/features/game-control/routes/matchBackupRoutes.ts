@@ -1,7 +1,6 @@
 import { currentExecutionOptions } from '../../../shared/executionContext';
 /** Backup-list and restore endpoints with authenticated server ownership checks. */
 import express from 'express';
-import { parseGameBody } from './matchRouteValidation';
 import type { RconManager } from '../../../integrations/rcon';
 import type { RequestHandler } from 'express';
 import type { ServerAccess } from '../../server-access/access';
@@ -25,7 +24,6 @@ export function createMatchBackupRoutes(
 ): express.Router {
   const router = express.Router();
   const factories = createGameRouteFactories(rcon, { requireAuthorizedServerId } as ServerAccess);
-  const { runGameCmd } = factories;
 
   router.post('/api/list-backups', isAuthenticated, routeRateLimit, async (req, res) => {
     try {
@@ -63,24 +61,17 @@ export function createMatchBackupRoutes(
     }
   });
 
-  router.post('/api/restore-round', isAuthenticated, routeRateLimit, async (req, res) => {
-    try {
-      const server_id = requireAuthorizedServerId(req, res);
-      if (!server_id) return;
-      const parsedBody = parseGameBody(RestoreRoundBodySchema, req.body, res);
-      if (!parsedBody) return;
-      const n = parsedBody.round_number;
-      logger.info(
-        { user: req.session?.user?.username ?? 'unknown', action: 'restore-round', round: n },
-        '[game] action'
-      );
-      await runGameCmd(server_id, `css_matchzy_restore ${n}`);
-      return res.status(200).json({ message: 'Round restore command sent.' });
-    } catch (err) {
-      sendGameRouteError(res, err, 'restore-round');
-      return;
-    }
-  });
+  router.post(
+    '/api/restore-round',
+    isAuthenticated,
+    routeRateLimit,
+    factories.makeBodyCmdRoute(
+      'restore-round',
+      RestoreRoundBodySchema,
+      ({ round_number }) => `css_matchzy_restore ${round_number}`,
+      () => 'Round restore command sent.'
+    )
+  );
 
   router.post('/api/restore-latest-backup', isAuthenticated, routeRateLimit, async (req, res) => {
     try {

@@ -99,6 +99,24 @@
   digest-pinned image names in the deployment preflight.
 - Pin patched transitive releases for request query parsing and the ESLint
   filesystem helper.
+- Setup, Restore latest backup and Load match file send their commands as one
+  sequence: a failure after the first command reports the commands already
+  applied, and Setup no longer calls a partly applied setup "not sent". The
+  requested setup is saved unless nothing was sent.
+- The console's Requested row says "Nothing requested yet" for a server that was
+  never set up, instead of showing catalog defaults, and shows stored values
+  unchanged.
+- The fleet page no longer shows a previous status for the selected server
+  after a refresh; Restore round rejects non-integer input instead of
+  truncating it; a say message cannot be sent twice by a double Enter; the
+  console reports commands as "sent", not "completed"; a server deleted with a
+  failed RCON cleanup leaves the list; a server page opened in a background tab
+  loads status as soon as it becomes visible.
+- Hostnames that contain `=` are no longer cut off.
+- `scripts/verify.sh` runs the private test suites when they are present.
+- Host updater: SteamCMD gets `+force_install_dir` before `+login`, a SteamCMD
+  timeout also stops the child process, and an `activating` service is started
+  again after an update.
 
 ## [1.1.0-alpha.1] - 2026-07-23
 

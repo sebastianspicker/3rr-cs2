@@ -34,6 +34,7 @@ const fixtures = {
   requestedGameType: "competitive",
   requestedGameMode: "competitive",
   requestedMap: "de_mirage",
+  storedRequest: "competitive / competitive / de_mirage",
   gameTypes: Object.keys(catalog.gameTypes),
   mapGroups: Object.entries(catalog.mapGroups).map(([id, group]) => ({
     id,

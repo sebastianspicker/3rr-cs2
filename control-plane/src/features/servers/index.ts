@@ -21,7 +21,7 @@ export function createServersRouter(
   const access = createServerAccess(db);
   router.use(createServerAddRouter(db, rcon, isAuthenticated, access, redisClient));
   router.use(createServerViewRoutes(db, rcon, isAuthenticated, access));
-  router.use(createServerStatusRoutes(db, rcon, isAuthenticated, access));
+  router.use(createServerStatusRoutes(db, rcon, isAuthenticated));
   router.use(createServerLifecycleRoutes(db, rcon, isAuthenticated, access));
   router.use(createServerCatalogRoutes(isAuthenticated));
   return router;

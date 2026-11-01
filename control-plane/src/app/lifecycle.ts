@@ -39,16 +39,6 @@ async function closeRconConnections(rcon: RconManager): Promise<void> {
   }
 }
 
-async function connectRedis(redisClient: RedisClient): Promise<void> {
-  if (!redisClient || redisClient.isReady) return;
-  try {
-    await redisClient.connect();
-  } catch (err) {
-    logger.error({ err }, '[redis] connect failed');
-    process.exit(1);
-  }
-}
-
 function listenForHttpRequests(app: Express, port: number): HttpServer {
   const server = app.listen(port, () => {
     const address = server.address();
@@ -101,7 +91,6 @@ export function startPanelApp(
   dependencies: { db: Database.Database; rcon: RconManager; redisClient: RedisClient }
 ): void {
   void (async () => {
-    await connectRedis(dependencies.redisClient);
     const server = listenForHttpRequests(app, port);
     const shutdown = createShutdownHandler(server, dependencies);
     process.on('SIGTERM', () => void shutdown('SIGTERM'));

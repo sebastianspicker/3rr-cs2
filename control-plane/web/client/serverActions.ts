@@ -1,5 +1,12 @@
 /** Handles reconnect and removal actions delegated from the server list. */
-import { sendPostRequest, showConfirm, showToast, toastError, withLoading } from './common';
+import {
+  ApiError,
+  sendPostRequest,
+  showConfirm,
+  showToast,
+  toastError,
+  withLoading,
+} from './common';
 import { refreshServersAfterMutation } from './serverListLoader';
 
 function buttonOf(node: HTMLElement): HTMLButtonElement | null {
@@ -32,6 +39,12 @@ export async function handleServerAction(event: Event): Promise<void> {
   withLoading(buttonOf(remove), () =>
     sendPostRequest('/api/delete-server', { server_id: serverId })
       .then(() => refreshServersAfterMutation())
-      .catch(toastError('Delete failed.'))
+      .catch((error: unknown) => {
+        // The row can be gone even when RCON cleanup failed; show the list as it is now.
+        if (error instanceof ApiError && error.details.server_deleted === true) {
+          void refreshServersAfterMutation();
+        }
+        toastError('Delete failed.')(error);
+      })
   );
 }

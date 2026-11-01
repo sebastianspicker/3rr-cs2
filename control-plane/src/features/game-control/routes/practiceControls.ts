@@ -1,10 +1,8 @@
 /** Registers validated practice and quick-control RCON routes. */
 import type { Router } from 'express';
+import { z } from 'zod';
 import type { RequestHandler } from 'express';
-import type { ServerAccess } from '../../server-access/access';
-import logger from '../../../infrastructure/logging';
 import { parseConVarValue, parseIntBody } from '../../../integrations/rcon';
-import { sendGameRouteError } from './gameCommandExecution';
 import type { createGameRouteFactories } from './gameRouteFactories';
 import { createRouteRateLimit } from '../../../shared/routeRateLimit';
 
@@ -18,17 +16,22 @@ const VALID_GIVE_WEAPONS = [
   'weapon_decoy',
   'weapon_incgrenade',
 ] as const;
+const GIVE_WEAPON_ERROR = `weapon must be one of: ${VALID_GIVE_WEAPONS.join(', ')}`;
+// The object-level error keeps the same message for a missing or non-object body.
+const GiveWeaponBodySchema = z.object(
+  { weapon: z.enum(VALID_GIVE_WEAPONS, { error: GIVE_WEAPON_ERROR }) },
+  { error: GIVE_WEAPON_ERROR }
+);
 
 export function registerPracticeControls(
   router: Router,
   isAuthenticated: RequestHandler,
-  { requireAuthorizedServerId }: ServerAccess,
   {
+    makeBodyCmdRoute,
     makeFixedTemplateSequenceRoute,
     makePresetRoute,
     makeSimpleCmdRoute,
     makeToggleRoute,
-    runGameCmd,
   }: ReturnType<typeof createGameRouteFactories>
 ): void {
   router.post('/api/cheats-toggle', isAuthenticated, makeToggleRoute('cheats-toggle', 'sv_cheats'));
@@ -140,28 +143,15 @@ export function registerPracticeControls(
     makeSimpleCmdRoute('bot-kick-t', 'bot_kick t', 'T bot kick command sent.')
   );
 
-  router.post('/api/give-weapon', isAuthenticated, routeRateLimit, async (req, res) => {
-    try {
-      const server_id = requireAuthorizedServerId(req, res);
-      if (!server_id) return;
-      const weapon = req.body?.weapon;
-      if (
-        typeof weapon !== 'string' ||
-        !(VALID_GIVE_WEAPONS as readonly string[]).includes(weapon)
-      ) {
-        return res
-          .status(400)
-          .json({ error: `weapon must be one of: ${VALID_GIVE_WEAPONS.join(', ')}` });
-      }
-      logger.info(
-        { user: req.session?.user?.username ?? 'unknown', action: 'give-weapon', weapon },
-        '[game] action'
-      );
-      await runGameCmd(server_id, `give ${weapon}`);
-      return res.status(200).json({ message: `Give ${weapon} command sent.` });
-    } catch (err) {
-      sendGameRouteError(res, err, 'give-weapon');
-      return;
-    }
-  });
+  router.post(
+    '/api/give-weapon',
+    isAuthenticated,
+    routeRateLimit,
+    makeBodyCmdRoute(
+      'give-weapon',
+      GiveWeaponBodySchema,
+      ({ weapon }) => `give ${weapon}`,
+      ({ weapon }) => `Give ${weapon} command sent.`
+    )
+  );
 }

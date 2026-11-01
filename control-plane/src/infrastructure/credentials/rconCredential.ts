@@ -135,10 +135,8 @@ const decryptRconSecret = (storedValue: string | null | undefined): string => {
   }
 };
 
-/** Reset the cached key - for testing only. */
-const _resetCachedKey = (): void => {
-  cachedKey = undefined;
-};
+export const RCON_CREDENTIAL_STORAGE_ERROR =
+  'Stored RCON credential could not be decrypted; check RCON_SECRET_KEY or saved credential';
 
 export {
   decryptRconSecret,
@@ -146,5 +144,4 @@ export {
   hasRconSecretKey,
   isEncryptedRconSecret,
   RconSecretDecryptError,
-  _resetCachedKey,
 };

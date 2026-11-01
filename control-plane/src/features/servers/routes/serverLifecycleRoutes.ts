@@ -3,14 +3,15 @@ import type Database from 'better-sqlite3';
 import type { RequestHandler } from 'express';
 import logger from '../../../infrastructure/logging';
 import { isValidServerHostResolved, type RconManager } from '../../../integrations/rcon';
-import { RconSecretDecryptError } from '../../../infrastructure/credentials/rconCredential';
+import {
+  RCON_CREDENTIAL_STORAGE_ERROR,
+  RconSecretDecryptError,
+} from '../../../infrastructure/credentials/rconCredential';
 import type { ServerAccess } from '../../server-access/access';
 import { createServersRepository } from '../repository';
 import { createRouteRateLimit } from '../../../shared/routeRateLimit';
 
 const routeRateLimit = createRouteRateLimit();
-const RCON_CREDENTIAL_STORAGE_ERROR =
-  'Stored RCON credential could not be decrypted; check RCON_SECRET_KEY or saved credential';
 
 export function createServerLifecycleRoutes(
   db: Database.Database,

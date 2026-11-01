@@ -21,6 +21,10 @@ import { createGameRouteFactories } from './gameRouteFactories';
 import { createRouteRateLimit } from '../../../shared/routeRateLimit';
 
 const routeRateLimit = createRouteRateLimit();
+const KnownMapGroupBodySchema = MapGroupBodySchema.refine(
+  ({ group }) => Object.hasOwn(mapsConfig.mapGroups, group),
+  { error: (issue) => `Unknown map group: ${(issue.input as { group: string }).group}` }
+);
 
 export function createMatchAdvancedRoutes(
   rcon: RconManager,
@@ -29,10 +33,8 @@ export function createMatchAdvancedRoutes(
 ): express.Router {
   const router = express.Router();
   const { requireAuthorizedServerId } = access;
-  const { execCfg, makeSequenceRoute, makeSimpleCmdRoute, runGameCmd } = createGameRouteFactories(
-    rcon,
-    access
-  );
+  const { makeBodyCmdRoute, makeSequenceRoute, makeSimpleCmdRoute, runGameCmdSequence } =
+    createGameRouteFactories(rcon, access);
 
   router.post(
     '/api/matchzy-match',
@@ -63,28 +65,17 @@ export function createMatchAdvancedRoutes(
     makeSimpleCmdRoute('matchzy-playout', 'css_matchzy_playout', 'MatchZy playout command sent.')
   );
 
-  router.post('/api/matchzy-readyrequired', isAuthenticated, routeRateLimit, async (req, res) => {
-    try {
-      const server_id = requireAuthorizedServerId(req, res);
-      if (!server_id) return;
-      const parsedBody = parseGameBody(MatchzyReadyRequiredBodySchema, req.body, res);
-      if (!parsedBody) return;
-      const n = parsedBody.value;
-      logger.info(
-        {
-          user: req.session?.user?.username ?? 'unknown',
-          action: 'matchzy-readyrequired',
-          value: n,
-        },
-        '[game] action'
-      );
-      await runGameCmd(server_id, `css_matchzy_readyrequired ${n}`);
-      return res.status(200).json({ message: `Ready-required command sent with value ${n}.` });
-    } catch (err) {
-      sendGameRouteError(res, err, 'matchzy-readyrequired');
-      return;
-    }
-  });
+  router.post(
+    '/api/matchzy-readyrequired',
+    isAuthenticated,
+    routeRateLimit,
+    makeBodyCmdRoute(
+      'matchzy-readyrequired',
+      MatchzyReadyRequiredBodySchema,
+      ({ value }) => `css_matchzy_readyrequired ${value}`,
+      ({ value }) => `Ready-required command sent with value ${value}.`
+    )
+  );
 
   router.post(
     '/api/matchzy-abort',
@@ -96,24 +87,17 @@ export function createMatchAdvancedRoutes(
     )
   );
 
-  router.post('/api/matchzy-coach', isAuthenticated, routeRateLimit, async (req, res) => {
-    try {
-      const server_id = requireAuthorizedServerId(req, res);
-      if (!server_id) return;
-      const parsedBody = parseGameBody(MatchzyCoachBodySchema, req.body, res);
-      if (!parsedBody) return;
-      const { side } = parsedBody;
-      logger.info(
-        { user: req.session?.user?.username ?? 'unknown', action: 'matchzy-coach', side },
-        '[game] action'
-      );
-      await runGameCmd(server_id, `css_matchzy_coach ${side}`);
-      return res.status(200).json({ message: `Coach command sent for ${side.toUpperCase()}.` });
-    } catch (err) {
-      sendGameRouteError(res, err, 'matchzy-coach');
-      return;
-    }
-  });
+  router.post(
+    '/api/matchzy-coach',
+    isAuthenticated,
+    routeRateLimit,
+    makeBodyCmdRoute(
+      'matchzy-coach',
+      MatchzyCoachBodySchema,
+      ({ side }) => `css_matchzy_coach ${side}`,
+      ({ side }) => `Coach command sent for ${side.toUpperCase()}.`
+    )
+  );
 
   router.post('/api/matchzy-load-match-file', isAuthenticated, routeRateLimit, async (req, res) => {
     try {
@@ -130,8 +114,10 @@ export function createMatchAdvancedRoutes(
         },
         '[game] action'
       );
-      await execCfg(server_id, 'live.cfg');
-      await runGameCmd(server_id, `css_matchzy_loadmatch_fromfile ${filename}`);
+      await runGameCmdSequence(server_id, [
+        'exec live.cfg',
+        `css_matchzy_loadmatch_fromfile ${filename}`,
+      ]);
       return res
         .status(200)
         .json({ message: `Load match-file command sequence sent for ${filename}.` });
@@ -141,129 +127,77 @@ export function createMatchAdvancedRoutes(
     }
   });
 
-  router.post('/api/player-kick', isAuthenticated, routeRateLimit, async (req, res) => {
-    try {
-      const server_id = requireAuthorizedServerId(req, res);
-      if (!server_id) return;
-      const parsedBody = parseGameBody(PlayerUserIdBodySchema, req.body, res);
-      if (!parsedBody) return;
-      const { userid } = parsedBody;
-      logger.info(
-        { user: req.session?.user?.username ?? 'unknown', action: 'player-kick', userid },
-        '[game] action'
-      );
-      await runGameCmd(server_id, `kickid ${userid}`);
-      return res.status(200).json({ message: `Kick command sent for player ${userid}.` });
-    } catch (err) {
-      sendGameRouteError(res, err, 'player-kick');
-      return;
-    }
-  });
+  router.post(
+    '/api/player-kick',
+    isAuthenticated,
+    routeRateLimit,
+    makeBodyCmdRoute(
+      'player-kick',
+      PlayerUserIdBodySchema,
+      ({ userid }) => `kickid ${userid}`,
+      ({ userid }) => `Kick command sent for player ${userid}.`
+    )
+  );
 
-  router.post('/api/player-mute', isAuthenticated, routeRateLimit, async (req, res) => {
-    try {
-      const server_id = requireAuthorizedServerId(req, res);
-      if (!server_id) return;
-      const parsedBody = parseGameBody(PlayerSteamId64BodySchema, req.body, res);
-      if (!parsedBody) return;
-      const { steamid } = parsedBody;
-      logger.info(
-        { user: req.session?.user?.username ?? 'unknown', action: 'player-mute', steamid },
-        '[game] action'
-      );
-      await runGameCmd(server_id, `css_matchzy_mute ${steamid}`);
-      return res.status(200).json({ message: `Mute command sent for player ${steamid}.` });
-    } catch (err) {
-      sendGameRouteError(res, err, 'player-mute');
-      return;
-    }
-  });
+  router.post(
+    '/api/player-mute',
+    isAuthenticated,
+    routeRateLimit,
+    makeBodyCmdRoute(
+      'player-mute',
+      PlayerSteamId64BodySchema,
+      ({ steamid }) => `css_matchzy_mute ${steamid}`,
+      ({ steamid }) => `Mute command sent for player ${steamid}.`
+    )
+  );
 
-  router.post('/api/player-unmute', isAuthenticated, routeRateLimit, async (req, res) => {
-    try {
-      const server_id = requireAuthorizedServerId(req, res);
-      if (!server_id) return;
-      const parsedBody = parseGameBody(PlayerSteamId64BodySchema, req.body, res);
-      if (!parsedBody) return;
-      const { steamid } = parsedBody;
-      logger.info(
-        { user: req.session?.user?.username ?? 'unknown', action: 'player-unmute', steamid },
-        '[game] action'
-      );
-      await runGameCmd(server_id, `css_matchzy_unmute ${steamid}`);
-      return res.status(200).json({ message: `Unmute command sent for player ${steamid}.` });
-    } catch (err) {
-      sendGameRouteError(res, err, 'player-unmute');
-      return;
-    }
-  });
+  router.post(
+    '/api/player-unmute',
+    isAuthenticated,
+    routeRateLimit,
+    makeBodyCmdRoute(
+      'player-unmute',
+      PlayerSteamId64BodySchema,
+      ({ steamid }) => `css_matchzy_unmute ${steamid}`,
+      ({ steamid }) => `Unmute command sent for player ${steamid}.`
+    )
+  );
 
-  router.post('/api/workshop-map', isAuthenticated, routeRateLimit, async (req, res) => {
-    try {
-      const server_id = requireAuthorizedServerId(req, res);
-      if (!server_id) return;
-      const parsedBody = parseGameBody(WorkshopMapBodySchema, req.body, res);
-      if (!parsedBody) return;
-      const workshopId = parsedBody.workshop_id;
-      const username = req.session?.user?.username ?? 'unknown';
-      logger.info(
-        { user: username, action: 'workshop-map', workshop_id: workshopId },
-        '[game] action'
-      );
-      await runGameCmd(server_id, `host_workshop_map ${workshopId}`);
-      return res.status(200).json({ message: `Workshop map load command sent for ${workshopId}.` });
-    } catch (err) {
-      sendGameRouteError(res, err, 'workshop-map');
-      return;
-    }
-  });
+  router.post(
+    '/api/workshop-map',
+    isAuthenticated,
+    routeRateLimit,
+    makeBodyCmdRoute(
+      'workshop-map',
+      WorkshopMapBodySchema,
+      ({ workshop_id }) => `host_workshop_map ${workshop_id}`,
+      ({ workshop_id }) => `Workshop map load command sent for ${workshop_id}.`
+    )
+  );
 
-  router.post('/api/set-mapgroup', isAuthenticated, routeRateLimit, async (req, res) => {
-    try {
-      const server_id = requireAuthorizedServerId(req, res);
-      if (!server_id) return;
-      const parsedBody = parseGameBody(MapGroupBodySchema, req.body, res);
-      if (!parsedBody) return;
-      const { group } = parsedBody;
-      if (!Object.hasOwn(mapsConfig.mapGroups, group)) {
-        return res.status(400).json({ error: `Unknown map group: ${group}` });
-      }
-      logger.info(
-        { user: req.session?.user?.username ?? 'unknown', action: 'set-mapgroup', group },
-        '[game] action'
-      );
-      await runGameCmd(server_id, `mp_mapgroupname ${group}`);
-      return res.status(200).json({ message: `Map-group command sent for ${group}.` });
-    } catch (err) {
-      sendGameRouteError(res, err, 'set-mapgroup');
-      return;
-    }
-  });
+  router.post(
+    '/api/set-mapgroup',
+    isAuthenticated,
+    routeRateLimit,
+    makeBodyCmdRoute(
+      'set-mapgroup',
+      KnownMapGroupBodySchema,
+      ({ group }) => `mp_mapgroupname ${group}`,
+      ({ group }) => `Map-group command sent for ${group}.`
+    )
+  );
 
-  router.post('/api/workshop-collection', isAuthenticated, routeRateLimit, async (req, res) => {
-    try {
-      const server_id = requireAuthorizedServerId(req, res);
-      if (!server_id) return;
-      const parsedBody = parseGameBody(WorkshopCollectionBodySchema, req.body, res);
-      if (!parsedBody) return;
-      const { collection_id } = parsedBody;
-      logger.info(
-        {
-          user: req.session?.user?.username ?? 'unknown',
-          action: 'workshop-collection',
-          collection_id,
-        },
-        '[game] action'
-      );
-      await runGameCmd(server_id, `host_workshop_collection ${collection_id}`);
-      return res
-        .status(200)
-        .json({ message: `Workshop collection load command sent for ${collection_id}.` });
-    } catch (err) {
-      sendGameRouteError(res, err, 'workshop-collection');
-      return;
-    }
-  });
+  router.post(
+    '/api/workshop-collection',
+    isAuthenticated,
+    routeRateLimit,
+    makeBodyCmdRoute(
+      'workshop-collection',
+      WorkshopCollectionBodySchema,
+      ({ collection_id }) => `host_workshop_collection ${collection_id}`,
+      ({ collection_id }) => `Workshop collection load command sent for ${collection_id}.`
+    )
+  );
 
   return router;
 }

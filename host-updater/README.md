@@ -105,9 +105,14 @@ for a CS2 update with `validate`. Lower it only if you know the install fits.
 build-ID query is not retried.
 
 Each SteamCMD call is limited by `STEAMCMD_TIMEOUT_SECS` (default: `1800`). Each
-`systemctl stop`, `start`, and `is-active` call is limited by
+`systemctl stop`, `start`, `show`, and `is-active` call is limited by
 `SYSTEMCTL_TIMEOUT_SECS` (default: `90`). Both use GNU `timeout` with
-`--foreground --kill-after=10`.
+`--kill-after=10`; the `systemctl` calls also use `--foreground`. SteamCMD runs without
+it so that a timeout also stops the SteamCMD binary that `steamcmd.sh` starts.
+
+Before stopping the server, the updater reads its `ActiveState`. Unless the state is
+`inactive` or `failed`, the updater starts the server again afterwards; this includes a
+server that systemd is restarting and a state query that timed out.
 
 The example systemd unit sets `TimeoutStartSec=240min`. Recalculate it whenever
 `STEAMCMD_TIMEOUT_SECS`, `SYSTEMCTL_TIMEOUT_SECS`, `MAX_ATTEMPTS`, or

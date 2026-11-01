@@ -71,6 +71,8 @@ function selectServer(serverId: string): void {
 
 export function registerServerChoices(servers: ServerListItem[]): void {
   serversById.clear();
+  // A new list starts without observations; servers that are not re-observed show "Unknown".
+  statusByServerId.clear();
   servers.forEach((server) => serversById.set(String(server.id), server));
   if (!selectedServerId || !serversById.has(selectedServerId)) {
     selectedServerId = servers[0] ? String(servers[0].id) : null;

@@ -65,15 +65,7 @@ export function createPanelApp(
     )
   );
   app.use('/', createGameControlRouter(dependencies.db, dependencies.rcon, isAuthenticated));
-  app.use(
-    '/',
-    createStatusRouter(
-      dependencies.db,
-      dependencies.rcon,
-      isAuthenticated,
-      createServerAccess(dependencies.db)
-    )
-  );
+  app.use('/', createStatusRouter(dependencies.db, dependencies.rcon, isAuthenticated));
   app.use(
     '/',
     createConsoleRouter(

@@ -16,7 +16,7 @@ export function createControlsRouter(
 ): express.Router {
   const router = express.Router();
   const factories = createGameRouteFactories(rcon, access);
-  registerPracticeControls(router, isAuthenticated, access, factories);
+  registerPracticeControls(router, isAuthenticated, factories);
   registerScrimControls(router, isAuthenticated, access, factories);
   registerModifierControls(router, isAuthenticated, factories);
   registerPluginControls(router, isAuthenticated, access, factories);

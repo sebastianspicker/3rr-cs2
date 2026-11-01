@@ -1,12 +1,12 @@
 /** Authentication, session rotation, and CSRF issuance for panel users. */
 import express from 'express';
 import crypto from 'node:crypto';
-import bcrypt from 'bcrypt';
 import { z } from 'zod';
 import type Database from 'better-sqlite3';
 import logger from '../../infrastructure/logging';
 import type { Request, Response } from 'express';
 import { credentialFingerprint } from '../../shared/credentialFingerprint';
+import { verifyPassword } from '../users/routes/passwords';
 import { createAuthRepository, type AuthUserRow } from './repository';
 
 // Unknown usernames are compared against this hash so both paths cost the same.
@@ -28,15 +28,6 @@ const parseCredentials = (body: unknown): { username: string; password: string }
   return parsed.success
     ? { username: parsed.data.username.trim(), password: parsed.data.password }
     : null;
-};
-
-const passwordMatches = async (password: string, passwordHash: string): Promise<boolean | null> => {
-  try {
-    return await bcrypt.compare(password, passwordHash);
-  } catch (err) {
-    logger.error({ err }, '[auth] bcrypt compare failed');
-    return null;
-  }
 };
 
 const establishSession = (req: Request, res: Response, user: AuthUserRow): void => {
@@ -79,7 +70,7 @@ export function createAuthRouter(db: Database.Database): express.Router {
     const user = repository.findByUsername(username);
     const passwordHash = user?.password ?? DUMMY_PASSWORD_HASH;
 
-    const matches = await passwordMatches(password, passwordHash);
+    const matches = await verifyPassword(password, passwordHash);
     if (matches === null) {
       res.status(500).json({ error: 'Internal server error' });
       return;

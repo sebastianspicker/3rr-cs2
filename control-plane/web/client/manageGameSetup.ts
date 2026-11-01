@@ -162,7 +162,8 @@ async function submit(serverId: string, e: SetupElements): Promise<void> {
     const message = error instanceof Error ? error.message : 'Setup request failed.';
     if (
       error instanceof ApiError &&
-      ([400, 403, 429].includes(error.status) || error.details.outcome === 'not_sent')
+      ([400, 403, 429].includes(error.status) ||
+        (error.details.outcome === 'not_sent' && !error.details.applied_commands?.length))
     ) {
       status(message);
       el('#setup-status')?.focus();

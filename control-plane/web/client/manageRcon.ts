@@ -124,19 +124,26 @@ export function initRconControls(serverId: string): void {
     }
   }
 
+  // The input keeps the message until it succeeds, so a second Enter must not resend it.
+  let sayInFlight = false;
   function sendSayMessage(): void {
+    if (sayInFlight) return;
     const input = el<HTMLInputElement>('#say_input');
     const msg = input?.value.trim() ?? '';
     if (!msg) {
       showToast('Message cannot be empty.', 'error');
       return;
     }
+    sayInFlight = true;
     sendPostRequest('/api/say-admin', { server_id: serverId, message: msg })
       .then((d) => {
         showToast(d.message, 'success');
         if (input) input.value = '';
       })
-      .catch(toastError('Failed to send message.'));
+      .catch(toastError('Failed to send message.'))
+      .finally(() => {
+        sayInFlight = false;
+      });
   }
   on('#say_input_btn', 'click', sendSayMessage);
   el('#say_input')?.addEventListener('keydown', (e) => {

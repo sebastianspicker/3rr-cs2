@@ -23,8 +23,10 @@ tested.
    the release gate; `./scripts/verify.sh --only <section>[,<section>...]`
    and `./scripts/verify.sh --quick` are for iterating on one area and are
    not a release gate substitute. The automated test suites are kept outside
-   the public repository; run them against the candidate commit as part of
-   the gate, since `verify.sh` does not include them.
+   the public repository. `verify.sh` runs them when they are present in the
+   checkout (`control-plane/test/`, `host-updater/tests/`,
+   `server-bootstrap/tests/`) and reports "skipped" otherwise, so make sure
+   they are present before running the release gate.
 4. Test a representative CS2/RCON deployment, including login, a
    CSRF-protected write, one read-only status request, and one controlled
    state-changing operation.

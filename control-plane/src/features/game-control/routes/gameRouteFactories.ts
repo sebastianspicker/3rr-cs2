@@ -1,11 +1,14 @@
 import type { NextFunction, RequestHandler } from 'express';
+import type { z } from 'zod';
 import logger from '../../../infrastructure/logging';
 import type { ServerAccess } from '../../server-access/access';
 import {
+  execCfg as executeCfgFile,
   runGameCmd as executeGameCmd,
   runGameCmdSequence as executeGameCmdSequence,
   sendGameRouteError,
 } from './gameCommandExecution';
+import { parseGameBody } from './matchRouteValidation';
 import {
   parseConVarValue,
   parseIntBody,
@@ -82,6 +85,34 @@ export function createGameRouteFactories(
           logger.info({ user: req.session?.user?.username ?? 'unknown', action }, '[game] action');
           await runGameCmd(serverId, command);
           res.status(200).json({ message: successMessage });
+        } catch (err) {
+          sendGameRouteError(res, err, action);
+        }
+      }, next);
+    };
+  }
+
+  /** Validates the body with `schema`, sends one command and logs the parsed fields. */
+  function makeBodyCmdRoute<Schema extends z.ZodType<object>>(
+    action: string,
+    schema: Schema,
+    toCommand: (body: z.infer<Schema>) => string,
+    successMessage: (body: z.infer<Schema>) => string
+  ): RequestHandler {
+    return (req, res, next) => {
+      runRouteAction(async () => {
+        try {
+          const serverId = requireAuthorizedServerId(req, res);
+          if (!serverId) return;
+          const body = parseGameBody(schema, req.body, res);
+          if (!body) return;
+          logger.info(
+            // Body fields first, so no schema field can overwrite the audit fields.
+            { ...(body as object), user: req.session?.user?.username ?? 'unknown', action },
+            '[game] action'
+          );
+          await runGameCmd(serverId, toCommand(body));
+          res.status(200).json({ message: successMessage(body) });
         } catch (err) {
           sendGameRouteError(res, err, action);
         }
@@ -187,12 +218,12 @@ export function createGameRouteFactories(
   return {
     makeToggleRoute,
     makeSimpleCmdRoute,
+    makeBodyCmdRoute,
     makeSequenceRoute,
     makePresetRoute,
     makeFixedTemplateSequenceRoute,
     runGameCmd,
     runGameCmdSequence,
-    execCfg: (serverId: string, cfg: string) =>
-      executeGameCmd(rcon, serverId, `exec ${sanitizeCfgName(cfg)}`),
+    execCfg: (serverId: string, cfg: string) => executeCfgFile(rcon, serverId, cfg),
   };
 }

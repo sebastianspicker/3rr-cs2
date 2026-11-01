@@ -184,10 +184,6 @@ export class RconConnectionLifecycle {
     });
   }
 
-  sendHeartbeat(serverId: string, server: ServerInfo): Promise<void> {
-    return this.heartbeat.send(serverId, server, this.createDeadline());
-  }
-
   async connect(
     serverId: string,
     server: ServerInfo,
@@ -224,10 +220,6 @@ export class RconConnectionLifecycle {
   async disconnectRcon(serverId: string): Promise<RconDisconnectResult> {
     this.heartbeat.stopServer(serverId);
     return this.sockets.disconnect(serverId);
-  }
-
-  hasConnection(serverId: string): boolean {
-    return this.sockets.has(serverId);
   }
 
   getConnectionInfo(

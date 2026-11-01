@@ -73,6 +73,11 @@ export function createServerViewRoutes(
       host: connection?.host ?? server.serverIP,
       port: connection?.port ?? server.serverPort,
       ...requestedSetup(server),
+      // The ledger shows only what was stored; the form defaults above are not a request.
+      storedRequest:
+        server.requested_game_type && server.requested_game_mode && server.requested_map
+          ? `${server.requested_game_type} / ${server.requested_game_mode} / ${server.requested_map}`
+          : null,
       connected: Boolean(connection?.connected),
       authenticated: Boolean(connection?.authenticated),
       // Until the first observation, an offline socket means "not observed", not "down".

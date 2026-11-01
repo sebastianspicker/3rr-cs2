@@ -14,6 +14,7 @@ import {
 import { makeRateLimitStore, type RedisClient } from '../../infrastructure/redis';
 import {
   encryptRconSecret,
+  RCON_CREDENTIAL_STORAGE_ERROR,
   RconSecretDecryptError,
 } from '../../infrastructure/credentials/rconCredential';
 import type { ServerAccess } from '../server-access/access';
@@ -60,8 +61,6 @@ export function createServerAddRouter(
 
   const RCON_CONNECT_FAILED_ERROR =
     'Server saved, but the panel could not establish an authenticated RCON connection';
-  const RCON_CREDENTIAL_STORAGE_ERROR =
-    'Stored RCON credential could not be decrypted; check RCON_SECRET_KEY or saved credential';
 
   type AddServerData = z.infer<typeof AddServerBodySchema>;
   type PersistAndConnectResult = 'connected' | 'connection_failed' | 'maximum_reached';

@@ -8,13 +8,6 @@ export interface AuthUserRow {
   is_admin: number;
 }
 
-export interface SessionUserRow {
-  id: number;
-  username: string;
-  password: string;
-  is_admin: number;
-}
-
 export function createAuthRepository(db: Database.Database) {
   const findByUsernameStmt = db.prepare(
     'SELECT id, username, password, is_admin FROM users WHERE username = ?'
@@ -29,8 +22,8 @@ export function createAuthRepository(db: Database.Database) {
     return findByUsernameStmt.get(username) as AuthUserRow | undefined;
   }
 
-  function findSessionUser(id: number): SessionUserRow | undefined {
-    return findSessionUserStmt.get(id) as SessionUserRow | undefined;
+  function findSessionUser(id: number): AuthUserRow | undefined {
+    return findSessionUserStmt.get(id) as AuthUserRow | undefined;
   }
 
   return { findByUsername, findSessionUser };

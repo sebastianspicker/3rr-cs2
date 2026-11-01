@@ -34,6 +34,13 @@ have() {
   command -v "$1" >/dev/null 2>&1
 }
 
+# The test suites are kept out of the public repository; run them whenever a checkout has them.
+private_tests_present() {
+  [[ -d "$1" ]] && return 0
+  printf 'Private tests not present in %s; skipped\n' "$1"
+  return 1
+}
+
 ALL_SECTIONS=(shared control-plane docker host-updater bootstrap)
 
 usage() {
@@ -302,6 +309,7 @@ run_control_plane() {
 cd /workspace/control-plane
 npm ci
 npm run check
+if [ -d test ]; then NODE_ENV=test node --import tsx --test test/*.test.ts; else echo "Private tests not present in test; skipped"; fi
 node --check ../design-preview/preview.js
 node ../design-preview/verify.mjs'
 
@@ -315,6 +323,9 @@ node ../design-preview/verify.mjs'
     cd "${ROOT}/control-plane"
     run npm ci
     run npm run check
+    if private_tests_present test; then
+      run env NODE_ENV=test node --import tsx --test test/*.test.ts
+    fi
     run node --check "${ROOT}/design-preview/preview.js"
     run node "${ROOT}/design-preview/verify.mjs"
   else
@@ -345,6 +356,12 @@ run_host_updater() {
   log "host updater"
   cd "${ROOT}/host-updater"
   run make ci
+  if private_tests_present tests; then
+    local test_file
+    for test_file in tests/test_*.sh; do
+      run bash "${test_file}"
+    done
+  fi
 }
 
 # The wrapper keeps a hand-written copy of the shipped CFG list; fail when it,
@@ -379,6 +396,13 @@ run_bootstrap() {
     exit 1
   fi
   run server-bootstrap/scripts/bootstrap-admins.sh --force "${tmpdir}/provision"
+  cd "${ROOT}/server-bootstrap"
+  if private_tests_present tests; then
+    local test_file
+    for test_file in tests/*.test.sh; do
+      run bash "${test_file}"
+    done
+  fi
 }
 
 if section_selected shared; then

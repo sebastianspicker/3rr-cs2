@@ -91,7 +91,8 @@ export function initBackups(serverId: string): void {
     }
   });
   on('#restore_round_submit', 'click', () => {
-    const n = parseInt(el<HTMLInputElement>('#restore_round_input')?.value ?? '', 10);
+    // Number, not parseInt: "5.7" or "1e1" must be rejected, not truncated to another round.
+    const n = Number(el<HTMLInputElement>('#restore_round_input')?.value ?? '');
     if (!validRestoreRound(n)) {
       showToast('Invalid round number (1–99)', 'error');
       return;
@@ -289,9 +290,12 @@ export function initLiveStatus(serverId: string): void {
   refreshButton?.addEventListener('click', () => {
     void fetchLiveStatus(true);
   });
-  liveStatusInterval = setInterval(() => {
-    void fetchLiveStatus();
-  }, 30000);
+  // A page opened in a background tab starts polling, with a first fetch, once it is shown.
+  if (!document.hidden) {
+    liveStatusInterval = setInterval(() => {
+      void fetchLiveStatus();
+    }, 30000);
+  }
   window.addEventListener('beforeunload', () => {
     stopped = true;
     resumePending = false;

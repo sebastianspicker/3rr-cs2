@@ -8,7 +8,6 @@ import {
   type RconManager,
   type RconObservationOptions,
 } from '../../../integrations/rcon';
-import type { ServerAccess } from '../../server-access/access';
 import { createServersRepository, type ServerRow } from '../repository';
 
 type ServerListStatus = 'connected' | 'disconnected' | 'unknown' | 'error';
@@ -33,8 +32,7 @@ type HostnameProbeResult =
 export function createServerStatusRoutes(
   db: Database.Database,
   rcon: RconManager,
-  isAuthenticated: RequestHandler,
-  _access: ServerAccess
+  isAuthenticated: RequestHandler
 ): express.Router {
   const router = express.Router();
   const repository = createServersRepository(db);

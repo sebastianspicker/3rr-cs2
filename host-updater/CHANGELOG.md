@@ -58,6 +58,13 @@ paths used by those releases.
   30 GB).
 - `--status` no longer takes the lock. It exits 0 when up to date, 10 when an
   update is available, and another non-zero status on error or unknown build.
+- SteamCMD receives `+force_install_dir` before `+login`, as it requires;
+  the reversed order could install into SteamCMD's default library.
+- A SteamCMD timeout now also stops the binary that `steamcmd.sh` starts
+  (`timeout` without `--foreground` signals the whole process group).
+- A service that is `activating` (for example during a systemd auto-restart)
+  or whose state query times out is started again after the update; only an
+  `inactive` or `failed` service stays stopped.
 - Moved the default lock from `/tmp/3rr-update.lock` to
   `/run/3rr-update.lock`, wrote the lock PID atomically, and recover a lock
   directory that has no PID file and is older than 60 seconds (crash between

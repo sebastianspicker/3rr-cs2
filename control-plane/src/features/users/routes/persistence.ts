@@ -1,14 +1,9 @@
 /** Composes SQLite user persistence with RCON teardown for orphaned servers. */
 import type Database from 'better-sqlite3';
 import type { RconManager } from '../../../integrations/rcon';
-import type { ServerAccess } from '../../server-access/access';
 import { createUsersRepository } from '../repository';
 
-export function createUserPersistence(
-  db: Database.Database,
-  rcon: RconManager,
-  _access: ServerAccess
-) {
+export function createUserPersistence(db: Database.Database, rcon: RconManager) {
   const repository = createUsersRepository(db);
 
   /** Attempts every orphaned-server cleanup and returns only IDs whose RCON teardown failed. */

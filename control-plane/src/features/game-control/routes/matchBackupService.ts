@@ -8,13 +8,15 @@ export interface BackupRestoreResponse {
 }
 
 export async function restoreLatestBackup(
-  { runGameCmd }: ReturnType<typeof createGameRouteFactories>,
+  { runGameCmdSequence }: ReturnType<typeof createGameRouteFactories>,
   serverId: string,
   backup: LatestBackupState
 ): Promise<BackupRestoreResponse> {
   if (backup.backup_state === 'file') {
-    await runGameCmd(serverId, `mp_backup_restore_load_file ${backup.file}`);
-    await runGameCmd(serverId, 'css_matchzy_pause');
+    await runGameCmdSequence(serverId, [
+      `mp_backup_restore_load_file ${backup.file}`,
+      'css_matchzy_pause',
+    ]);
     return {
       status: 200,
       body: {

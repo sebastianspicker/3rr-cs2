@@ -8,7 +8,7 @@ import logger from '../../../infrastructure/logging';
 import { SetupGameBodySchema } from './matchContracts';
 import type { MatchRepository } from './repository';
 import { applySetup, validateSetup } from './matchSetupService';
-import { sendGameRouteError } from './gameCommandExecution';
+import { RconCommandSequenceError, sendGameRouteError } from './gameCommandExecution';
 import { createGameRouteFactories } from './gameRouteFactories';
 import { createRouteRateLimit } from '../../../shared/routeRateLimit';
 
@@ -46,8 +46,20 @@ export function createMatchSetupRoutes(
         '[game] action'
       );
 
-      await applySetup(factories, server_id, setup);
-      repository.updateRequestedSetup(setup.mapName, setup.gameType, setup.gameMode, server_id);
+      const recordRequest = () =>
+        repository.updateRequestedSetup(setup.mapName, setup.gameType, setup.gameMode, server_id);
+      try {
+        await applySetup(factories, server_id, setup);
+      } catch (err) {
+        // Same rule as the client: the request counts unless provably nothing was sent.
+        const nothingSent =
+          err instanceof RconCommandSequenceError &&
+          !err.partial &&
+          err.executionError?.outcome === 'not_sent';
+        if (!nothingSent) recordRequest();
+        throw err;
+      }
+      recordRequest();
 
       return res.status(200).json({
         message: 'Game setup commands sent.',
