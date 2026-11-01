@@ -2,10 +2,24 @@
 
 Browser control and host tooling for self-hosted Counter-Strike 2 (CS2) servers.
 
+<details>
+<summary>Status and limitations</summary>
+
+3RR is an independent experimental project for administering self-hosted CS2 servers.
+Developed independently alongside my main professional work. It is an alpha and remains a work
+in progress; the panel, host tools and deployment examples provide a foundation to review,
+adapt and test for your own installation, rather than a ready-to-use management service.
+
+**Disclaimer.** Use it only with servers you own or are authorized to administer. Commands can
+interrupt players or change server state. You are responsible for deployment, access controls
+and operations; validate on a non-critical server before relying on it for a scheduled match.
+
+</details>
+
 [![CI](https://github.com/sebastianspicker/3rr-cs2/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/sebastianspicker/3rr-cs2/actions/workflows/ci.yml)
 [![Secret scan](https://github.com/sebastianspicker/3rr-cs2/actions/workflows/secret-scan.yml/badge.svg?branch=main)](https://github.com/sebastianspicker/3rr-cs2/actions/workflows/secret-scan.yml)
 
-## In short
+## How the parts fit together
 
 - **What it does.** From a browser you choose one of your CS2 servers, prepare a practice
   session or scrim, manage players, and send RCON commands (RCON is the password-protected
@@ -19,6 +33,17 @@ Browser control and host tooling for self-hosted Counter-Strike 2 (CS2) servers.
   checks.
 - **The core idea.** 3RR never treats "command sent" as "done". It shows what you
   *requested* separately from what the server actually *reports*.
+
+The panel sends commands to an existing game server; the separate Linux tools
+maintain the host installation. The panel reports command delivery separately
+from the server state it observes.
+
+```mermaid
+flowchart LR
+  A[Browser] --> B[Authenticated panel]
+  B -->|RCON commands and status| C[Existing CS2 server]
+  D[Linux host tools] -->|Updates and startup| C
+```
 
 [Try the browser demo](https://sebastianspicker.github.io/3rr-cs2/) ·
 [Install the panel](control-plane/README.md) ·
@@ -95,8 +120,7 @@ cp -n .env.example .env
 chmod 600 .env
 ```
 
-The last command makes the settings file readable only by you. Edit `.env` before you start
-:
+The last command makes the settings file readable only by you. Edit `.env` before you start:
 
 - Set `SESSION_SECRET` (signs login sessions) and `RCON_SECRET_KEY` (the RCON encryption key,
   which encrypts stored RCON passwords) to **two different** random values. Run

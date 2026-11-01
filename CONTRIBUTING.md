@@ -57,6 +57,16 @@ tracked executable file modes match `scripts/executable-files.txt`. If you
 cannot run a required check, include the command and the reason in your pull
 request. A skipped deployment check still needs to pass before release.
 
+## Automation policy
+
+General CI builds automatically only for pull requests authored by
+`dependabot[bot]`; maintainers can dispatch it manually for other branches.
+Ordinary pushes, tags and contributor PRs do not start general builds. CodeQL
+and secret scanning retain automatic security-only checks. Pages verification,
+packaging and deployment are manual only and require the default branch; no
+pull request deploys the demo. Related CodeQL action updates are grouped so
+initialization and analysis use the same release.
+
 ## Opening a pull request
 
 Explain the problem, what your change does, and which modules it affects.

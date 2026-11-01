@@ -187,3 +187,6 @@ development-log*
 /control-plane/scripts/capture-screenshots.mjs
 /host-updater/tests/
 /server-bootstrap/tests/
+
+# Local audit narrative; public limitations remain documented separately.
+/ALPHA_AUDIT_REPORT.md

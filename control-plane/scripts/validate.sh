@@ -98,9 +98,10 @@ if [[ $require_docker -eq 1 ]]; then
   run docker build -t 3rr-control-plane:local "${ROOT}"
 
   if docker compose version >/dev/null 2>&1; then
-    run docker compose -f "${REPOSITORY_ROOT}/deploy/compose/control-plane.compose.yaml" config -q
+    # Syntax validation only: no services start and no operator credential is needed.
+    REDIS_PASSWORD=3rr-validation-placeholder run docker compose -f "${REPOSITORY_ROOT}/deploy/compose/control-plane.compose.yaml" config -q
   elif have docker-compose; then
-    run docker-compose -f "${REPOSITORY_ROOT}/deploy/compose/control-plane.compose.yaml" config -q
+    REDIS_PASSWORD=3rr-validation-placeholder run docker-compose -f "${REPOSITORY_ROOT}/deploy/compose/control-plane.compose.yaml" config -q
   else
     die "docker compose not available (need 'docker compose' plugin or 'docker-compose' binary)"
   fi

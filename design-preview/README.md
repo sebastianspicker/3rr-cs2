@@ -74,7 +74,8 @@ python3 -m http.server 8080 --bind 127.0.0.1 --directory design-preview
 ```
 
 The [Pages workflow](../.github/workflows/pages.yml) verifies source alignment
-and publishes from `main`. Its artifact consists of `index.html`, `panel.css`,
+and publishes only when manually dispatched from the default branch. Neither
+pushes nor pull requests deploy the demo. Its artifact consists of `index.html`, `panel.css`,
 `preview.css`, `preview.js`, `3rr-mark.svg`, `fonts/`
 including licenses, and a `screenshots/` folder copied from
 `docs/screenshots/*.png` for the screenshot tour. No build scripts or

@@ -94,13 +94,19 @@ and creates a clean build. `npm run validate -- --require-docker`
 also checks the deployment configuration. It does not connect to a live CS2
 server over RCON.
 
+Compose syntax validation in `npm run validate -- --require-docker` uses a
+process-local test password and starts no Compose services. Deployment still
+requires your own `REDIS_PASSWORD`; the validator does not supply a runtime
+default or weaken the Compose checks.
+
 Use `npm ci` for local and CI installations so both use the versions in the
 checked-in lockfile. Docker creates its own clean production build.
 
 ## Deployment and safety
 
 Start the supplied control-plane and Redis deployment with the local `.env`
-file created above:
+file created above. Set `REDIS_PASSWORD` there to an independent, URL-safe random
+secret before running Compose:
 
 ```bash
 docker compose --env-file ./.env \

@@ -17,6 +17,9 @@ updates:
       interval: weekly
     open-pull-requests-limit: 5
     groups:
+      codeql:
+        patterns:
+          - "github/codeql-action/*"
       actions-minor-patch:
         update-types:
           - minor

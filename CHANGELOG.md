@@ -4,10 +4,17 @@
 
 ### Changed
 
+- Patched the body-parser, ip-address and qs dependency overrides, and refreshed
+  the compatible lint tooling and pinned Node 26 container patch version.
+- General CI now runs automatically only for Dependabot-authored PRs; other
+  builds and Pages publishing are manually dispatched. Security scanning remains
+  automatic. Compose syntax checks use a process-local test password, while
+  real deployments continue to require an operator-supplied Redis password.
+
 - **Upgrade notes.** The control-plane Compose example now requires
   `REDIS_PASSWORD` (add it to `panel.env`) and caps Redis at 128 MB. The CS2
   runtime example requires `RCON_PASSWORD`. Everyone signs in again once,
-  because sessions now record the password they were opened with.
+  because sessions now record a fingerprint of the stored password hash.
 - Changing a password signs out the user's other sessions. New passwords are
   limited to the 1024 characters login accepts.
 - Setup loads Workshop maps with `host_workshop_map <id>`, and Check result
@@ -47,7 +54,7 @@
   environment settings, SQLite v3 schema, `enc:v1` credential format, RCON
   behavior, updater commands and configuration, or installed updater paths.
 - The control plane now requires Node 26 (`>=26 <27`) and `better-sqlite3`
-  13. The container image is pinned to `node:26.9.0-bookworm-slim` by digest.
+  13. The container image is pinned to `node:26.12.0-bookworm-slim` by digest.
 - RCON code is reached only through `src/integrations/rcon/index.ts`, and its
   SQLite access moved to `src/infrastructure/sqlite`. SQL in the control plane
   now lives only in feature `repository.ts` modules and that directory; the
