@@ -37,9 +37,9 @@
     "express-rate-limit": "^8.7.1",
     "express-session": "^1.19.0",
     "pino": "^10.4.0",
-    "rate-limit-redis": "^6.0.1",
+    "rate-limit-redis": "^6.0.2",
     "rcon-srcds": "^2.1.1",
-    "redis": "^6.3.0",
+    "redis": "^6.3.1",
     "zod": "^4.6.7"
   },
   "devDependencies": {
@@ -51,7 +51,7 @@
     "@types/better-sqlite3": "^9.6.0",
     "@types/express": "^5.0.6",
     "@types/express-session": "^1.19.0",
-    "@types/node": "26.6.5",
+    "@types/node": "26.6.6",
     "esbuild": "^0.28.2",
     "eslint": "^10.13.0",
     "globals": "^17.13.0",
