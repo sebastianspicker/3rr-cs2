@@ -70,15 +70,15 @@ startup and shutdown.
 
 ```mermaid
 flowchart TB
-    Main["src/main.ts\ncomposition root"] --> App["src/app\nassembly, lifecycle, security, health"]
-    Main --> Features["src/features\nHTTP and use-case behavior"]
-    Main --> Infrastructure["src/infrastructure\nSQLite, Redis, logging, credentials"]
-    Main --> Integrations["src/integrations\nRCON network boundary"]
+    Main["src/main.ts<br/>composition root"] --> App["src/app<br/>assembly, lifecycle, security, health"]
+    Main --> Features["src/features<br/>HTTP and use-case behavior"]
+    Main --> Infrastructure["src/infrastructure<br/>SQLite, Redis, logging, credentials"]
+    Main --> Integrations["src/integrations<br/>RCON network boundary"]
 
     App --> Features
     App --> Infrastructure
     App --> Integrations
-    App --> Shared["src/shared\ndependency-leaf utilities"]
+    App --> Shared["src/shared<br/>dependency-leaf utilities"]
     Features --> Infrastructure
     Features --> Integrations
     Features --> Shared
@@ -122,8 +122,12 @@ Where specific responsibilities live:
 
 ## What happens when you press a button
 
+Every button in the panel takes this general path. The next section follows one real button
+through the code.
+
 ```mermaid
 sequenceDiagram
+    autonumber
     participant B as Operator browser
     participant E as Express security and auth
     participant F as Feature route
@@ -167,6 +171,74 @@ sequenceDiagram
   server process, credentials, logging, plugins, or RCON configuration. This block list is
   best-effort, not a security boundary: anyone who can use the console of a server should be
   trusted with that server's RCON password.
+
+## Example: sending a session setup and checking the map
+
+This is the README's main flow (Server → Setup → Check result), traced through the actual
+functions.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as Operator
+    participant ui as manageGameSetup.ts
+    participant api as Express routes
+    participant db as SQLite
+    participant rcon as RconManager
+    participant cs2 as CS2 server
+
+    U->>ui: Click "Send setup"
+    ui->>api: POST /api/setup-game
+    api->>db: Reload user, check server grant
+    api->>api: validateSetup against the map catalog
+    api->>rcon: runGameCmdSequence
+    loop exec cfg, team names, changelevel
+        rcon->>cs2: One command, within the 12 s deadline
+        cs2-->>rcon: Reply
+    end
+    api->>db: UPDATE servers SET last_map, last_game_*
+    api-->>ui: 200 setup_state "requested", observed false
+    ui-->>U: "Commands sent", awaiting observation
+    U->>ui: Click "Check live map"
+    ui->>api: GET /api/status/:id?refresh=1
+    api->>rcon: observeCommand status, hostname, ...
+    rcon->>cs2: status
+    cs2-->>rcon: Map and players
+    api-->>ui: map and observed_at
+    ui-->>U: "Requested map observed" or "not confirmed"
+```
+
+- **Steps 2–4** reject the request before anything reaches the server: an unauthorized
+  server, an unknown game mode, or a map that is not in the catalog for that mode returns 400
+  or 403.
+- **Steps 5–7** send the mode's CFG file (`exec`), the optional team names, and the map
+  change as one sequence. A Workshop map is loaded with `host_workshop_map <id>` instead of
+  `changelevel`. If the sequence fails partway, the error lists the commands that were
+  already applied.
+- **Step 8** records the *requested* setup. It is skipped only when provably nothing was
+  sent; a partial send still counts as requested.
+- **Steps 9–10** say only that commands were sent. The map is confirmed only in **steps
+  11–17**, when a fresh observation reports it. The browser compares the two in
+  `observedMapMatches`. Team names are never confirmed, because the server does not report
+  them.
+
+Where in the code:
+
+- [web/client/manageGameSetup.ts](../control-plane/web/client/manageGameSetup.ts): `submit`
+  posts the form; [web/client/sessionFlow.ts](../control-plane/web/client/sessionFlow.ts)
+  runs the check and compares the maps.
+- [routes/matchSetupRoutes.ts](../control-plane/src/features/game-control/routes/matchSetupRoutes.ts):
+  the `/api/setup-game` handler.
+- [routes/matchSetupService.ts](../control-plane/src/features/game-control/routes/matchSetupService.ts):
+  `validateSetup` and `applySetup` build the command list.
+- [routes/gameCommandExecution.ts](../control-plane/src/features/game-control/routes/gameCommandExecution.ts):
+  `runGameCmdSequence` and the partial-send error.
+- [servers/statusRouter.ts](../control-plane/src/features/servers/statusRouter.ts):
+  `GET /api/status/:server_id`.
+- [rcon/rconLifecycle.ts](../control-plane/src/integrations/rcon/rconLifecycle.ts):
+  `executeCommand` and `observeCommand`, which hand off to
+  [rconScheduler.ts](../control-plane/src/integrations/rcon/rconScheduler.ts) and
+  [rconConnection.ts](../control-plane/src/integrations/rcon/rconConnection.ts).
 
 ## Queueing, timeouts, and cached observations
 
@@ -219,10 +291,72 @@ behaviour. See the [frontend guide](../control-plane/docs/FRONTEND.md).
 ## Where data lives
 
 **SQLite** holds everything the panel must keep: users, administrator flags, the server list,
-access grants, preferences, Workshop favourites, requested setups, and sent-command history.
+access grants, Workshop favourites, requested setups, and sent-command history.
 Database migrations run inside transactions and only move forward, tracked by SQLite's
 `PRAGMA user_version`. Version 3 is current. The panel refuses to start on a database with a
 newer or malformed structure.
+
+The schema after migration 3:
+
+```mermaid
+erDiagram
+    users ||--o{ server_access : "is granted"
+    servers ||--o{ server_access : "grants"
+    users ||--o{ workshop_favorites : saves
+    servers ||--o{ workshop_favorites : "for"
+    users ||--o{ rcon_command_history : sends
+    servers ||--o{ rcon_command_history : receives
+
+    users {
+        int id PK
+        text username "unique"
+        text password "bcrypt hash"
+        int is_admin
+    }
+    servers {
+        int id PK
+        text serverIP "unique with serverPort"
+        int serverPort
+        text rconPassword "enc:v1 when key is set"
+        int owner_id
+        text last_map "requested, not observed"
+        text last_game_type
+        text last_game_mode
+    }
+    server_access {
+        int user_id PK, FK
+        int server_id PK, FK
+    }
+    workshop_favorites {
+        int id PK
+        int user_id FK
+        int server_id FK
+        text workshop_id
+        text name
+    }
+    rcon_command_history {
+        int id PK
+        int user_id FK
+        int server_id FK
+        text command
+        int use_count
+        text last_used_at
+    }
+```
+
+- `server_access` is the per-server grant that every server route checks. Adding a server
+  grants it to the user who added it. Only administrators (`is_admin`) manage users.
+- `last_map`, `last_game_type` and `last_game_mode` store what was **requested** (step 8 in
+  the setup example above), never what the server reported. Observations are not persisted;
+  they live in the five-second in-memory cache.
+- `rcon_command_history` keeps one row per user, server and command and counts repeats. Only
+  commands sent from the console are recorded.
+- Deleting a user or server cascades to its grants, favourites and history.
+
+Where in the code: [sqlite/migrations.ts](../control-plane/src/infrastructure/sqlite/migrations.ts)
+(schema), [sqlite/rconServerStore.ts](../control-plane/src/infrastructure/sqlite/rconServerStore.ts)
+and [sqlite/rconHistoryRepository.ts](../control-plane/src/infrastructure/sqlite/rconHistoryRepository.ts)
+(RCON data), and each feature's `repository.ts`.
 
 **Redis** holds login sessions and shared rate-limit counters in production. The server list
 and users stay in SQLite.
@@ -257,6 +391,101 @@ SQLite, with a 15-second deadline.
 ready. It says nothing about the updater, the CS2 servers, or the deployment as a whole. The
 Compose example defines no health check for the panel; deployment checks call the endpoint
 separately. Details are in the [runbook](../control-plane/docs/RUNBOOK.md#health-checks-and-shutdown).
+
+Where in the code: [src/main.ts](../control-plane/src/main.ts) (startup order),
+[src/app/lifecycle.ts](../control-plane/src/app/lifecycle.ts) (shutdown),
+[src/app/health.ts](../control-plane/src/app/health.ts), and
+[deploy/compose/control-plane.compose.yaml](../deploy/compose/control-plane.compose.yaml).
+
+## What the updater does on each run
+
+The example [3rr-update.timer](../deploy/systemd/3rr-update.timer) starts the updater daily
+at 07:00; you can also run it by hand. Each run goes through these states:
+
+```mermaid
+stateDiagram-v2
+    [*] --> Preflight: timer or manual run
+    Preflight --> [*]: prerequisite missing, exit 1
+    Preflight --> CompareBuilds: config valid, lock taken
+    CompareBuilds --> [*]: up-to-date, exit 0
+    CompareBuilds --> [*]: remote unknown, exit 1
+    CompareBuilds --> CheckSpace: update-required
+    CheckSpace --> [*]: dry run, exit 0
+    CheckSpace --> StopService
+    StopService --> SteamCMDUpdate
+    SteamCMDUpdate --> StartService: this run stopped it
+    SteamCMDUpdate --> VerifyBuild: it was already stopped
+    StartService --> VerifyBuild
+    VerifyBuild --> [*]: buildid matches remote, exit 0
+    VerifyBuild --> [*]: buildid unchanged or wrong, exit 1
+```
+
+- **CompareBuilds** reads the local `buildid` from the Steam app manifest and asks SteamCMD
+  for the remote one. If the remote build cannot be determined, the updater exits **without
+  stopping the server**.
+- With `--status` the run stops after CompareBuilds and exits 0 (up to date), 10 (update
+  available) or 1 (unknown). It does not take the lock.
+- **StartService** runs only if this run stopped the service. A server that was stopped on
+  purpose stays stopped.
+- Every `systemctl` and SteamCMD call has a timeout, and `systemctl` calls are retried.
+
+Where in the code: [host-updater/3rr-update.sh](../host-updater/3rr-update.sh) (main flow, at
+`Main Execution Flow`), [lib/operations.sh](../host-updater/lib/operations.sh)
+(`stop_service`, `run_update`, `read_buildid`, `get_remote_buildid`),
+[lib/locking.sh](../host-updater/lib/locking.sh), and
+[lib/config.sh](../host-updater/lib/config.sh).
+
+## Build, checks, and release
+
+Nothing is deployed automatically. CI checks pull requests, and the demo and releases are
+published by hand.
+
+```mermaid
+flowchart LR
+    pr["Pull request to main"] --> jobs
+    subgraph ci ["ci.yml"]
+        jobs["5 jobs: verify.sh --only section"] --> gate["verify gate"]
+    end
+    pr -.-> scans["codeql.yml, secret-scan.yml"]
+    dispatch["Manual dispatch"] --> demo
+    subgraph pages ["pages.yml"]
+        demo["verify.mjs"] --> stage["Stage demo files"] --> deploy["deploy-pages"]
+    end
+    deploy -->|static files| site[("GitHub Pages demo")]
+    maint["Maintainer"] -->|tag| rel["release-artifacts.sh"]
+    rel -->|"tar.gz, SBOM, SHA256SUMS"| ghrel["GitHub prerelease"]
+```
+
+- **ci.yml** runs the same `scripts/verify.sh` sections you run locally (`shared`,
+  `control-plane`, `docker`, `host-updater`, `bootstrap`) as parallel jobs. The `verify` job
+  passes only when all five pass. CodeQL and the secret scan also run on pushes to `main`.
+- **pages.yml** publishes only the static `design-preview/` demo and the screenshots, and
+  only from the default branch. It never contains panel code that talks to a server.
+- **Releases** follow the [release checklist](RELEASING.md). No container image or npm
+  package is published; users build the image from the source archive.
+
+Where in the code: [.github/workflows/](../.github/workflows/),
+[scripts/verify.sh](../scripts/verify.sh), and
+[scripts/release-artifacts.sh](../scripts/release-artifacts.sh).
+
+## Code map
+
+Read in this order:
+
+| Path | Responsibility |
+| --- | --- |
+| [control-plane/src/main.ts](../control-plane/src/main.ts) | Opens SQLite, creates Redis and RCON services, starts and stops the panel |
+| [control-plane/src/app/](../control-plane/src/app/) | Express assembly: security headers, CSRF, sessions, rate limits, health |
+| [control-plane/src/features/](../control-plane/src/features/) | One folder per area: `auth`, `servers`, `server-access`, `game-control`, `console`, `users`, `workshop`, `game-catalog` |
+| [features/game-control/routes/](../control-plane/src/features/game-control/routes/) | Setup, match, practice, scrim, plugin and backup controls |
+| [control-plane/src/integrations/rcon/](../control-plane/src/integrations/rcon/) | RCON boundary: `index.ts` exports, scheduler, connections, parsers, command policy |
+| [control-plane/src/infrastructure/](../control-plane/src/infrastructure/) | SQLite migrations and stores, Redis, logging, credential encryption |
+| [control-plane/web/](../control-plane/web/) | EJS views, browser TypeScript (`client/`), CSS |
+| [host-updater/](../host-updater/) | Bash updater, its `lib/` and checks |
+| [server-bootstrap/](../server-bootstrap/) | CFG files, `capabilities.json`, admin generator, start wrapper |
+| [deploy/](../deploy/) | Compose and systemd examples |
+| [design-preview/](../design-preview/) | Static GitHub Pages demo built from the panel's templates |
+| [scripts/](../scripts/) | Repository-wide verifier, doc-link check, release artifacts |
 
 ## Changing 3RR safely
 
