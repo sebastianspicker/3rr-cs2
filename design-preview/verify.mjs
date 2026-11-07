@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { existsSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
@@ -193,6 +193,28 @@ if (/(?:^|})\s*\[data-view\]\s*\{/.test(css)) {
   fail("preview.css: an unscoped [data-view] rule would hide the body element");
 }
 
+// The demo ships copies of the panel's fonts; when the panel's packages are installed,
+// the copies must match them byte for byte, or a font bump leaves the demo stale.
+const fontModules = path.join(demoDir, "..", "control-plane", "node_modules");
+for (const file of requiredFiles.filter((f) => f.endsWith(".woff2"))) {
+  const name = path.basename(file);
+  const sources = ["@fontsource", "@fontsource-variable"]
+    .filter((scope) => existsSync(path.join(fontModules, scope)))
+    .flatMap((scope) =>
+      readdirSync(path.join(fontModules, scope)).map((pkg) =>
+        path.join(fontModules, scope, pkg, "files", name),
+      ),
+    )
+    .filter((candidate) => existsSync(candidate));
+  if (
+    sources.length &&
+    !sources.some((source) =>
+      readFileSync(source).equals(readFileSync(path.join(demoDir, file))),
+    )
+  )
+    fail(`${file}: differs from the installed @fontsource copy; recopy it`);
+}
+
 const js = readFileSync(path.join(demoDir, "preview.js"), "utf8");
 for (const pattern of [
   /\bfetch\s*\(/,
@@ -200,11 +222,14 @@ for (const pattern of [
   /\bnavigator\.sendBeacon\b/,
   /\bWebSocket\b/,
   /\bEventSource\b/,
+  /\bnew\s+Image\b/,
+  /\bimport\s*\(/,
 ]) {
   if (pattern.test(js))
     fail(`preview.js: runtime network API is not allowed: ${pattern}`);
 }
-if (/\b(?:https?:)?\/\//i.test(js))
+// Absolute or protocol-relative ("//host/x") URLs; a quote before // rules out comments.
+if (/https?:\/\/|["'`]\/\/[^\s"'`]/i.test(js))
   fail("preview.js: HTTP(S) runtime dependency is not allowed");
 
 if (failures.length) {

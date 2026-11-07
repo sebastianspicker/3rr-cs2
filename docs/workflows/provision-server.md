@@ -12,8 +12,8 @@ Run these commands from the repository root.
 2. Set `RCON_PASSWORD` and the required `CS2_*` values in that local file.
    Also set `CS2_RCON_BIND_ADDRESS` to the private interface address the panel
    uses to reach RCON, and firewall the RCON TCP port (`CS2_PORT`) so only the
-   panel's host can connect. The default, `0.0.0.0`, publishes it on every
-   interface. The image selected by `CS2_IMAGE` must already contain CS2 at
+   panel's host can connect. It is required; Compose refuses to start without
+   it. The image selected by `CS2_IMAGE` must already contain CS2 at
    `CS2_INSTALL_DIR`, or the volume must be pre-populated; otherwise the
    wrapper exits with "CS2 binary not found". The mounted `./bootstrap` files
    have mode `0600` and must be owned by, or readable to, the container's user

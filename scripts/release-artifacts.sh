@@ -50,6 +50,9 @@ if ! git -C "${ROOT}" diff --quiet "${commit}" -- control-plane/package.json con
   exit 1
 fi
 
+# Build the SBOM before creating anything, so a failing npm leaves the output directory empty.
+sbom_json="$(cd "${ROOT}/control-plane" && npm sbom --sbom-format cyclonedx --omit dev)"
+
 mkdir -p -- "${OUT_DIR}"
 # git -C resolves relative paths against ROOT, so pin the directory the caller meant.
 OUT_DIR="$(cd -- "${OUT_DIR}" && pwd)"
@@ -57,7 +60,7 @@ archive="3rr-cs2-${version}.tar.gz"
 sbom="3rr-control-plane-${version}.cdx.json"
 
 git -C "${ROOT}" archive --format=tar.gz --prefix="3rr-cs2-${version}/" -o "${OUT_DIR}/${archive}" "${commit}"
-(cd "${ROOT}/control-plane" && npm sbom --sbom-format cyclonedx --omit dev) >"${OUT_DIR}/${sbom}"
+printf '%s\n' "${sbom_json}" >"${OUT_DIR}/${sbom}"
 
 if command -v sha256sum >/dev/null 2>&1; then
   (cd "${OUT_DIR}" && sha256sum "${archive}" "${sbom}") >"${OUT_DIR}/SHA256SUMS"

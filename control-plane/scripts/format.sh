@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Runs Prettier from the control-plane root so callers get a stable target.
+# Formats the control-plane shell scripts in place with shfmt (npm run format:shell).
 set -euo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"

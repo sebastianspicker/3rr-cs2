@@ -1,0 +1,22 @@
+---
+# Codacy Cloud analysis scope, read from the default branch.
+# Tools and patterns come from the org coding standards ("Default coding standard",
+# "AI Policy") and are locked there; this file only narrows which paths are analysed.
+# Root-level files need their own entry: "**/" does not match the repository root.
+exclude_paths:
+  # Tests: fixture setup and assertions trip fs-path and regex security rules by design.
+  - "**/*.test.*"
+  - "**/*.spec.*"
+  - "**/test/**"
+  - "**/tests/**"
+  - "**/__tests__/**"
+  - "**/fixtures/**"
+  # Assertion script for the Pages demo build (readFileSync/RegExp checks over index.html).
+  - "design-preview/verify.mjs"
+  # CI import-boundary checker (npm run check:architecture), dev tooling with its own test.
+  - "control-plane/scripts/check-architecture.mjs"
+  # Generated lockfile (Lizard file-length noise).
+  - "**/package-lock.json"
+  # Keep a Changelog repeats Added/Changed/Fixed headings by design (markdownlint MD024).
+  - "CHANGELOG.md"
+  - "**/CHANGELOG.md"

@@ -26,11 +26,11 @@ services:
       CS2_CFG_BUNDLE_DIR: /opt/3rr/cfg-assets
     ports:
       - "${CS2_PORT:-27015}:${CS2_PORT:-27015}/udp"
-      # The TCP port carries RCON. The default publishes it on every interface
-      # because the panel must reach it over a non-loopback address; set
-      # CS2_RCON_BIND_ADDRESS to the private interface the panel uses and
-      # firewall the port so only the panel's host can connect.
-      - "${CS2_RCON_BIND_ADDRESS:-0.0.0.0}:${CS2_PORT:-27015}:${CS2_PORT:-27015}/tcp"
+      # The TCP port carries RCON, whose password travels in plain text, and
+      # Docker-published ports bypass host firewall INPUT rules. There is no
+      # default: set CS2_RCON_BIND_ADDRESS to the private interface the panel
+      # uses (0.0.0.0 only if you firewall the port another way).
+      - "${CS2_RCON_BIND_ADDRESS:?Set CS2_RCON_BIND_ADDRESS to the private address the panel uses for RCON}:${CS2_PORT:-27015}:${CS2_PORT:-27015}/tcp"
     volumes:
       - cs2-runtime-data:/home/steam/cs2-dedicated
       - ../../server-bootstrap/scripts/server-start.sh:/opt/3rr/server-start.sh:ro

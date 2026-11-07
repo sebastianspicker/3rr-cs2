@@ -128,6 +128,7 @@ async function loadChoices(
     await maps(e, request, preferredMap);
   } catch {
     if (request !== generation) return;
+    if (includeModes && !e.mode.value) placeholder(e.mode, 'Modes unavailable');
     placeholder(e.map, 'Maps unavailable');
     status('Setup choices could not be loaded. Try again or choose another game type.', true);
   }
@@ -197,7 +198,14 @@ export function initGameSetup(serverId: string): void {
     void submit(serverId, e);
   });
   el('#setup-retry')?.addEventListener('click', () => {
-    if (!sending) void loadChoices(e, true, e.mode.value, e.map.value);
+    // After a failed load the selects hold placeholders; fall back to the requested setup.
+    if (!sending)
+      void loadChoices(
+        e,
+        true,
+        e.mode.value || (e.mode.dataset.requestedMode ?? ''),
+        e.map.value || (e.map.dataset.requestedMap ?? '')
+      );
   });
   void loadChoices(e, true, e.mode.dataset.requestedMode ?? '', e.map.dataset.requestedMap ?? '');
   on('#setMapGroupBtn', 'click', (event) => {

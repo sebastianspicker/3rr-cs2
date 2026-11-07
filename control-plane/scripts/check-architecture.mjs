@@ -1,3 +1,4 @@
+import { realpathSync } from 'node:fs';
 import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -48,6 +49,12 @@ function moduleSpecifiers(file, source) {
       ts.isStringLiteralLike(node.arguments[0])
     ) {
       specifiers.push(node.arguments[0].text);
+    } else if (
+      ts.isImportTypeNode(node) &&
+      ts.isLiteralTypeNode(node.argument) &&
+      ts.isStringLiteralLike(node.argument.literal)
+    ) {
+      specifiers.push(node.argument.literal.text);
     }
     ts.forEachChild(node, visit);
   }
@@ -85,10 +92,14 @@ function sqlStatementViolations(file, relativeFile, source, sourceRoot) {
       const methodName = node.expression.name.text;
       const receiver = node.expression.expression;
       const isBareSqlCall = SQL_STATEMENT_METHODS.has(methodName);
+      // `db.exec`, `this.db.exec`, `deps.database.exec`: judge the receiver by its last name.
+      const receiverName = ts.isIdentifier(receiver)
+        ? receiver.text
+        : ts.isPropertyAccessExpression(receiver)
+          ? receiver.name.text
+          : '';
       const isDatabaseExecCall =
-        methodName === 'exec' &&
-        ts.isIdentifier(receiver) &&
-        (receiver.text === 'db' || receiver.text === 'database');
+        methodName === 'exec' && (receiverName === 'db' || receiverName === 'database');
       if (isBareSqlCall || isDatabaseExecCall) {
         violations.push(
           `${relativeFile}: SQL statements belong only in a repository.ts module or src/infrastructure/sqlite (.${methodName}(...))`
@@ -229,8 +240,9 @@ export async function collectArchitectureViolations({
   return violations;
 }
 
+// realpath: Node resolves symlinks in import.meta.url but not in argv[1].
 const isDirectExecution =
-  process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+  process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url);
 
 if (isDirectExecution) {
   const violations = await collectArchitectureViolations();

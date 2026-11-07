@@ -144,32 +144,71 @@ section_selected() {
 }
 
 PANEL_PROBE_CID=""
+PANEL_PROBE_REDIS_CID=""
+PANEL_PROBE_NETWORK=""
 
 cleanup() {
   # Ensure temporary probes and containers do not survive an interrupted verification run.
   if [[ -n "${PANEL_PROBE_CID}" ]]; then
-    docker rm -f "${PANEL_PROBE_CID}" >/dev/null 2>&1 || true
+    docker rm -f -v "${PANEL_PROBE_CID}" >/dev/null 2>&1 || true
     PANEL_PROBE_CID=""
+  fi
+  if [[ -n "${PANEL_PROBE_REDIS_CID}" ]]; then
+    docker rm -f -v "${PANEL_PROBE_REDIS_CID}" >/dev/null 2>&1 || true
+    PANEL_PROBE_REDIS_CID=""
+  fi
+  if [[ -n "${PANEL_PROBE_NETWORK}" ]]; then
+    docker network rm "${PANEL_PROBE_NETWORK}" >/dev/null 2>&1 || true
+    PANEL_PROBE_NETWORK=""
   fi
   if [[ -n "${tmpdir:-}" ]]; then
     rm -rf "${tmpdir}"
   fi
 }
 
-panel_surface_probe() {
-  local port_line port ok _attempt session_secret rcon_secret
-  session_secret="verify-session-$(date +%s)-strong-value"
-  rcon_secret="$(printf '1%.0s' {1..64})"
+random_hex() {
+  od -An -N32 -tx1 /dev/urandom | tr -d ' \n'
+}
 
-  # This probe verifies the built container can start and serve its public
-  # health endpoint. The host port is allocated dynamically to avoid conflicts
+panel_surface_probe() {
+  local port_line port ok _attempt session_secret rcon_secret redis_password
+  session_secret="verify-$(random_hex)"
+  rcon_secret="$(random_hex)"
+  redis_password="$(random_hex)"
+
+  # This probe verifies the built container starts in production mode (the image's
+  # NODE_ENV) the way Compose runs it: Redis sessions, a read-only root and the DB
+  # in a data volume. The host port is allocated dynamically to avoid conflicts
   # with a local control-plane instance or another verification run.
-  PANEL_PROBE_CID="$(docker run -d \
+  PANEL_PROBE_NETWORK="3rr-verify-$(random_hex | cut -c1-12)"
+  docker network create "${PANEL_PROBE_NETWORK}" >/dev/null
+  PANEL_PROBE_REDIS_CID="$(docker run -d --network "${PANEL_PROBE_NETWORK}" \
+    --network-alias redis \
+    -e REDISCLI_AUTH="${redis_password}" \
+    redis:7.4-alpine redis-server --requirepass "${redis_password}")"
+  ok=0
+  for _attempt in 1 2 3 4 5 6 7 8 9 10; do
+    if docker exec "${PANEL_PROBE_REDIS_CID}" redis-cli ping 2>/dev/null | grep -q PONG; then
+      ok=1
+      break
+    fi
+    sleep 1
+  done
+  if [[ "${ok}" != "1" ]]; then
+    docker logs "${PANEL_PROBE_REDIS_CID}" >&2 || true
+    exit 1
+  fi
+
+  PANEL_PROBE_CID="$(docker run -d --network "${PANEL_PROBE_NETWORK}" \
     -p 127.0.0.1::3000 \
-    -e NODE_ENV=development \
-    -e DB_PATH=/tmp/3rr.db \
+    --read-only \
+    --tmpfs /tmp:noexec,nosuid,size=64m \
+    -v /home/container/data \
+    -e DB_PATH=/home/container/data/3rr.db \
     -e SESSION_SECRET="${session_secret}" \
     -e RCON_SECRET_KEY="${rcon_secret}" \
+    -e REDIS_URL="redis://:${redis_password}@redis:6379" \
+    -e TRUST_PROXY=false \
     3rr-control-plane:local)"
 
   if ! port_line="$(docker port "${PANEL_PROBE_CID}" 3000/tcp)"; then
@@ -191,8 +230,11 @@ panel_surface_probe() {
     exit 1
   fi
 
-  docker rm -f "${PANEL_PROBE_CID}" >/dev/null
+  docker rm -f -v "${PANEL_PROBE_CID}" "${PANEL_PROBE_REDIS_CID}" >/dev/null
   PANEL_PROBE_CID=""
+  PANEL_PROBE_REDIS_CID=""
+  docker network rm "${PANEL_PROBE_NETWORK}" >/dev/null
+  PANEL_PROBE_NETWORK=""
 }
 
 # Checks that every tracked file's index mode and working-tree executable bit
@@ -274,6 +316,12 @@ run_shared() {
     "${ROOT}/server-bootstrap/scripts/bootstrap-admins.sh" \
     "${ROOT}/server-bootstrap/scripts/bootstrap-output.sh" \
     "${ROOT}/server-bootstrap/scripts/server-start.sh"
+  # validate.sh lints these too, but only in the Docker section; --quick must cover them.
+  run shellcheck -x -P "${ROOT}/control-plane/scripts" \
+    "${ROOT}/control-plane/scripts/format.sh" \
+    "${ROOT}/control-plane/scripts/validate.sh" \
+    "${ROOT}/control-plane/scripts/lib/common.sh"
+  run shfmt -d -i 2 -bn -ci "${ROOT}/control-plane/scripts"
   run ruby -ryaml -e "YAML.safe_load(File.read('${ROOT}/deploy/compose/control-plane.compose.yaml'), aliases: false, filename: '${ROOT}/deploy/compose/control-plane.compose.yaml')" >/dev/null
   run ruby -ryaml -e "YAML.safe_load(File.read('${ROOT}/deploy/compose/server-runtime.compose.yaml'), aliases: false, filename: '${ROOT}/deploy/compose/server-runtime.compose.yaml')" >/dev/null
   run bash "${ROOT}/scripts/check-deployment-contract.sh"
@@ -291,7 +339,7 @@ run_shared() {
   grep -Fq "REDIS_URL: \${REDIS_URL:-redis://:\${REDIS_PASSWORD:?Set REDIS_PASSWORD}@redis:6379}" "${ROOT}/deploy/compose/control-plane.compose.yaml"
   grep -Fq "\"\${PANEL_BIND_ADDRESS:-127.0.0.1}:3000:3000\"" "${ROOT}/deploy/compose/control-plane.compose.yaml"
   grep -Fq "\"\${CS2_PORT:-27015}:\${CS2_PORT:-27015}/udp\"" "${ROOT}/deploy/compose/server-runtime.compose.yaml"
-  grep -Fq "\"\${CS2_RCON_BIND_ADDRESS:-0.0.0.0}:\${CS2_PORT:-27015}:\${CS2_PORT:-27015}/tcp\"" "${ROOT}/deploy/compose/server-runtime.compose.yaml"
+  grep -Fq "\"\${CS2_RCON_BIND_ADDRESS:?Set CS2_RCON_BIND_ADDRESS to the private address the panel uses for RCON}:\${CS2_PORT:-27015}:\${CS2_PORT:-27015}/tcp\"" "${ROOT}/deploy/compose/server-runtime.compose.yaml"
   run jq . "${ROOT}/control-plane/package.json" >/dev/null
   run jq . "${ROOT}/control-plane/package-lock.json" >/dev/null
   run jq . "${ROOT}/control-plane/src/features/game-catalog/maps.json" >/dev/null

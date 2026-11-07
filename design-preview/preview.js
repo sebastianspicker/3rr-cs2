@@ -118,8 +118,10 @@ function selectServer(id) {
     show(id, true),
   );
   show("selected-server-warning", selected.players > 0);
+  removedPlayers = new Set();
   renderServers();
-  byId(`server-choice-${selected.id}`).focus();
+  // The rail stays clickable while a filter hides this server's card.
+  byId(`server-choice-${selected.id}`)?.focus();
 }
 function setTab(tab) {
   for (const button of document.querySelectorAll("[data-manage-tab]")) {
@@ -405,7 +407,10 @@ function renderPlayers() {
     "players-updated",
     "Simulated player observation · Refresh restores the fixture",
   );
-  text("manage-tab-player-count", selected?.players || 0);
+  text(
+    "manage-tab-player-count",
+    Math.max(0, (selected?.players || 0) - removedPlayers.size),
+  );
 }
 byId("playerSearch").oninput = renderPlayers;
 byId("refresh_players").onclick = () => {

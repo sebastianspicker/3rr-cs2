@@ -19,7 +19,7 @@ import {
 } from './manageShared';
 import { setSessionRefresh } from './sessionFlow';
 import { renderLiveStatus } from './manageLiveStatusView';
-import { validRestoreRound } from './manageWorkshopHelpers';
+import { restoreRoundFromInput } from './manageWorkshopHelpers';
 import {
   handleFavoriteAction,
   loadWorkshopMap,
@@ -91,9 +91,8 @@ export function initBackups(serverId: string): void {
     }
   });
   on('#restore_round_submit', 'click', () => {
-    // Number, not parseInt: "5.7" or "1e1" must be rejected, not truncated to another round.
-    const n = Number(el<HTMLInputElement>('#restore_round_input')?.value ?? '');
-    if (!validRestoreRound(n)) {
+    const n = restoreRoundFromInput(el<HTMLInputElement>('#restore_round_input')?.value ?? '');
+    if (n === null) {
       showToast('Invalid round number (1–99)', 'error');
       return;
     }
@@ -239,17 +238,21 @@ export function initLiveStatus(serverId: string): void {
   let liveStatusGeneration = 0;
   let stopped = false;
   let inFlight: Promise<LiveStatusResponse | undefined> | undefined;
+  let inFlightIsRefresh = false;
   let resumePending = false;
 
   function fetchLiveStatus(refresh = false): Promise<LiveStatusResponse | undefined> {
     if (document.hidden || stopped) return Promise.resolve(undefined);
     if (!inFlight) return startLiveStatusLoad(refresh);
+    // A poll may answer from the server's cache; an explicit refresh must reach the server.
+    if (refresh && !inFlightIsRefresh) return inFlight.then(() => fetchLiveStatus(true));
     return inFlight;
   }
 
   function startLiveStatusLoad(refresh: boolean): Promise<LiveStatusResponse | undefined> {
     const promise = loadLiveStatus(refresh);
     inFlight = promise;
+    inFlightIsRefresh = refresh;
     void promise.finally(() => {
       if (inFlight === promise) inFlight = undefined;
       if (resumePending && !document.hidden && !stopped) {
@@ -281,9 +284,14 @@ export function initLiveStatus(serverId: string): void {
   }
 
   setSessionRefresh(async () => {
-    // A pre-mutation observation must finish before the explicit post-setup read.
-    while (inFlight) await inFlight;
-    return fetchLiveStatus(true);
+    // A tab hide discards the read in flight; read once more if the tab is visible again.
+    for (let attempt = 0; attempt < 2; attempt++) {
+      // A pre-mutation observation must finish before the explicit post-setup read.
+      while (inFlight) await inFlight;
+      const data = await fetchLiveStatus(true);
+      if (data || document.hidden) return data;
+    }
+    return undefined;
   });
   void fetchLiveStatus();
   const refreshButton = el<HTMLButtonElement>('#refresh_status');

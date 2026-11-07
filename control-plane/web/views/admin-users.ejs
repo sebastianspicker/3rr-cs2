@@ -237,8 +237,9 @@
                 });
                 var d = r.body;
                 if (r.ok) {
-                  setStatus(status, 'User deleted.', 'success');
+                  // loadUsers hides this status element, so report after it.
                   await loadUsers();
+                  setStatus(status, 'User deleted.', 'success');
                 } else if (d.user_deleted === true) {
                   // The user is gone but a follow-up step failed; refresh the list and say why.
                   await loadUsers();

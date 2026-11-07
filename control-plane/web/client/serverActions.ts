@@ -41,7 +41,11 @@ export async function handleServerAction(event: Event): Promise<void> {
       .then(() => refreshServersAfterMutation())
       .catch((error: unknown) => {
         // The row can be gone even when RCON cleanup failed; show the list as it is now.
-        if (error instanceof ApiError && error.details.server_deleted === true) {
+        // 404: another tab or operator removed it already.
+        if (
+          error instanceof ApiError &&
+          (error.details.server_deleted === true || error.status === 404)
+        ) {
           void refreshServersAfterMutation();
         }
         toastError('Delete failed.')(error);

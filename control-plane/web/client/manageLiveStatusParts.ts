@@ -2,7 +2,8 @@
 import { formatObserved, type LiveStatusResponse } from './manageShared';
 
 export function displayLiveText(value: string | null): string {
-  return value ?? '–';
+  // An empty reply (e.g. hostname '') is shown like a missing one.
+  return value || '–';
 }
 
 export function displayLiveNumber(value: number | null): string {

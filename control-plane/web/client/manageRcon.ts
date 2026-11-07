@@ -38,8 +38,11 @@ export function initRconControls(serverId: string): void {
   let suggestTimer: ReturnType<typeof setTimeout> | undefined;
   const recall = createCommandRecall();
   const suggestGate = createSuggestGate();
+  // Bumped by each lookup and by a sent command, so a late reply cannot reopen the list.
+  let suggestSeq = 0;
 
   async function loadSuggestions(refresh = false): Promise<void> {
+    const seq = ++suggestSeq;
     const q = autocompleteQuery(rconInput);
     if (!refresh && q.length < 2) {
       renderSuggestions(suggestionsBox, []);
@@ -52,6 +55,7 @@ export function initRconControls(serverId: string): void {
       const data = await fetchJson<AutocompleteResponse>(
         `/api/rcon/autocomplete/${serverId}?${params.toString()}`
       );
+      if (seq !== suggestSeq) return;
       renderSuggestions(suggestionsBox, data.suggestions);
       if (data.error) {
         if (suggestGate.onFailure(undefined, Date.now()) || refresh)
@@ -60,6 +64,7 @@ export function initRconControls(serverId: string): void {
         suggestGate.onSuccess();
       }
     } catch (err) {
+      if (seq !== suggestSeq) return;
       renderSuggestions(suggestionsBox, []);
       const status = err instanceof ApiError ? err.status : undefined;
       if (suggestGate.onFailure(status, Date.now()) || refresh)
@@ -138,7 +143,7 @@ export function initRconControls(serverId: string): void {
     sendPostRequest('/api/say-admin', { server_id: serverId, message: msg })
       .then((d) => {
         showToast(d.message, 'success');
-        if (input) input.value = '';
+        if (input && input.value.trim() === msg) input.value = '';
       })
       .catch(toastError('Failed to send message.'))
       .finally(() => {
@@ -169,6 +174,7 @@ export function initRconControls(serverId: string): void {
         .then((d: RconCommandResponse) => {
           recall.remember(cmd);
           if (rconInput && rconInput.value.trim() === cmd) rconInput.value = '';
+          suggestSeq++;
           renderSuggestions(suggestionsBox, []);
           renderRconCommandResult(cmd, d);
           void loadHistory();

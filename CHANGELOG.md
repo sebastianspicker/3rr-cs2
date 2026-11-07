@@ -11,7 +11,10 @@
   automatic. Compose syntax checks use a process-local test password, while
   real deployments continue to require an operator-supplied Redis password.
 
-- **Upgrade notes.** The control-plane Compose example now requires
+- **Upgrade notes.** The CS2 runtime Compose example no longer publishes RCON
+  on `0.0.0.0` by default: set `CS2_RCON_BIND_ADDRESS` (in `server.env`) to the
+  private address the panel uses, or `0.0.0.0` to keep the old behaviour.
+  The control-plane Compose example now requires
   `REDIS_PASSWORD` (add it to `panel.env`) and caps Redis at 128 MB. The CS2
   runtime example requires `RCON_PASSWORD`. Everyone signs in again once,
   because sessions now record a fingerprint of the stored password hash.
@@ -78,6 +81,22 @@
 
 ### Fixed
 
+- Restore-round accepts only plain digits (`1e1` no longer restores round 10).
+- The startup wrapper resolves a relative `CS2_CFG_BUNDLE_DIR` (the example's
+  `./assets/cfg` produced broken cfg links) and rejects `CS2_PORT` or
+  `CS2_MAXPLAYERS` values with leading zeros or more than five digits.
+- Console and live status: text typed while an admin message is in flight is
+  kept, late autocomplete replies no longer reopen the list, Refresh during a
+  poll sends a real refresh, Check live map survives a tab switch, and an empty
+  hostname shows as "–".
+- Deleting a server another operator already removed refreshes the list; a
+  failed mode load says so and Retry keeps the requested setup; "User deleted."
+  stays visible.
+- `release-artifacts.sh` writes nothing when `npm sbom` fails.
+- Local checks: the architecture check also runs through a symlinked path and
+  catches `import('…')` types and `this.db.exec`; `verify.sh --quick` lints the
+  control-plane shell scripts; the Pages demo guard catches protocol-relative
+  URLs and stale font copies.
 - Login and logout enforce CSRF for any path case or trailing slash.
 - The console block list also catches quoted, `+`/`-`-prefixed and
   tokenizer-shortened verbs, and covers more RCON, logging, plugin and `exec`

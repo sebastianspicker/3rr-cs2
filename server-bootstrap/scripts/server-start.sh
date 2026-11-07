@@ -34,7 +34,8 @@ require_integer_in_range() {
   min="$3"
   max="$4"
 
-  if [[ ! "$value" =~ ^[0-9]+$ ]] || ((value < min || value > max)); then
+  # Plain decimal, at most 5 digits: "08" is octal to bash, and huge values wrap around.
+  if [[ ! "$value" =~ ^[1-9][0-9]{0,4}$ ]] || ((value < min || value > max)); then
     printf '%s must be an integer between %s and %s\n' "$name" "$min" "$max" >&2
     exit 1
   fi
@@ -84,6 +85,8 @@ install_shipped_cfg_bundle() {
     printf 'Shipped CFG bundle directory not found: %s\n' "${bundle_dir}" >&2
     exit 1
   fi
+  # A relative link target would resolve against the cfg directory, not here.
+  bundle_dir="$(cd -- "${bundle_dir}" && pwd -P)"
 
   for cfg_path in "${shipped_cfg_paths[@]}"; do
     source_path="${bundle_dir}/${cfg_path}"

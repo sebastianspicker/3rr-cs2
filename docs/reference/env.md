@@ -79,7 +79,7 @@ commands are never retried automatically.
 | `CS2_HOSTNAME`          | No       | Wrapper: unset           | Server hostname; Compose example uses `Example CS2 Server`                  |
 | `CS2_MAP`               | No       | `de_dust2`               | Initial map                                                                 |
 | `CS2_PORT`              | No       | `27015`                  | TCP and UDP port, 1 through 65535                                           |
-| `CS2_RCON_BIND_ADDRESS` | No       | `0.0.0.0`                | Compose only: host address for the published RCON TCP port (not UDP)        |
+| `CS2_RCON_BIND_ADDRESS` | Yes      | none                     | Compose only: host address for the published RCON TCP port (not UDP)        |
 | `CS2_MAXPLAYERS`        | No       | `16`                     | Player limit, 1 through 64                                                  |
 | `CS2_GSLT`              | No       | Empty                    | Game Server Login Token                                                     |
 | `CS2_CFG_FILE`          | No       | `server.cfg`             | CFG executed before the secret CFG                                          |
@@ -101,10 +101,12 @@ read by the startup wrapper. The image must already contain CS2 at
 with "CS2 binary not found". The mounted `./bootstrap` files have mode `0600`,
 so they must be owned by, or otherwise readable to, the container's user ID.
 
-The default publishes the RCON TCP port on every host interface, because the
-panel must reach it over a non-loopback address; `127.0.0.1` would break the
-panel. Set `CS2_RCON_BIND_ADDRESS` to the private interface address the panel
-uses, and firewall the port so only the panel's host can connect.
+The Compose example has no default for the RCON TCP bind address: RCON sends
+its password in plain text, and Docker-published ports bypass host firewall
+INPUT rules. Set `CS2_RCON_BIND_ADDRESS` to the private interface address the
+panel uses (`127.0.0.1` only works when the panel runs on the same host and
+reaches the server over loopback), and firewall the port so only the panel's
+host can connect. Use `0.0.0.0` only when another firewall restricts the port.
 
 ## Host updater
 
